@@ -1,0 +1,81 @@
+{{- /* Scientific Article Card stores its metadata as YAML inside a paper fence. */ -}}
+{{- $data := dict -}}
+{{- with try (transform.Unmarshal (dict "format" "yaml") .Inner) -}}
+  {{- if not .Err -}}
+    {{- if reflect.IsMap .Value -}}{{- $data = .Value -}}{{- end -}}
+  {{- end -}}
+{{- end -}}
+{{- if and $data (or $data.title $data.url) -}}
+  {{- $title := or $data.title $data.url -}}
+  {{- $authors := $data.authors -}}
+  {{- if reflect.IsSlice $authors -}}{{- $authors = delimit $authors ", " -}}{{- end -}}
+  {{- $volume := printf "%v" (or $data.volume "") -}}
+  {{- with $data.issue -}}{{- $volume = printf "%s(%v)" $volume . -}}{{- end -}}
+  {{- with $data.pages -}}{{- $volume = printf "%s%s%v" $volume (cond (ne $volume "") ":" "") . -}}{{- end -}}
+  {{- $citation := slice -}}
+  {{- with $data.journal -}}{{- $citation = $citation | append (printf "%v" .) -}}{{- end -}}
+  {{- with $data.year -}}{{- $citation = $citation | append (printf "%v" .) -}}{{- end -}}
+  {{- with $volume -}}{{- $citation = $citation | append . -}}{{- end -}}
+<article class="paper-card" aria-label="{{ $title }}">
+  <div class="paper-card__main">
+    {{- with $data.image }}
+    <img class="paper-card__image" src="{{ . }}" alt="" loading="lazy" referrerpolicy="no-referrer">
+    {{- end }}
+    <div class="paper-card__body">
+      {{- if or $data.host $data.type }}
+      <div class="paper-card__source">
+        {{- with $data.favicon }}<img class="paper-card__favicon" src="{{ . }}" alt="" loading="lazy">{{ end }}
+        {{- with $data.host }}<span>{{ . }}</span>{{ end }}
+        {{- with $data.type }}<span class="paper-card__badge">{{ . }}</span>{{ end }}
+      </div>
+      {{- end }}
+      <p class="paper-card__title">{{ with $data.url }}<a href="{{ . }}">{{ $title }}</a>{{ else }}{{ $title }}{{ end }}</p>
+      {{- with $authors }}<p class="paper-card__authors">{{ . }}</p>{{ end }}
+      {{- with $citation }}<p class="paper-card__citation">{{ delimit . " · " }}</p>{{ end }}
+      {{- if or $data.doi $data.pmid $data.pmcid $data.arxiv }}
+      <div class="paper-card__ids">
+        {{- with $data.doi }}<a href="https://doi.org/{{ . }}">DOI: {{ . }}</a>{{ end }}
+        {{- with $data.pmid }}<a href="https://pubmed.ncbi.nlm.nih.gov/{{ . }}/">PMID: {{ . }}</a>{{ end }}
+        {{- with $data.pmcid }}<a href="https://pmc.ncbi.nlm.nih.gov/articles/{{ . }}/">PMC: {{ . }}</a>{{ end }}
+        {{- with $data.arxiv }}<a href="https://arxiv.org/abs/{{ . }}">arXiv: {{ . }}</a>{{ end }}
+      </div>
+      {{- end }}
+    </div>
+  </div>
+  {{- with $data.keywords }}
+    {{- $keywords := . -}}
+    {{- if not (reflect.IsSlice $keywords) -}}{{- $keywords = split (printf "%v" .) ";" -}}{{- end }}
+  <div class="paper-card__keywords" aria-label="Keywords">
+    {{- range $keywords }}{{ with strings.TrimSpace (printf "%v" .) }}<span class="paper-card__badge">{{ . }}</span>{{ end }}{{ end }}
+  </div>
+  {{- end }}
+  {{- if or $data.status $data.rating $data.tags $data.note }}
+  <div class="paper-card__notes">
+    <div class="paper-card__labels">
+      {{- with $data.status }}<span class="paper-card__badge">{{ index (dict "to-read" "To read" "reading" "Reading" "read" "Read") (printf "%v" .) | default . }}</span>{{ end }}
+      {{- with $data.rating }}
+        {{- if findRE `^[0-9]+$` (printf "%v" .) }}
+          {{- $rating := math.Min 5 (int .) | int }}
+          {{- if gt $rating 0 }}<span class="paper-card__rating" aria-label="Rating: {{ $rating }} / 5">{{ strings.Repeat $rating "★" }}{{ strings.Repeat (sub 5 $rating) "☆" }}</span>{{ end }}
+        {{- end }}
+      {{- end }}
+      {{- with $data.tags }}
+        {{- $tags := . -}}
+        {{- if not (reflect.IsSlice $tags) -}}{{- $tags = split (replaceRE `[,\s]+` " " (printf "%v" .)) " " -}}{{- end }}
+        {{- range $tags }}{{ with strings.TrimPrefix "#" (strings.TrimSpace (printf "%v" .)) }}<span class="paper-card__badge">#{{ . }}</span>{{ end }}{{ end }}
+      {{- end }}
+    </div>
+    {{- with $data.note }}<p class="paper-card__note">{{ . }}</p>{{ end }}
+  </div>
+  {{- end }}
+  {{- with $data.abstract }}
+  <details class="paper-card__abstract">
+    <summary>Abstract</summary>
+    <p>{{ . }}</p>
+  </details>
+  {{- end }}
+</article>
+{{- else -}}
+  {{- warnf "Invalid paper card at %s: expected YAML metadata with a title or url; displaying source" .Position -}}
+<pre tabindex="0"><code class="language-paper" data-lang="paper">{{ .Inner }}</code></pre>
+{{- end -}}

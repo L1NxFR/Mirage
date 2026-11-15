@@ -1,0 +1,30 @@
+.timeline { --timeline-muted: var(--text-muted); --timeline-border: var(--background-modifier-border); }
+.timeline .timeline__title { color: var(--text-normal); }
+.timeline-frame { position: relative; }
+.timeline-frame > .timeline { margin: 16px 0; }
+.timeline-edit-button { position: absolute; right: 0; top: -4px; opacity: 0; }
+.timeline-frame:hover > .timeline-edit-button, .timeline-edit-button:focus-visible { opacity: 1; }
+.timeline-editor-modal { width: min(960px, 94vw); }
+.timeline-editor-grid { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 24px; }
+.timeline-editor-form { max-height: 65vh; overflow-y: auto; padding-right: 4px; }
+.timeline-editor-field { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+.timeline-editor-field > input[type="number"] { width: 100px; }
+.timeline-editor-steps { display: flex; flex-direction: column; gap: 12px; margin-bottom: 12px; }
+.timeline-editor-modal .timeline-step-field { margin: 0; padding: 12px; background: var(--background-primary); border: 1px solid var(--background-modifier-border); border-radius: 8px; font-size: var(--font-ui-small); }
+.timeline-step-row { display: grid; grid-template-columns: 88px minmax(0, 1fr) 28px; gap: 8px; align-items: center; }
+.timeline-step-row > input { width: 100%; }
+.timeline-step-row > button { padding: 4px; }
+.timeline-step-options { margin-top: 8px; }
+.timeline-step-options > summary { cursor: pointer; color: var(--text-muted); }
+.timeline-step-options > textarea { width: 100%; resize: vertical; margin-top: 8px; }
+.timeline-editor-open { display: flex; align-items: center; gap: 8px; margin-top: 8px; color: var(--text-muted); }
+.timeline-editor-preview-pane { min-width: 0; border-left: 1px solid var(--background-modifier-border); padding-left: 24px; }
+.timeline-editor-preview-label { color: var(--text-muted); font-size: var(--font-ui-small); }
+.timeline-editor-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; }
+.timeline-editor-form > button { margin-bottom: 16px; }
+.timeline-input-error { color: var(--text-error); font-size: var(--font-ui-small); }
+@media (max-width: 650px) {
+  .timeline-editor-grid { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  .timeline-editor-form { max-height: 40vh; }
+  .timeline-editor-preview-pane { border-left: 0; border-top: 1px solid var(--background-modifier-border); padding: 16px 0 0; }
+}

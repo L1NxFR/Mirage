@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+{{ partial "html_open.html" . }}
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    {{ if eq .RelPermalink "/" }}
+    <title>{{ .Site.Title }}</title>
+    <meta property="og:title" content="{{ .Site.Title }}">
+    <meta property="og:type" content="website">
+    {{ else }}
+    <title>{{ .Title }}{{ with .Params.subtitle }} - {{ . }} {{ end }} - {{ .Site.Title }}</title>
+    <meta property="og:title" content="{{ .Title }} - {{ .Site.Title }}">
+    {{ end }}
+    {{ if eq .RelPermalink "/" }}
+    <meta name="description" content="{{ .Site.Params.description }}">
+    {{ else }}
+      {{ with (trim (partial "summary.html" .) "\n ") }}
+      <meta name="description" content="{{- . -}}">
+      {{ end }}
+    {{ end }}
+
+    {{ with .Keywords }}
+    <meta property="keywords" content ="{{ delimit . ", " }}">
+    {{ end }}
+
+    {{ with .OutputFormats.Get "RSS" }}
+    <link href="{{ .RelPermalink }}" rel="alternate" type="application/rss+xml" title="{{ $.Site.Title }}">
+    {{ end }}
+
+    {{ range (slice "style" "fonts" "custom") }}
+    <link rel="stylesheet" href="{{ printf "css/%s.css" . | relURL }}{{ if in (slice "custom" "fonts") . }}?v={{ readFile (printf "static/css/%s.css" .) | sha256 }}{{ end }}">
+    {{ end }}
+    {{ partial "head_custom.html" . }}
+  </head>
+
+  {{ $section := (replaceRE "^/([^/]+)/.*" "$1" .RelPermalink) }}
+  {{ if eq $section "/" }}{{ $section = "" }}{{ end }}
+  {{ $.Scratch.Set "section" $section }}
+  
+  {{ $isDocument := or .IsPage .IsHome }}
+  {{ $class := complement (slice nil "") (slice "site-page" (cond (or .IsHome (partial "is-journal.html" .)) "blog" "") (cond .IsPage "single" "") (cond $isDocument "document-page" "") (cond (and $isDocument (not .Params.paper_source)) "reading-page" "") $section .Params.page_class (cond .IsHome "" ($.Scratch.Get "lang")) ) }}
+  {{ if len $class }}<body class="{{ delimit (uniq $class) " " }}">{{ else }}<body>{{ end }}
+    <div class="crop-h"></div><div class="crop-v"></div><div class="crop-c"></div>
+    <nav class="nav-top site-header" aria-label="Main navigation">
+    <div class="logo">
+    {{ with default .Site.Params.logo.en (index .Site.Params.logo $section) }}
+      <a href="{{ relURL .url }}">
+      {{ if .img }}
+      <img src="{{ relURL .img }}" alt="{{ .alt }}" />
+      {{ else }}
+      <span class="site-title">{{ $.Site.Title }}</span> {{ with $.Site.Params.author.default }}<span class="site-byline">by {{ . }}</span>{{ end }}
+      {{ end }}
+      </a>
+    {{ end }}
+    </div>
+    <div class="menu">
+      {{- $active := "" -}}
+      {{- $menu := (default .Site.Menus.main (index .Site.Menus $section)) -}}
+      {{- range $menu -}}
+      {{- $sectionMatch := and $.IsPage $.Section (eq (relURL .URL) (relURL (print $.Section "/"))) -}}
+      {{- if and (or (hasPrefix $.Page.RelPermalink (relURL .URL)) $sectionMatch) (gt (len .URL) (len $active)) -}}
+      {{- $active = .URL -}}
+      {{- end -}}
+      {{- end -}}
+      {{ range $menu }}
+      {{- $mclass := or .Params.class slice -}}
+      {{- if eq $active .URL -}}
+      {{- $mclass = append (slice "active") $mclass -}}
+      {{- end -}}
+      {{- $mclass = delimit $mclass " " -}}
+      <span{{ with $mclass }} class="{{ . }}"{{ end }}><a href="{{ relURL .URL }}"{{ if eq .Name "Search" }} data-search-open aria-haspopup="dialog" aria-label="Search" title="Search (⌘K / Ctrl+K)"{{ end }}{{ if eq $active .URL }} aria-current="page"{{ end }}>{{ if eq .Name "Search" }}{{ partial "tool-icon.html" "search" }}<span class="visually-hidden">Search</span>{{ else }}{{ .Name }}{{ end }}</a></span>
+      {{ end }}
+    </div>
+    </nav>

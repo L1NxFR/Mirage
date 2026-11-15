@@ -1,0 +1,121 @@
+[
+  {
+    "file": "Optimistic_Display_W_Bd.woff2",
+    "sha256": "3d871b7ae91fc21d06a37410cda737d25a9ef079364108b1618d1b34e432ae06",
+    "weight": 700,
+    "italic": false,
+    "unicodeCharacters": 372
+  },
+  {
+    "file": "Optimistic_Display_W_BdIt.woff2",
+    "sha256": "d6be19e18d31bcf7d23796ea065b847345335e4b652039ab997fd49dd0c94554",
+    "weight": 700,
+    "italic": true,
+    "unicodeCharacters": 372
+  },
+  {
+    "file": "Optimistic_Display_W_Lt.woff2",
+    "sha256": "eb164ccdeb1b595ea14d0ea9a2d6fb3e9f5e4ce704fd4d7f0da0b85ab7d62e0e",
+    "weight": 300,
+    "italic": false,
+    "unicodeCharacters": 372
+  },
+  {
+    "file": "Optimistic_Display_W_Md.woff2",
+    "sha256": "335c9d533de28d205ef071d85c8950c0eff5e2301d4a0f970883daad43bd7fe8",
+    "weight": 500,
+    "italic": false,
+    "unicodeCharacters": 372
+  },
+  {
+    "file": "Optimistic_Display_W_MdIt.woff2",
+    "sha256": "b510fe8a29ef522ed40180ea83fd2f2e2539fc1d19321fd3b7c3453f16153195",
+    "weight": 500,
+    "italic": true,
+    "unicodeCharacters": 372
+  },
+  {
+    "file": "Optimistic_Display_W_SBd.woff2",
+    "sha256": "b59f10bb1099f5ae0bc01feeeea866a165fcff6884ec7f23ba3e093624241a2e",
+    "weight": 600,
+    "italic": false,
+    "unicodeCharacters": 372
+  },
+  {
+    "file": "Optimistic_Display_W_SBdIt.woff2",
+    "sha256": "e0830a123c83eb0b2e61b7e23e385822d35f1e130c437ebaa1142b497564a486",
+    "weight": 600,
+    "italic": true,
+    "unicodeCharacters": 372
+  },
+  {
+    "file": "Optimistic_Display_W_XBd.woff2",
+    "sha256": "91fd1df21a5528089a34cd69b0c2241199fc2e8fb44a5ce8edfc3cc0cfe30d20",
+    "weight": 800,
+    "italic": false,
+    "unicodeCharacters": 372
+  },
+  {
+    "file": "Optimistic_Display_W_XLt.woff2",
+    "sha256": "b7a77ff1c0399c7ea886dfc5aeb1ff074c1fefc7fca6c63f412a8b4c241eea55",
+    "weight": 200,
+    "italic": false,
+    "unicodeCharacters": 372
+  },
+  {
+    "file": "Optimistic_Text_W_Bd.woff2",
+    "sha256": "559c4ddcfdefa492d1fb900756ae408859355cb17e6c29d9928ba79235c05027",
+    "weight": 700,
+    "italic": false,
+    "unicodeCharacters": 368
+  },
+  {
+    "file": "Optimistic_Text_W_BdIt.woff2",
+    "sha256": "72350a2c90d1b1ba96f77388e5b3af348b048d20849d1b1ccbdd16533678c710",
+    "weight": 700,
+    "italic": true,
+    "unicodeCharacters": 369
+  },
+  {
+    "file": "Optimistic_Text_W_It.woff2",
+    "sha256": "e06ec368e3c0ce630a153d1151138fe8ad41dbdc322a06daaa14b64ff52c7b27",
+    "weight": 400,
+    "italic": true,
+    "unicodeCharacters": 369
+  },
+  {
+    "file": "Optimistic_Text_W_Md.woff2",
+    "sha256": "38e55fa471a89bdf7b9829cf03424d13252f381a9ff672da0feab3a611151f19",
+    "weight": 500,
+    "italic": false,
+    "unicodeCharacters": 368
+  },
+  {
+    "file": "Optimistic_Text_W_MdIt.woff2",
+    "sha256": "74565b2d610fb29e73df2d87868ebff9e13dabb5f9cb8435f650f80b7f5597ee",
+    "weight": 500,
+    "italic": true,
+    "unicodeCharacters": 369
+  },
+  {
+    "file": "Optimistic_Text_W_Rg.woff2",
+    "sha256": "916eeb8b981099e4bd15357415eb668d0ce87c471fc8d0a9c6020325521982ca",
+    "weight": 400,
+    "italic": false,
+    "unicodeCharacters": 368
+  },
+  {
+    "file": "Optimistic_Text_W_XBd.woff2",
+    "sha256": "2d7b106e778540355341a0d7840034321ed2985ca06b8e917a8421ac879b67f8",
+    "weight": 800,
+    "italic": false,
+    "unicodeCharacters": 368
+  },
+  {
+    "file": "Optimistic_Text_W_XBdIt.woff2",
+    "sha256": "b2cd14d02025265f0105eddbd48c90335318dcb650c6f99f9adfc4a7549b7bc5",
+    "weight": 800,
+    "italic": true,
+    "unicodeCharacters": 369
+  }
+]

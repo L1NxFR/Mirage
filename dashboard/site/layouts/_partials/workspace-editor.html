@@ -1,0 +1,56 @@
+{{ with .File }}
+{{ $source := resources.FromString (printf "sources/%s" .Path) (readFile .Filename) }}
+<dialog id="article-editor" class="workspace-editor" aria-labelledby="article-editor-title" data-source-url="{{ $source.RelPermalink }}" data-path="{{ .Path }}" data-filename="{{ .LogicalName }}" data-mode="split">
+  <header class="workspace-editor-header">
+    <div><p id="article-editor-title">Markdown editor</p><strong data-editor-document-title>{{ $.Title }}</strong></div>
+    <div class="workspace-editor-actions">
+      <button type="button" data-editor-reload hidden>Reload latest</button>
+      <button type="button" class="workspace-primary" data-editor-save disabled>Save <kbd>⌘S</kbd></button>
+      <button type="button" data-editor-close aria-label="Close editor">{{ partial "tool-icon.html" "close" }}</button>
+    </div>
+  </header>
+  <div class="workspace-toolbar" role="toolbar" aria-label="Markdown formatting">
+    <div>
+      <button type="button" data-format="heading" title="Heading">H2</button>
+      <button type="button" data-format="bold" title="Bold (⌘B)"><b>B</b></button>
+      <button type="button" data-format="italic" title="Italic (⌘I)"><i>I</i></button>
+      <button type="button" data-format="link">Link</button>
+      <button type="button" data-format="list">List</button>
+      <button type="button" data-format="code">Code</button>
+      <button type="button" data-format="undo">Undo</button>
+      <button type="button" data-format="redo">Redo</button>
+    </div>
+    <div class="workspace-view-switch" aria-label="Editor view">
+      <button type="button" data-editor-mode="write" aria-pressed="false">Write</button>
+      <button type="button" data-editor-mode="split" aria-pressed="true">Split</button>
+      <button type="button" data-editor-mode="preview" aria-pressed="false">Preview</button>
+    </div>
+  </div>
+  <section class="workspace-summary" aria-labelledby="editor-summary-label">
+    <label id="editor-summary-label" for="editor-summary">TL;DR <span>Optional</span></label>
+    <textarea id="editor-summary" data-editor-summary rows="2" aria-describedby="editor-summary-help editor-summary-error" placeholder="Summarize the key takeaway…" disabled></textarea>
+    <p id="editor-summary-help">Supports Markdown. Leave empty to hide the summary.</p>
+    <p id="editor-summary-error" data-summary-error role="status" hidden></p>
+  </section>
+  <details class="workspace-metadata"><summary>Properties</summary><label for="editor-metadata">YAML metadata · title, date, and page settings</label><textarea id="editor-metadata" data-editor-metadata spellcheck="false"></textarea></details>
+  <div class="workspace-panes">
+    <section class="workspace-write" aria-label="Markdown source"><div data-editor-code></div></section>
+    <section class="workspace-preview" data-editor-preview aria-label="Markdown preview"></section>
+  </div>
+  <div class="workspace-unsaved" data-unsaved-warning hidden>
+    <span>You have unsaved changes.</span><button type="button" data-keep-editing>Keep editing</button><button type="button" data-discard>Discard changes</button>
+  </div>
+  <footer class="workspace-editor-footer"><p class="editor-status" role="status" aria-live="polite">Loading document…</p><span>Markdown · UTF-8</span></footer>
+</dialog>
+{{ end }}
+{{ if partial "is-journal.html" . }}
+<dialog id="create-entry" class="workspace-create" aria-labelledby="create-entry-title">
+  <form>
+    <header><h2 id="create-entry-title">New document</h2><button type="button" data-create-close aria-label="Close creation dialog">{{ partial "tool-icon.html" "close" }}</button></header>
+    <label for="entry-title">Title</label><input id="entry-title" name="title" required maxlength="180" autocomplete="off" placeholder="Untitled">
+    <label for="entry-parent">Group</label><select id="entry-parent" name="parent" required></select>
+    <p role="status" aria-live="polite"></p>
+    <button class="workspace-primary" type="submit">Create</button>
+  </form>
+</dialog>
+{{ end }}

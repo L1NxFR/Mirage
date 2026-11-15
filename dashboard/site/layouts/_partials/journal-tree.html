@@ -1,0 +1,45 @@
+{{- $directory := .directory -}}
+{{- $current := .current -}}
+{{- $pages := .pages -}}
+{{- $folders := slice -}}
+{{- range $pages -}}
+  {{- if and (ne .File.Dir $directory) (hasPrefix .File.Dir $directory) -}}
+    {{- $folders = $folders | append (index (split (strings.TrimPrefix $directory .File.Dir) "/") 0) -}}
+  {{- end -}}
+{{- end -}}
+{{ range where $current.Site.Pages "Kind" "section" }}
+  {{ if or (eq hugo.Environment "workspace") (not .Draft) }}{{ with .File }}
+    {{ if and (ne .Dir $directory) (hasPrefix .Dir $directory) }}
+      {{ $folders = $folders | append (index (split (strings.TrimPrefix $directory .Dir) "/") 0) }}
+    {{ end }}
+  {{ end }}{{ end }}
+{{ end }}
+<ul class="journal-tree">
+  {{ range sort (uniq $folders) }}
+    {{ $path := printf "%s%s/" $directory . }}
+    {{ $label := . }}
+    {{ with $current.Site.GetPage (strings.TrimSuffix "/" $path) }}
+      {{ if .IsSection }}{{ $label = .Title }}{{ end }}
+    {{ end }}
+    {{ with index hugo.Data.journal_navigation (strings.TrimSuffix "/" (strings.TrimPrefix (printf "%s/" $current.Section) $path)) }}{{ $label = . }}{{ end }}
+    <li class="journal-folder">
+      <details open>
+        <summary><span>{{ $label }}</span></summary>
+        {{ partial "journal-tree.html" (dict "pages" $pages "directory" $path "current" $current) }}
+      </details>
+    </li>
+  {{ end }}
+  {{ range $pages.ByTitle.ByWeight }}
+    {{ if eq .File.Dir $directory }}
+      <li class="journal-entry">
+        <a href="{{ .RelPermalink }}">{{ .Title }}{{ if .Draft }} <small class="draft-badge">Draft</small>{{ end }}</a>
+        <span class="journal-leader" aria-hidden="true"></span>
+        {{ if not .Lastmod.IsZero }}
+          <time datetime="{{ .Lastmod.Format "2006-01-02T15:04:05Z07:00" }}" title="Last updated: {{ .Lastmod.Format "2006-01-02 15:04 MST" }}">{{ .Lastmod.Format "2006-01-02" }}{{ if ne (.Lastmod.Format "15:04") "00:00" }} {{ .Lastmod.Format "15:04" }}{{ end }}</time>
+        {{ else }}
+          <span class="journal-date-missing" aria-label="Last updated date unavailable">—</span>
+        {{ end }}
+      </li>
+    {{ end }}
+  {{ end }}
+</ul>

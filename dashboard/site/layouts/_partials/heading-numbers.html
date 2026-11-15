@@ -1,0 +1,10 @@
+{{- /* Default to the Overview and research articles, excluding cover titles,
+     navigation and other ordinary pages. Preserve all original anchors. */ -}}
+{{- $enabled := or .IsHome (and .IsPage (partial "is-journal.html" .)) -}}
+{{- if isset .Params "number_headings" -}}{{- $enabled = .Params.number_headings -}}{{- end -}}
+{{- $numbers := dict -}}
+{{- if $enabled -}}
+  {{- $outline := partial "heading-number-items.html" (dict "Headings" .Fragments.Headings "Prefix" "" "Start" 0) -}}
+  {{- $numbers = $outline.Numbers -}}
+{{- end -}}
+{{- return $numbers -}}

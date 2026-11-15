@@ -1,0 +1,9 @@
+{{- range .Headings -}}
+  {{- $children := partial "toc-items.html" (dict "Headings" .Headings "Numbers" $.Numbers) -}}
+  {{- if and .ID (ge .Level 1) -}}
+    <li><a href="#{{ .ID }}">{{ partial "numbered-heading-label.html" (dict "Title" .Title "Number" (index $.Numbers .ID)) }}</a>{{ with $children }}<ul>{{ . | safeHTML }}</ul>{{ end }}</li>
+  {{- else -}}
+    {{- /* Promote real headings through Hugo's empty skipped-level nodes. */ -}}
+    {{- $children | safeHTML -}}
+  {{- end -}}
+{{- end -}}

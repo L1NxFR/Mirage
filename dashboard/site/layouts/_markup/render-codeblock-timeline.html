@@ -1,0 +1,2 @@
+{{- $model := partial "parse-timeline.html" (dict "source" .Inner "Position" .Position) -}}
+{{- partial "timeline.html" (merge (dict "Page" .Page "Position" .Position) $model) -}}

@@ -1,0 +1,11 @@
+{{- $pages := partial "journal-pages.html" . -}}
+{{- $groups := .Sections -}}
+{{- if ne hugo.Environment "workspace" -}}{{- $groups = where $groups "Draft" false -}}{{- end -}}
+{{ if or $pages $groups }}
+<nav class="journal-index" aria-label="{{ .Title }} entries, with last updated dates">
+  {{ partial "journal-tree.html" (dict "pages" $pages "directory" .File.Dir "current" .) }}
+</nav>
+<p class="archive-stats">{{ len $pages }} {{ if eq (len $pages) 1 }}entry{{ else }}entries{{ end }}</p>
+{{ else }}
+<p class="archive-empty">No published entries yet.</p>
+{{ end }}

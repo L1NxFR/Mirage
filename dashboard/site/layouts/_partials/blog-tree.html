@@ -1,0 +1,39 @@
+{{- $directory := .directory -}}
+{{- $current := .current -}}
+{{- $pages := .pages -}}
+{{- $folders := slice -}}
+{{ range where $current.Site.Pages "Kind" "section" }}
+  {{ if or (eq hugo.Environment "workspace") (not .Draft) }}{{ with .File }}
+    {{ if and (ne .Dir $directory) (hasPrefix .Dir $directory) }}
+      {{ $folders = $folders | append (index (split (strings.TrimPrefix $directory .Dir) "/") 0) }}
+    {{ end }}
+  {{ end }}{{ end }}
+{{ end }}
+<ul class="blog-tree">
+{{ $ordered := $pages.ByTitle.ByWeight }}
+{{ range slice (where $ordered "Params.sidebar_pinned" true) (where $ordered "Params.sidebar_pinned" "ne" true) }}
+{{ range . }}
+  {{ if eq .File.Dir $directory }}
+    <li class="sidebar-document" data-document-path="{{ .File.Path }}" data-document-title="{{ .Title }}" data-pinned="{{ if .Params.sidebar_pinned }}true{{ else }}false{{ end }}"><a href="{{ .RelPermalink }}"{{ if eq .RelPermalink $current.RelPermalink }} aria-current="page"{{ end }}>{{ .Title }}{{ if .Draft }} <small class="draft-badge">Draft</small>{{ end }}</a><button type="button" class="document-more" aria-label="{{ .Title }}：更多操作" aria-haspopup="menu" aria-expanded="false">⋯</button></li>
+  {{ else if hasPrefix .File.Dir $directory }}
+    {{ $folder := index (split (strings.TrimPrefix $directory .File.Dir) "/") 0 }}
+    {{ $folders = $folders | append $folder }}
+  {{ end }}
+{{ end }}
+{{ end }}
+{{ range sort (uniq $folders) }}
+  {{ $path := printf "%s%s/" $directory . }}
+  {{ $active := false }}
+  {{ with $current.File }}{{ $active = hasPrefix .Dir $path }}{{ end }}
+  {{ $label := . }}
+  {{ with $current.Site.GetPage (strings.TrimSuffix "/" $path) }}{{ if .IsSection }}{{ $label = .Title }}{{ end }}{{ end }}
+  {{ with index hugo.Data.journal_navigation (strings.TrimSuffix "/" (strings.TrimPrefix (printf "%s/" $current.Section) $path)) }}{{ $label = . }}{{ end }}
+  <li>
+    <details class="blog-tree-group"{{ if $active }} open{{ end }}>
+      <summary{{ if $active }} class="contains-current"{{ end }}><span>{{ $label }}</span></summary>
+      {{ with $current.Site.GetPage (strings.TrimSuffix "/" $path) }}{{ if .IsSection }}<a class="blog-group-home" href="{{ .RelPermalink }}"{{ if eq .RelPermalink $current.RelPermalink }} aria-current="page"{{ end }}>Open group</a>{{ end }}{{ end }}
+      {{ partial "blog-tree.html" (dict "pages" $pages "directory" $path "current" $current) }}
+    </details>
+  </li>
+{{ end }}
+</ul>

@@ -1,0 +1,2 @@
+{{- $items := partial "toc-items.html" (dict "Headings" .Fragments.Headings "Numbers" (partial "heading-numbers.html" .)) -}}
+{{- with $items -}}<nav id="TableOfContents"><ul>{{ . | safeHTML }}</ul></nav>{{- end -}}

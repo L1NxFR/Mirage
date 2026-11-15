@@ -1,0 +1,25 @@
+{{- $pages := slice -}}
+{{- $searchPages := .Site.RegularPages | union (slice .Site.Home) -}}
+{{- if ne hugo.Environment "workspace" -}}{{- $searchPages = where $searchPages "Draft" false -}}{{- end -}}
+{{- range $searchPages -}}
+  {{- if ne .RelPermalink ("search/" | relURL) -}}
+    {{- $sections := slice -}}
+    {{- $chunks := split (replaceRE `(<h[1-6]\s)` `<!--search-section-->$1` .Content) "<!--search-section-->" -}}
+    {{- range $chunks -}}
+      {{- $anchor := "" -}}
+      {{- $heading := "" -}}
+      {{- with findRE `^<h[1-6][^>]*id="[^"]+"[^>]*>` . 1 -}}
+        {{- $anchor = replaceRE `^.*id="([^"]+)".*$` "$1" (index . 0) -}}
+      {{- end -}}
+      {{- with findRE `(?s)^<h[1-6][^>]*>.*?</h[1-6]>` . 1 -}}
+        {{- $heading = index . 0 | plainify | htmlUnescape -}}
+      {{- end -}}
+      {{- $text := . | plainify | htmlUnescape -}}
+      {{- if strings.TrimSpace $text -}}
+        {{- $sections = $sections | append (dict "anchor" $anchor "title" $heading "text" $text) -}}
+      {{- end -}}
+    {{- end -}}
+    {{- $pages = $pages | append (dict "path" .File.Path "pinned" (.Params.sidebar_pinned | default false) "uri" .RelPermalink "title" .Title "section" .Section "content" (.Plain | htmlUnescape) "sections" $sections) -}}
+  {{- end -}}
+{{- end -}}
+{{- $pages | jsonify -}}

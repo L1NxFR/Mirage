@@ -1,0 +1,18 @@
+{{- /* Default Blog cover. All fields except the page title are optional. */ -}}
+<header class="paper-cover blog-cover">
+  <h1 class="title">{{ if and .Params.paper_name .Params.paper_title_rest }}<span class="paper-name">{{ .Params.paper_name }}</span>{{ .Params.paper_title_rest }}{{ else }}{{ .Title | markdownify }}{{ end }}</h1>
+  {{ with .Params.subtitle }}<p class="blog-cover-subtitle">{{ . | markdownify }}</p>{{ end }}
+  {{ with .Params.paper_authors }}<p class="paper-authors">{{ . | safeHTML }}</p>{{ end }}
+  {{ with .Params.paper_affiliations }}<p class="paper-affiliations">{{ . | safeHTML }}</p>{{ end }}
+  {{ with .Params.paper_equal }}<p class="paper-equal">{{ . }}</p>{{ end }}
+  {{ $meta := trim (partial "meta.html" .) " \n\r\t" }}
+  {{ with $meta }}
+  <div class="blog-cover-meta">{{ . | safeHTML }}</div>
+  {{ end }}
+  {{ with .GetTerms "tags" }}<div class="blog-cover-tags">{{ range . }}<a href="{{ .RelPermalink }}">{{ .LinkTitle }}</a>{{ end }}</div>{{ end }}
+  {{ with .Params.tldr }}
+  <section class="blog-tldr" aria-label="Summary">
+    <div class="blog-tldr-content">{{ $.RenderString (dict "display" "block") . }}</div>
+  </section>
+  {{ end }}
+</header>

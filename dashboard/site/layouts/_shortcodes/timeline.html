@@ -1,0 +1,2 @@
+{{- $steps := transform.Unmarshal (dict "format" "yaml") .Inner -}}
+{{- partial "timeline.html" (dict "title" (.Get "title") "collapse" (.Get "collapse") "steps" $steps "Page" .Page "Position" .Position) -}}

@@ -1,0 +1,6 @@
+{{- $author := .Params.author -}}
+{{- if not $author -}}
+  {{- $authors := .Site.Params.author | default dict -}}
+  {{- $author = index $authors (or (.Scratch.Get "lang") .Section "default") | default $authors.default -}}
+{{- end -}}
+{{- return $author -}}

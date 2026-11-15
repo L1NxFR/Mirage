@@ -1,0 +1,32 @@
+{
+  "command_timeout": 5,
+  "templates_folder": "Templates",
+  "trigger_on_file_creation": true,
+  "auto_jump_to_cursor": false,
+  "enable_system_commands": false,
+  "enable_folder_templates": true,
+  "folder_templates": [
+    {
+      "folder": "research-journey",
+      "template": "Templates/Research Journey.md"
+    },
+    {
+      "folder": "system-implementation",
+      "template": "Templates/System & Implementation.md"
+    },
+    {
+      "folder": "meetings",
+      "template": "Templates/Meetings.md"
+    },
+    {
+      "folder": "/",
+      "template": "Templates/New Note.md"
+    }
+  ],
+  "enable_file_templates": false,
+  "ignore_folders_on_creation": [
+    {
+      "folder": "Excalidraw/"
+    }
+  ]
+}

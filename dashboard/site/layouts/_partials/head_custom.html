@@ -1,0 +1,26 @@
+<link rel="stylesheet" href="{{ "vendor/katex/katex.min.css" | relURL }}">
+<link rel="stylesheet" href="{{ "vendor/katex/hugo-compat.css" | relURL }}">
+<link rel="icon" type="image/svg+xml" href="{{ "icons/favicon.svg" | relURL }}">
+<link rel="stylesheet" href="{{ "css/highlight.css" | relURL }}">
+{{ if in .Content `class="paper-card"` }}
+<link rel="stylesheet" href="{{ "css/paper-card.css" | relURL }}">
+{{ end }}
+{{ if in .Content `class="timeline"` }}
+<link rel="stylesheet" href="{{ "css/timeline.css" | relURL }}">
+{{ end }}
+{{ if or .IsPage .IsHome }}
+<link rel="stylesheet" href="{{ "css/document.css" | relURL }}?v={{ readFile "static/css/document.css" | sha256 }}">
+{{ end }}
+{{ if or .IsHome (partial "is-journal.html" .) }}
+<link rel="stylesheet" href="{{ "css/blog-fonts.css" | relURL }}?v={{ readFile "static/css/blog-fonts.css" | sha256 }}">
+<link rel="stylesheet" href="{{ "css/blog-layout.css" | relURL }}?v={{ readFile "static/css/blog-layout.css" | sha256 }}">
+{{ if .IsSection }}
+<link rel="stylesheet" href="{{ "css/journal-index.css" | relURL }}?v={{ readFile "static/css/journal-index.css" | sha256 }}">
+{{ end }}
+{{ end }}
+<link rel="stylesheet" href="{{ "css/search.css" | relURL }}?v={{ readFile "static/css/search.css" | sha256 }}">
+<link rel="stylesheet" href="{{ "css/page-title.css" | relURL }}?v={{ readFile "static/css/page-title.css" | sha256 }}">
+<link rel="stylesheet" href="{{ "css/site-header.css" | relURL }}?v={{ readFile "static/css/site-header.css" | sha256 }}">
+
+<link rel="stylesheet" href="{{ "css/article-tools.css" | relURL }}?v={{ readFile "static/css/article-tools.css" | sha256 }}">
+<link rel="stylesheet" href="{{ "css/workspace.css" | relURL }}?v={{ readFile "static/css/workspace.css" | sha256 }}">

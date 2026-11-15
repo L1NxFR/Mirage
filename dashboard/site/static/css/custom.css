@@ -1,0 +1,117 @@
+/* Reading features carried over from the original Astro blog. */
+.nav-top { flex-wrap: wrap; gap: .5rem; }
+.menu { display: flex; flex-wrap: wrap; }
+.home { max-width: 100%; }
+.single .meta-line { flex-wrap: wrap; gap: .5rem; }
+.updated { display: inline-block; }
+.term { overflow-wrap: anywhere; }
+.admonition { margin: 1.5rem 0; padding: 1rem 1.25rem; border-left: 3px solid #64748b; background: var(--bg-block); }
+.admonition-warning, .admonition-caution { border-color: #c7841b; }
+.admonition-title { display: block; }
+.gallery-container { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: 1rem; }
+.gallery-container p { margin: 0; }
+.gallery-container img, .main img { max-width: 100%; height: auto; }
+.katex-display { overflow-x: auto; overflow-y: hidden; padding: .3em 0; }
+.main pre { max-width: 100%; overflow-x: auto; }
+.main pre code { white-space: pre; word-break: normal; overflow-wrap: normal; }
+.main table { display: block; max-width: 100%; overflow-x: auto; }
+.main iframe { max-width: 100%; }
+mark { background: #ffeb0080; color: inherit; }
+.draft-reference { color: #777; }
+.draft-reference small { font-size: .8em; }
+@media (max-width: 600px) {
+  .main { overflow-wrap: anywhere; }
+  .main .katex { overflow-wrap: normal; }
+}
+
+/* Adapted from yihui.org's MIT-licensed custom.css; keep our own content. */
+h1.title::before { content: "➶"; }
+.main { line-height: 1.75; }
+.main h1, .main h2 { text-align: center; margin: 2em 0 1em; }
+.main h2 { line-height: 1.25; }
+.single .main :is(h3, h4, h5, h6) { text-align: left; }
+.archive { max-width: none; width: 100%; }
+.archive h2 { text-align: left; }
+.archive ul { padding: 0; }
+.archive-entry { display: inline-block; max-width: 100%; margin: .25em 1em .25em 0; list-style: none; }
+.archive-entry time { color: #666; font-size: .9em; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.archive a { border-bottom: none; }
+.archive-pinned { border-bottom: 1px dashed var(--border-color); padding-bottom: .5em; }
+.archive-stats { color: #666; font-size: .9em; text-align: right; margin-top: 2em; }
+.terms { padding: 0; list-style: none; gap: .5em 1.5em; }
+.terms li { margin: 0; }
+.term-count { color: #666; font-size: .9em; }
+blockquote { margin: 1em 0; padding: 0 2em; }
+.single blockquote { background: none; border-left-width: 3px; padding: 0 2em; }
+.home blockquote, .cn blockquote:not(:hover) { border-left-color: transparent; }
+#TableOfContents li { break-inside: avoid; }
+a:focus-visible, input:focus-visible { outline: 2px solid currentColor; outline-offset: 4px; }
+@media (min-width: 768px) {
+  .cn #TableOfContents { columns: 2; column-gap: 2em; }
+  .main pre, .main table { width: auto; max-width: 100%; margin-left: auto; }
+  .nav-next { border-right: 1px solid; padding-right: 1em; }
+  .nav-prev { border-left: 1px solid; padding-left: 1em; }
+}
+@media print {
+  footer, .nav-top, .post-nav, #TableOfContents, h1.title::before { display: none; }
+  .cn .main { text-align: justify; }
+}
+
+/* The original site's footnote and margin-note presentation. */
+dl, fieldset { background-color: lightyellow; font-size: .9em; border-width: 1px; }
+dt, legend { font-weight: bold; }
+ol, ul { padding: 0 0 0 20px; }
+ol ol { list-style: lower-roman; }
+.hash-note, .side { background: lightyellow; }
+.main > ul > li > span:first-child, .main > p > span:first-child, .main > p .subtitle, .post-nav, .stats { color: #666; font-size: .9em; }
+.stats { text-align: right; }
+.cn .post-nav { font-size: initial; }
+.cn del { background-color: #444; }
+.cn del:hover { background-color: inherit; text-decoration: inherit; }
+.hash-note { color: #666; font-size: .9em; }
+.hash-note a { color: inherit; }
+span.hash-note::before { content: "　# "; }
+.hide-notes .hash-note, .unlist { display: none !important; }
+.side { padding: 1em 2em; }
+.side > p:first-child { margin-top: 0; }
+.side > p:last-child { margin-bottom: 0; }
+.bg-number, .note-ref:has(+ .side:hover) { background: var(--bg-body); filter: invert(1); opacity: .6; }
+.bg-number { padding: .1em; }
+@media (min-width: 992px) {
+  .has-sidenotes .main, .has-sidenotes .fullwidth { margin-left: 0; }
+  .side-right {
+    float: right; clear: right; background: none; padding: 0 0 1em;
+    width: calc(var(--body-width) - var(--text-width) - 2.5rem * 2 - 2rem);
+    margin-right: calc(var(--text-width) + 2.5rem * 2 - var(--body-width));
+  }
+  blockquote .side-right { margin-right: calc(var(--text-width) + 2.5rem * 2 - var(--body-width) - 2rem); }
+}
+
+/* CV: one alignment for headings, entries and a quiet date column. */
+.cv .main { width: 100%; max-width: 820px; }
+.cv .main h1 { text-align: left; margin: 1em 0 .5em; }
+.cv .main h2 {
+  text-align: left;
+  font-size: 1.15em;
+  margin: 2em 0 1em;
+  padding-bottom: .5em;
+  border-bottom: 1px solid var(--border-color);
+}
+.cv-entry { margin: 1.25em 0; break-inside: avoid; }
+.cv-entry__content { min-width: 0; }
+.cv .cv-entry h3 {
+  margin: 0;
+  text-align: left;
+  font-size: 1em;
+  font-variant: normal;
+  line-height: 1.5;
+}
+.cv-entry__content p { margin: .25em 0 0; }
+.cv-entry__date { color: #666; font-size: .875em; font-variant-numeric: tabular-nums; }
+.cv-entry__date span { white-space: nowrap; }
+.cv-entry__date small { display: block; font-size: 1em; }
+@media (min-width: 768px) {
+  .cv-entry { display: grid; grid-template-columns: minmax(0, 1fr) 12rem; gap: 2rem; }
+  .cv-entry__date { text-align: right; padding-top: .125em; }
+  .cv-entry--undated { grid-template-columns: minmax(0, 1fr); }
+}

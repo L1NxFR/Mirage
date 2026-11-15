@@ -1,0 +1,8 @@
+{{- $title := .Title -}}
+{{- with .Number -}}
+  {{- /* Accept the old CyberArena markup without rendering a second number.
+       Do not strip ordinary leading digits (years, model names, etc.). */ -}}
+  {{- $title = replaceRE `^\s*<span\s+class=["']section-number["']>\s*[0-9]+(\.[0-9]+)*\s*</span>\s*` "" $title -}}
+  <span class="section-number">{{ . }}</span>{{ " " }}
+{{- end -}}
+{{- $title | safeHTML -}}

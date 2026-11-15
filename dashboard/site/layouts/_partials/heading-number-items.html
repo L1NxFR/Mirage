@@ -1,0 +1,19 @@
+{{- /* Walk Hugo's fragment tree. Empty skipped-level nodes do not consume
+     a number or introduce a zero component. No mutable page-level counters. */ -}}
+{{- $numbers := dict -}}
+{{- $count := .Start -}}
+{{- range .Headings -}}
+  {{- $prefix := $.Prefix -}}
+  {{- $start := $count -}}
+  {{- if .ID -}}
+    {{- $count = add $count 1 -}}
+    {{- $prefix = printf "%d" $count -}}
+    {{- with $.Prefix -}}{{- $prefix = printf "%s.%d" . $count -}}{{- end -}}
+    {{- $numbers = merge $numbers (dict .ID $prefix) -}}
+    {{- $start = 0 -}}
+  {{- end -}}
+  {{- $children := partial "heading-number-items.html" (dict "Headings" .Headings "Prefix" $prefix "Start" $start) -}}
+  {{- $numbers = merge $numbers $children.Numbers -}}
+  {{- if not .ID -}}{{- $count = $children.Count -}}{{- end -}}
+{{- end -}}
+{{- return (dict "Numbers" $numbers "Count" $count) -}}

@@ -1,0 +1,12 @@
+name = "Research Dashboard"
+license = "MIT"
+licenselink = "https://github.com/yihui/hugo-paged/blob/main/LICENSE.md"
+description = "Research project documentation and local authoring tools based on Hugo Paged"
+homepage = "https://github.com/Languisher/Research-Project-Template"
+tags = ["minimal", "research", "project", "journal", "docs"]
+features = ["docs", "journal"]
+min_version = "0.146.0"
+
+[author]
+  name = "Nan Lin"
+  homepage = "https://github.com/Languisher/Research-Project-Template"

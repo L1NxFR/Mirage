@@ -1,0 +1,38 @@
+/* Shared site chrome. Article typography and reading rails do not size it. */
+body.site-page { padding-top: 1rem; margin-top: 0; }
+.site-header {
+  align-self: center;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--bg-body, #fff);
+  flex-shrink: 0;
+  width: min(912px, calc(100vw - 32px));
+  max-width: none;
+  margin: 0 0 .9rem;
+  padding: 0;
+  color: #000;
+  border-bottom: 1px solid currentColor;
+  font: 400 .9rem/1.5 'Yihui CN', Palatino, 'Palatino Linotype', 'Palatino LT STD', 'Latin Modern Roman', serif;
+}
+.site-header a { color: inherit; border-bottom: 0; text-decoration: none; }
+.site-header .logo { font-size: 1.25rem; line-height: 1.3; }
+.site-header .logo > a { display: inline-flex; flex-wrap: wrap; align-items: baseline; column-gap: .4rem; }
+.site-header .site-byline { font-size: .75em; font-weight: 400; color: #555; white-space: nowrap; }
+.site-header [data-search-open] { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; vertical-align: middle; border-radius: 5px; }
+.site-header [data-search-open]:hover { background: var(--bg-block); }
+.site-header a:hover { position: static; inset: auto; text-decoration: none; }
+.site-header a:focus-visible { outline: 2px solid currentColor; outline-offset: 4px; }
+@media (min-width: 768px) {
+  body.site-page { padding-top: 3.5rem; }
+  .site-header { width: min(912px, calc(100vw - 80px)); }
+}
+@media (min-width: 992px) {
+  body.site-page { margin-top: 2rem; }
+}
+@media print {
+  body.site-page { margin-top: 0; padding-top: 0; }
+  .site-header { display: none; }
+}
+
+.site-header .menu, .site-header .logo, .blog-sidebar button, .blog-sidebar input { font-family: var(--site-font); }

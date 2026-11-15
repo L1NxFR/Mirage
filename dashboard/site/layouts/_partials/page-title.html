@@ -1,0 +1,19 @@
+{{- /* Shared title block for ordinary pages, archives and taxonomy indexes. */ -}}
+<header class="page-title">
+  <h1 class="title">{{ .Title | markdownify }}{{ if eq .Kind "term" }}<span class="small subtitle"> | <a href="{{ .Parent.RelPermalink }}">{{ .Parent.Title }}</a></span>{{ end }}</h1>
+  {{ with .Params.subtitle }}<p class="subtitle">{{ . | markdownify }}</p>{{ end }}
+  {{ $meta := trim (partial "meta.html" .) " \n\r\t" }}
+  {{ $categories := .GetTerms "categories" }}
+  {{ $tags := .GetTerms "tags" }}
+  {{ if or $meta $categories $tags }}
+  <div class="meta-line">
+    {{ with $meta }}<span>{{ . | safeHTML }}</span>{{ end }}
+    {{ if or $categories $tags }}
+    <span class="term">
+      {{ range first 1 $categories }}{<a href="{{ .RelPermalink }}" class="term-cat">{{ .LinkTitle }}</a>}{{ end }}
+      {{ range $tags }} <a href="{{ .RelPermalink }}" class="term-tag">[{{ .LinkTitle }}]</a>{{ end }}
+    </span>
+    {{ end }}
+  </div>
+  {{ end }}
+</header>

@@ -1,0 +1,81 @@
+{{- $title := .title -}}
+{{- $steps := .steps -}}
+{{- $statuses := dict "done" "done" "active" "running" "running" "running" "pending" "pending" "error" "error" -}}
+{{- if not (reflect.IsSlice $steps) -}}
+  {{- errorf "timeline: expected a YAML list of steps at %s" .Position -}}
+{{- else if not (len $steps) -}}
+  {{- errorf "timeline: add at least one step at %s" .Position -}}
+{{- else -}}
+  {{- $collapse := 0 -}}
+  {{- with .collapse -}}
+    {{- if not (findRE `^[0-9]+$` (string .)) -}}
+      {{- errorf "timeline: collapse must be a non-negative integer at %s" $.Position -}}
+    {{- else -}}
+      {{- $collapse = int . -}}
+    {{- end -}}
+  {{- end -}}
+  {{- if gt $collapse (len $steps) -}}
+    {{- errorf "timeline: collapse exceeds the number of steps at %s" .Position -}}
+    {{- $collapse = len $steps -}}
+  {{- end -}}
+  {{- $groups := slice (dict "steps" $steps "start" 1 "collapsed" false) -}}
+  {{- if gt $collapse 0 -}}
+    {{- $groups = slice (dict "steps" (first $collapse $steps) "start" 1 "collapsed" true) (dict "steps" (after $collapse $steps) "start" (add $collapse 1) "collapsed" false) -}}
+  {{- end -}}
+<div class="timeline"{{ with $title }} role="group" aria-label="{{ . }}"{{ end }}>
+  {{- with $title }}<p class="timeline__title">{{ . }}</p>{{ end -}}
+  {{- range $groups -}}
+    {{- if .steps -}}
+      {{- if .collapsed }}
+  <details class="timeline__history">
+    <summary class="timeline__trigger"><span class="timeline__text">{{ $collapse }} earlier steps</span><svg class="timeline__chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg></summary>
+      {{- end }}
+    <ol class="timeline__steps" role="list" start="{{ .start }}">
+      {{- range .steps -}}
+        {{- if not (reflect.IsMap .) -}}
+          {{- errorf "timeline: each step needs text and status at %s" $.Position -}}
+        {{- else -}}
+          {{- $status := .status | default "pending" | string -}}
+          {{- if not (isset $statuses $status) -}}
+            {{- errorf "timeline: unknown status %q (use done, active, running, pending, error) at %s" $status $.Position -}}
+            {{- $status = "pending" -}}
+          {{- end -}}
+          {{- $status = index $statuses $status -}}
+          {{- if not .text -}}
+            {{- errorf "timeline: step text is required at %s" $.Position -}}
+          {{- end }}
+      <li class="timeline__step">
+        {{- if .content }}
+        <details class="timeline__detail"{{ if .open }} open{{ end }}>
+          <summary class="timeline__trigger">
+        {{- end }}
+        <span class="timeline__line"{{ if ne $status "done" }} data-status="{{ $status }}"{{ end }}{{ if eq $status "running" }} aria-current="step"{{ end }}>
+          <svg class="timeline__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+            {{- if eq $status "running" -}}
+            <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+            {{- else -}}
+            <circle cx="12" cy="12" r="10" />
+            {{- if eq $status "done" }}<path d="m9 12 2 2 4-4" />{{ end -}}
+            {{- if eq $status "error" }}<path d="M12 8v4m0 4h.01" />{{ end -}}
+            {{- end }}
+          </svg>
+          <span class="timeline__text">{{ .text }}</span>
+          {{- with .description }}<span class="timeline__description">{{ $.Page.RenderString (dict "display" "inline") . }}</span>{{ end }}
+        </span>
+        {{- with .content }}
+            <svg class="timeline__chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg>
+          </summary>
+          <div class="timeline__detail-content">{{ $.Page.RenderString (dict "display" "block") . }}</div>
+        </details>
+        {{- end }}
+      </li>
+        {{- end -}}
+      {{- end }}
+    </ol>
+      {{- if .collapsed }}
+  </details>
+      {{- end -}}
+    {{- end -}}
+  {{- end }}
+</div>
+{{- end -}}

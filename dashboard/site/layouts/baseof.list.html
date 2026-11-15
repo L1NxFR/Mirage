@@ -1,0 +1,25 @@
+{{ partial "header.html" . }}
+{{ if .IsHome }}
+{{ partial "document.html" . }}
+{{ else }}
+{{ if partial "is-journal.html" . }}
+<main class="main archive blog-layout">
+{{ partial "blog-sidebar.html" . }}
+<div class="blog-page-heading">
+{{ partial "article-tools.html" . }}
+{{ partial "page-title.html" . }}
+</div>
+<div class="blog-index">
+{{ .Content }}
+{{ block "page-list" . }}{{ end }}
+</div>
+</main>
+{{ else }}
+{{ partial "page-title.html" . }}
+<main class="main{{ if not .Content }} archive{{ end }}">
+{{ .Content }}
+{{ template "page-list" . }}
+</main>
+{{ end }}
+{{ end }}
+{{ partial "footer.html" . }}

@@ -1,0 +1,15 @@
+{{- if .Scratch.Get "has_toc" -}}
+<script src="{{ "js/toc.js" | relURL }}?v={{ readFile "static/js/toc.js" | sha256 }}" defer></script>
+{{- end -}}
+{{ if or .IsHome (partial "is-journal.html" .) }}
+{{ if and (in .Content `class="footnotes"`) (not .Params.disable_sidenotes) }}
+<script src="{{ "js/sidenotes.js" | relURL }}?v={{ readFile "static/js/sidenotes.js" | sha256 }}" defer></script>
+{{ end }}
+<script src="{{ "js/blog-navigation.js" | relURL }}?v={{ readFile "static/js/blog-navigation.js" | sha256 }}" defer></script>
+{{ end }}
+{{ partial "search-dialog.html" . }}
+<script src="{{ "js/search-core.js" | relURL }}?v={{ readFile "static/js/search-core.js" | sha256 }}" defer></script>
+<script src="{{ "js/search.js" | relURL }}?v={{ readFile "static/js/search.js" | sha256 }}" defer></script>
+
+{{ partial "workspace-editor.html" . }}
+<script src="{{ "js/workspace-editor.bundle.js" | relURL }}?v={{ readFile "static/js/workspace-editor.bundle.js" | sha256 }}" defer></script>

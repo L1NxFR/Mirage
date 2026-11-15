@@ -1,0 +1,5 @@
+{{ if not .IsHome }}
+{{ with .CurrentSection }}{{ with .OutputFormats.Get "RSS" }}<a href="{{ .RelPermalink }}" type="application/rss+xml">Subscribe</a>{{ end }}{{ end }}
+<a href="{{ "search/" | relURL }}">Search</a>
+<a href="#">Back to top</a>
+{{ end }}

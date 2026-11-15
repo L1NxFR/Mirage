@@ -1,0 +1,12 @@
+<div class="cv-entry{{ if not (.Get "date") }} cv-entry--undated{{ end }}">
+  <div class="cv-entry__content">
+    <h3>{{ with .Get "link" }}<a href="{{ . }}">{{ $.Get "title" }}</a>{{ else }}{{ .Get "title" }}{{ end }}</h3>
+    {{ with strings.TrimSpace .Inner }}{{ . | markdownify }}{{ end }}
+  </div>
+  {{ with .Get "date" }}
+  <div class="cv-entry__date">
+    <span>{{ . }}</span>
+    {{ with $.Get "note" }}<small>{{ . }}</small>{{ end }}
+  </div>
+  {{ end }}
+</div>

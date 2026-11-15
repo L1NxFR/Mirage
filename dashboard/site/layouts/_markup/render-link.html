@@ -1,0 +1,2 @@
+{{- $destination := partial "vault-attachment-url.html" . -}}
+<a href="{{ $destination | safeURL }}"{{ with .Title }} title="{{ . }}"{{ end }}>{{ .Text }}</a>

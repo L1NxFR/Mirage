@@ -1,0 +1,20 @@
+{{- /* Shared document view for the Overview and individual articles. */ -}}
+{{ if or .IsHome (partial "is-journal.html" .) }}
+<main class="main article-layout blog-layout{{ if .IsHome }} overview{{ end }}">
+{{ if partial "is-journal.html" . }}{{ partial "blog-sidebar.html" . }}{{ end }}
+<div class="blog-page-heading">
+{{ partial "article-tools.html" . }}
+{{ partial "paper-cover.html" . }}
+</div>
+{{ else }}
+<div class="overview-tools">{{ partial "article-tools.html" . }}</div>
+{{ partial "page-title.html" . }}
+<main class="main article-layout">
+{{ end }}
+{{ partial "contents.html" . }}
+<article class="article-body">
+{{ .Content }}
+</article>
+{{ if not .IsHome }}{{ partial "post_nav.html" . }}{{ end }}
+{{ partial "main_extra.html" . }}
+</main>

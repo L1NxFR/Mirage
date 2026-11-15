@@ -1,0 +1,8 @@
+{{- $toc := partial "toc.html" . -}}
+{{- $headingCount := strings.Count `<li>` $toc -}}
+{{- $show := ge $headingCount (.Site.Params.toc_threshold | default 3) -}}
+{{- if isset .Params "show_toc" -}}{{- $show = .Params.show_toc -}}{{- end -}}
+{{- if and $show (gt $headingCount 0) -}}
+  {{- .Scratch.Set "has_toc" true -}}
+  {{- replace $toc `<nav ` `<nav aria-label="Table of contents" ` | safeHTML -}}
+{{- end -}}

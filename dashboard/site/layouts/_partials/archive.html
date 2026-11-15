@@ -1,0 +1,22 @@
+{{- $pages := .RegularPages -}}
+{{- if eq .Kind "section" -}}{{- $pages = .RegularPagesRecursive -}}{{- end -}}
+{{- $pages = where $pages "Draft" false -}}
+{{- $pinned := where $pages "Weight" "lt" 0 -}}
+{{ with $pinned }}
+<section class="archive-pinned" aria-label="Pinned entries">
+<h2>Pinned</h2>
+<ul>
+{{ range . }}{{ partial "archive-entry.html" . }}{{ end }}
+</ul>
+</section>
+{{ end }}
+{{ range (where $pages "Weight" "ge" 0).ByDate.Reverse.GroupByDate "2006" }}
+<h2>{{ .Key }}</h2>
+{{ range .Pages.GroupByDate "01" }}
+<ul class="archive-month" aria-label="{{ (index .Pages 0).Date.Format "January 2006" }}">
+{{ range .Pages }}{{ partial "archive-entry.html" . }}{{ end }}
+</ul>
+{{ end }}
+{{ end }}
+{{ with $pages }}<p class="archive-stats">{{ len . }} {{ if eq (len .) 1 }}entry{{ else }}entries{{ end }}</p>{{ end }}
+{{ if not $pages }}<p class="archive-empty">No published entries yet.</p>{{ end }}

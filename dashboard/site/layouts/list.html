@@ -1,0 +1,7 @@
+{{ define "page-list" }}
+{{ if partial "is-journal.html" . }}
+{{ partial "journal-index.html" . }}
+{{ else }}
+{{ partial "archive.html" . }}
+{{ end }}
+{{ end }}

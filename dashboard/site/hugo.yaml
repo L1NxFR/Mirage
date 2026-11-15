@@ -1,0 +1,83 @@
+baseurl: "/"
+locale: "en-US"
+title: "Research Project"
+theme: "Research-Project-Homepage"
+ignoreFiles: ["(^|/)\\.workspace-trash/", "\\.Rmd$", "\\.Rmarkdown$", "_cache$", "\\.excalidraw\\.md$", "(^|/)Templates/", "(^|/)Attachments/"]
+footnotereturnlinkcontents: "↩"
+defaultContentLanguage: "en"
+hasCJKLanguage: true
+buildFuture: true
+buildDrafts: false
+cascade:
+  - draft: true
+    content_lang: en
+enableRobotsTXT: true
+disableKinds: [taxonomy, term]
+
+module:
+  mounts:
+    - source: static
+      target: static
+    - source: content/Attachments
+      target: static/attachments
+      files: ["! **.md", "! **.markdown"]
+    - source: content/Excalidraw
+      target: static/excalidraw
+      files: ["**.svg"]
+
+outputs:
+  home: [html, rss, json]
+
+menu:
+  main:
+    - name: Overview
+      url: /
+      weight: 10
+    - name: Related
+      pageRef: /related-work
+      weight: 20
+    - name: Journey
+      pageRef: /research-journey
+      weight: 30
+    - name: System
+      pageRef: /system-implementation
+      weight: 40
+    - name: Meetings
+      pageRef: /meetings
+      weight: 50
+
+params:
+  source_repository: "" # Set this to the research project repository URL
+  journal_sections: [related-work, research-journey, system-implementation, meetings]
+  description: "Related work, research progress, system implementation, and meeting notes."
+  toc_threshold: 3
+  author:
+    default: "Nan Lin"
+    cn: ""
+  logo:
+    en:
+      alt: Research Project
+      url: /
+      img: # a path to the logo
+  footer: "Research Project · {Year}"
+
+security:
+  allowContent: ['.*']
+
+markup:
+  highlight:
+    codeFences: true
+    noClasses: false
+    lineNos: false
+  goldmark:
+    extensions:
+      passthrough:
+        enable: true
+        delimiters:
+          block: [['$$', '$$'], ['\[', '\]']]
+          inline: [['$', '$'], ['\(', '\)']]
+    renderer:
+      unsafe: true
+  tableOfContents:
+    startLevel: 2
+    endLevel: 3

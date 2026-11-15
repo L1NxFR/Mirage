@@ -1,0 +1,55 @@
+/* One title component, independent of article typography and reading rails. */
+.site-page .page-title {
+  align-self: center;
+  flex-shrink: 0;
+  width: min(912px, calc(100vw - 32px));
+  max-width: none;
+  margin: 0 0 2rem;
+  padding: 0;
+  color: #000;
+  background: none;
+  border-radius: 0;
+  text-align: left;
+  font: 400 1rem/1.5 'Yihui CN', Palatino, 'Palatino Linotype', 'Palatino LT STD', 'Latin Modern Roman', serif;
+}
+.site-page .page-title > .title {
+  font-family: inherit;
+  font-size: 2rem;
+  font-weight: 700;
+  font-style: normal;
+  line-height: 1.5;
+  margin: 1em 0 .67em;
+  text-align: left;
+  text-wrap: initial;
+  overflow-wrap: anywhere;
+}
+.site-page .page-title > .title::before {
+  display: block;
+  left: calc(50% - min(456px, (100vw - 32px) / 2));
+  right: auto;
+  pointer-events: none;
+}
+.site-page .page-title > .subtitle { margin: .5rem 0 .75rem; font: inherit; }
+.site-page .page-title .meta-line {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: .5rem 1rem;
+  margin: 0;
+  font: inherit;
+}
+.site-page .page-title .term { margin: 0; font-size: inherit; }
+.site-page .page-title + .main > :first-child,
+.site-page .page-title + .main > .article-body > :first-child { margin-top: 0; }
+@media (min-width: 768px) {
+  .site-page .page-title { width: min(912px, calc(100vw - 80px)); }
+  .site-page .page-title > .title::before { left: calc(50% - min(456px, (100vw - 80px) / 2)); }
+}
+@media (min-width: 992px) {
+  .site-page .page-title > .title { margin-top: 2em; }
+}
+@media print {
+  .site-page .page-title { width: 100%; margin-bottom: 1.5rem; }
+  .site-page .page-title > .title { margin-top: 0; }
+  .site-page .page-title > .title::before { display: none; }
+}

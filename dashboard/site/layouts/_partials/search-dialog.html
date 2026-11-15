@@ -1,0 +1,5 @@
+<dialog class="site-search-dialog" id="site-search" aria-labelledby="site-search-title">
+  <div class="search-dialog-heading"><h2 id="site-search-title">Search this site</h2><button type="button" data-search-close aria-label="Close search">Esc</button></div>
+  {{ partial "search-panel.html" (dict "id" "modal-search" "site" .Site) }}
+  <div class="search-keyboard-hints">↑ ↓ Select · Enter Open · Esc Close <a href="{{ "search/" | relURL }}">Full search page</a></div>
+</dialog>

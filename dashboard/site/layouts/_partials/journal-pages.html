@@ -1,0 +1,3 @@
+{{- $pages := .RegularPagesRecursive -}}
+{{- if ne hugo.Environment "workspace" -}}{{- $pages = where $pages "Draft" false -}}{{- end -}}
+{{- return $pages -}}

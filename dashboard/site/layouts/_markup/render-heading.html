@@ -1,0 +1,7 @@
+{{- $numbers := partial "heading-numbers.html" .Page -}}
+<h{{ .Level }} id="{{ .Anchor }}"
+  {{- range $key, $value := .Attributes -}}
+    {{- if ne $key "id" }} {{ $key | safeHTMLAttr }}="{{ $value }}"{{ end -}}
+  {{- end -}}>
+  {{- partial "numbered-heading-label.html" (dict "Title" .Text "Number" (index $numbers .Anchor)) -}}
+</h{{ .Level }}>

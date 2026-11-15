@@ -1,0 +1,5 @@
+{{- /* Documents default to English; front matter can override the language. */ -}}
+{{- $language := .Params.content_lang | default "en" -}}
+{{- $isChinese := hasPrefix $language "zh" -}}
+{{- .Scratch.Set "lang" (cond $isChinese "cn" "") -}}
+<html lang="{{ $language }}">

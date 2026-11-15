@@ -1,0 +1,8 @@
+<div class="site-search" data-index-url="{{ "index.json" | relURL }}">
+  <label class="search-label" for="{{ .id }}">Keywords</label>
+  <input id="{{ .id }}" type="search" autocomplete="off" placeholder="Search articles, topics, or sections…" aria-describedby="{{ .id }}-help" aria-controls="{{ .id }}-results">
+  <p class="search-help" id="{{ .id }}-help">Search in English or Chinese. Separate words to match all of them: <code>GPU communication</code>; use <code>|</code> to match either term: <code>AllReduce | AllGather</code>; use double quotes for an exact phrase: <code>"Collective Communication"</code>. Try shorter words or common abbreviations if needed.</p>
+  <p class="search-status" role="status" aria-live="polite">Enter keywords to search articles and sections.</p>
+  <div class="search-results" id="{{ .id }}-results"></div>
+  <noscript>Enable JavaScript to search, or browse articles using the navigation above.</noscript>
+</div>

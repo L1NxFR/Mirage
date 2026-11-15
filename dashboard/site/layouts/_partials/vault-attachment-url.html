@@ -1,0 +1,21 @@
+{{- /* Resolve Obsidian's note-relative attachment paths to published URLs. */ -}}
+{{- $destination := .Destination -}}
+{{- $url := urls.Parse $destination -}}
+{{- if and .Page.File (not $url.IsAbs) (not $url.Host) (not (strings.HasPrefix $url.Path "/")) -}}
+  {{- $vaultPath := path.Clean (path.Join .Page.File.Dir $url.Path) -}}
+  {{- if or (strings.HasPrefix $url.Path "Attachments/") (strings.HasPrefix $url.Path "Excalidraw/") -}}
+    {{- $vaultPath = path.Clean $url.Path -}}
+  {{- end -}}
+  {{- $staticPath := "" -}}
+  {{- if strings.HasPrefix $vaultPath "Attachments/" -}}
+    {{- $staticPath = printf "attachments/%s" (strings.TrimPrefix "Attachments/" $vaultPath) -}}
+  {{- else if and (strings.HasPrefix $vaultPath "Excalidraw/") (strings.HasSuffix (lower $vaultPath) ".svg") -}}
+    {{- $staticPath = printf "excalidraw/%s" (strings.TrimPrefix "Excalidraw/" $vaultPath) -}}
+  {{- end -}}
+  {{- with $staticPath -}}
+    {{- $destination = (replace (urls.PathEscape .) "%2F" "/") | relURL -}}
+    {{- with $url.RawQuery -}}{{- $destination = printf "%s?%s" $destination . -}}{{- end -}}
+    {{- with $url.EscapedFragment -}}{{- $destination = printf "%s#%s" $destination . -}}{{- end -}}
+  {{- end -}}
+{{- end -}}
+{{- return $destination -}}

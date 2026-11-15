@@ -1,0 +1,11 @@
+.DS_Store
+site/public/
+site/resources/
+site/.hugo_build.lock
+
+node_modules/
+site/static/js/workspace-editor.bundle.js*
+site/content/.obsidian/workspace.json
+
+# Recoverable local document deletions
+site/content/.workspace-trash/

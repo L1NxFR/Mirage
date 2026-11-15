@@ -1,0 +1,9 @@
+{
+  "id": "research-timeline",
+  "name": "Timeline",
+  "version": "1.0.0",
+  "minAppVersion": "1.5.0",
+  "description": "Write and visually edit progress timelines with a live preview; publish the same Markdown with Hugo.",
+  "author": "Nan Lin",
+  "isDesktopOnly": false
+}
