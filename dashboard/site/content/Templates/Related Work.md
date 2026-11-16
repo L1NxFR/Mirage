@@ -1,8 +1,8 @@
 ---
 content_lang: en
-title: 论文阅读笔记模版
+title: <% JSON.stringify(tp.file.title) %>
 subtitle: ""
-date: 2026-11-01
+date: <% tp.date.now("YYYY-MM-DD") %>
 author: ""
 draft: true
 description: ""

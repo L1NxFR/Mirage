@@ -1,28 +1,18 @@
 ---
 content_lang: en
 title: Overview
-description: Research goals, progress, and project records.
+description: Mirage — an LLM serving simulator.
 draft: true
+lastmod: 2026-11-15
 ---
 
+Mirage is an LLM serving simulator that models memory architectures across the hardware and software stack to explore the design trade-offs of shared and distributed KV-cache architectures under agentic workloads.
 
-This page summarizes the project's research goals, approach, and progress.
+## Project Files
 
-## Research Questions
+Simulator code, experiments, and evaluation belong in `src/`.
 
-To be added: the problem, its context, and the limitations of existing approaches.
-
-## Goals and Approach
-
-To be added: research objectives, the core idea, and the evaluation methodology.
-
-## Project Records
-
-- [Related](related-work/): paper reviews, related methods, and comparative analysis.
-- [Journey](research-journey/): research questions, experiments, and findings.
-- [System](system-implementation/): system design, implementation details, and performance optimization.
-- [Meetings](meetings/): discussions, decisions, and action items.
-
-## Current Progress
-
-To be added: the current phase, completed work, and next steps.
+- [Related](related-work/): related work.
+- [Journey](research-journey/): experiments and findings.
+- [System](system-implementation/): design and implementation notes.
+- [Meetings](meetings/): meeting notes.

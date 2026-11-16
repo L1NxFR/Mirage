@@ -7,6 +7,9 @@ import shutil
 from bs4 import BeautifulSoup
 
 import runpy
+import os
+import re
+from datetime import datetime
 
 write_layout_fixtures = runpy.run_path(str(Path(__file__).with_name('layout-fixtures.py')))['write_layout_fixtures']
 repo = Path(__file__).resolve().parents[1]
@@ -15,6 +18,7 @@ with tempfile.TemporaryDirectory(prefix='reading-layout-') as directory:
     content = Path(directory) / 'content'
     shutil.copytree(repo / 'site/content', content, ignore=shutil.ignore_patterns('.obsidian', '.git'))
     write_layout_fixtures(content)
+    (content / '_index.md').write_text('---\ntitle: Overview\ndraft: false\nshow_toc: true\n---\n\n## Context\n\nLayout fixture.\n\n## Goals\n\n## Progress\n')
     undated_group = content / 'meetings/undated'
     undated_group.mkdir(parents=True)
     (undated_group / '_index.md').write_text('---\ntitle: Undated group\n---\n')
@@ -80,6 +84,11 @@ show_toc: true
 
 ### Child
 ''')
+    # These fixtures represent historical files, rather than edits made just now.
+    for path in content.rglob('*.md'):
+        if match := re.search(r'^lastmod: (.+)$', path.read_text(), re.M):
+            timestamp = datetime.fromisoformat(match[1].replace('Z', '+00:00')).timestamp()
+            os.utime(path, (timestamp, timestamp))
     subprocess.run(['hugo', '--source', str(repo / 'site'), '--themesDir', str(repo.parent),
                     '--theme', repo.name, '--contentDir', str(content), '--destination', str(output),
                     '--environment', 'workspace', '--buildDrafts'], check=True,
@@ -139,7 +148,7 @@ show_toc: true
     assert fixture.select_one('.blog-cover h1.title').get_text() == 'Cover regression'
     assert fixture.select_one('.document-meta-author .author').get_text() == 'Fixture Writer'
     assert fixture.select_one('.document-meta-created time')['datetime'].startswith('2026-10-01T')
-    assert fixture.select_one('.document-meta-modified time')['datetime'].startswith('2026-11-14T18:25:00')
+    assert datetime.fromisoformat(fixture.select_one('.document-meta-modified time')['datetime']) == datetime.fromisoformat('2026-11-14T18:25:00+01:00')
     assert not fixture.select('.document-meta-created .document-meta-modified'), 'Creation and modification are separate fields'
     assert len(fixture.select('.document-meta > .document-meta-item > svg[aria-hidden="true"]')) == 3
     assert {'Created', 'Last modified'} <= {node.get_text() for node in fixture.select('.article-info dt')}
@@ -147,8 +156,9 @@ show_toc: true
     assert search_link['aria-label'] == 'Search' and search_link.select_one('svg[aria-hidden="true"]')
     assert search_link.select_one('.visually-hidden').get_text() == 'Search'
     undated = BeautifulSoup((output / 'meetings/undated/index.html').read_text(), 'html.parser')
-    assert not undated.select('.document-meta-created time, .document-meta-modified time'), 'Child dates must not become group creation/modification dates'
-    assert len(undated.select('.document-meta [aria-label="Not recorded"]')) == 2
+    assert not undated.select('.document-meta-created time'), 'Child dates must not become group creation dates'
+    assert undated.select_one('.document-meta-modified time'), 'Groups use their own source modification time'
+    assert len(undated.select('.document-meta [aria-label="Not recorded"]')) == 1
     summary = fixture.select_one('.blog-tldr-content')
     assert summary.select_one('strong').get_text() == 'Key result'
     assert summary.select_one('em').get_text() == 'emphasis'

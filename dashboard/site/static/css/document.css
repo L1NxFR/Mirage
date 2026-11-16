@@ -44,6 +44,7 @@
    CJK fonts without italic/bold faces may synthesize these requested styles. */
 .document-page .article-body :is(strong,b,em,i) { font-family: inherit; font-size: inherit; font-synthesis: weight style; }
 .document-page .article-body :is(strong,b) { font-weight: 700; }
+.document-page:lang(en) :is(.article-body,.blog-tldr-content) :is(strong,b) { font-family: var(--blog-sans-font, 'Helvetica Neue', Arial, 'PingFang SC', sans-serif); }
 .document-page .article-body :is(em,i) { font-style: italic; }
 .document-page .article-body > blockquote { font-family: inherit; margin: 1rem 0; padding: 0 1rem; border-left: 2px solid var(--document-rule); background: none; font-size: .95em; }
 .document-page .article-body blockquote p { margin: .5em 0; }

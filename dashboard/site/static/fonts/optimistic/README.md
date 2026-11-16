@@ -15,7 +15,8 @@ Included Latin faces:
 Display has no 400 Regular face in this source. Blog headings use Display 700;
 Chinese-article Latin prose uses Text 400, with real Text bold/italic faces.
 English-article prose uses the existing Latin Modern Roman faces for long-form
-reading, selected by the page's HTML language. These are complementary
+reading, selected by the page's HTML language. English bold emphasis in the
+article body and summary uses Optimistic Text Bold/Bold Italic. These are complementary
 optical cuts, not identical outlines. Chinese uses the separately bundled
 Noto Sans SC Regular/Bold. Code and mathematics retain their specialist fonts.
 

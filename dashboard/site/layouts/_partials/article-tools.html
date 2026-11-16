@@ -13,7 +13,7 @@
         {{ $author := partial "document-author.html" $page }}
         {{ with $author }}<dt>Author</dt><dd>{{ . }}</dd>{{ end }}
         {{ if and (isset $page.Params "date") (not $page.Date.IsZero) }}<dt>Created</dt><dd>{{ $page.Date.Format "2006-01-02" }}{{ if ne ($page.Date.Format "15:04:05") "00:00:00" }} {{ $page.Date.Format "15:04 MST" }}{{ end }}</dd>{{ end }}
-        {{ if and (isset $page.Params "lastmod") (not $page.Lastmod.IsZero) }}<dt>Last modified</dt><dd>{{ $page.Lastmod.Format "2006-01-02 15:04 MST" }}</dd>{{ end }}
+        {{ if not $page.Lastmod.IsZero }}<dt>Last modified</dt><dd>{{ $page.Lastmod.Format "2006-01-02 15:04:05 MST" }}</dd>{{ end }}
         {{ with $page.Params.license }}<dt>License</dt><dd>{{ . }}</dd>{{ end }}
       </dl>
     </div>

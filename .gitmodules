@@ -1,0 +1,6 @@
+[submodule "src/aisim"]
+	path = src/aisim
+	url = https://github.com/ai-dynamo/aisim.git
+[submodule "src/dynamo"]
+	path = src/dynamo
+	url = https://github.com/ai-dynamo/dynamo.git

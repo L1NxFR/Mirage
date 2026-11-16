@@ -1,6 +1,6 @@
 /* Only Blog receives reading rails; other sections keep a single column. */
 /* Chinese articles keep sans-serif prose; English long-form articles use
-   Latin Modern Roman's real regular/bold/italic faces. Headings stay sans. */
+   Latin Modern Roman regular/italic faces; bold emphasis and headings use sans. */
 .document-page.blog {
   --blog-sans-font: 'Optimistic Text', 'Blog Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
   --document-font: var(--blog-sans-font);

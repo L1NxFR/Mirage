@@ -41,9 +41,18 @@ output so removed pages do not remain available.
 
 ## Editing in the browser
 
-`npm run dev` starts a local workspace at `http://localhost:1313/`. Use
-`npm run dev -- --port 1414` to choose another port. The server listens only on
-loopback and saves directly into this repository.
+`pnpm dev` (or `npm run dev`) starts a local workspace. On every machine, the
+starting port defaults to `23130`; occupied ports are skipped in ascending order
+until the server binds successfully. Open the actual URL printed at startup.
+Use `pnpm dev --port 24130` (or `npm run dev -- --port 24130`) to choose another
+starting port. Hugo's local `baseURL`, allowed hosts, origin validation, and
+workspace saves all use the selected port, including after rebuilds. This is a
+runtime rule; `site/hugo.yaml` retains the portable publishing URL configuration.
+The server listens only on loopback and saves directly into this repository.
+
+`npm run test:workspace` also runs the startup regression checks. These require
+Hugo and permission to bind local loopback ports, and use isolated temporary
+sites to test occupied ports and saving after port selection.
 
 - Search in the left sidebar filters the current journal's documents by title
   and content. Use **⌘J / Ctrl+J** to focus it.
@@ -90,9 +99,13 @@ show_toc: true
 ---
 ```
 
-`lastmod` supplies the last updated timestamp, for example
-`lastmod: 2026-11-14T16:45:00+01:00`. Without it, the publication `date` is used.
-Date-only values display without a time; missing dates display a dash. Folders
+Local previews use the Markdown file's modification time, including edits in
+Obsidian or another editor when `lastmod` is absent or unchanged. Cover, document
+information, and index timestamps include seconds. Production builds prefer an
+explicit `lastmod`, for example `lastmod: 2026-11-14T16:45:00+01:00`, and otherwise
+fall back to the file modification time. This preserves recorded publication
+timestamps across copies and checkouts. Creation dates remain the explicit
+`date` field; a missing creation date displays a dash. Folders
 appear first; entries within each folder sort by weight, then title. Use
 `weight: -1` to place an entry before its siblings. Documents default to
 `draft: true`, including when the field is omitted on the Overview, a group, or
@@ -104,6 +117,28 @@ production builds and their navigation and search exclude them. Obsidian's `Temp
 Research Journey, System & Implementation, and Meetings templates, which are
 excluded from publication.
 
+## Automatic note templates in Obsidian
+
+Open `site/content/` as the vault. After reviewing and trusting the included
+plugins, enable community plugins for this vault and enable **Templater** in
+Settings. [Restricted mode disables community plugins](https://obsidian.md/help/plugin-security),
+so copying `.obsidian/` settings alone does not activate automatic templates.
+This trust choice must be made for each new vault on each machine.
+
+Templater is configured to apply folder templates to new empty Markdown notes:
+`related-work/` uses `Templates/Related Work.md`; Journey, System and Meetings
+use their corresponding templates. Subfolders inherit their nearest configured
+parent; `/` uses `Templates/New Note.md` as the fallback. Keep **Trigger Templater
+on new file creation** and **Enable folder templates** enabled. The related-work
+template supplies YAML defaults, takes the initial title from the filename,
+and uses the note's creation day instead of a fixed example date.
+
+Automatic insertion applies when a note is created empty. Existing notes and
+files created with body text are not rewritten. Reload the vault after editing
+plugin settings outside Obsidian. `node --test scripts/test-obsidian-templates.mjs`
+checks the folder bindings and metadata defaults; it does not verify the vault's
+runtime Restricted mode setting.
+
 ## Project title, author, and document dates
 
 Set `title` and `params.author.default` in `site/hugo.yaml` to configure the header,
@@ -113,7 +148,9 @@ byline for documents whose `author` field is empty or absent. A document's own
 
 The document metadata row uses separate author, calendar, and clock icons.
 `date` records creation and `lastmod` records the last edit; the web editor updates
-only `lastmod` when saving. Missing dates display a dash. The header's search icon
+only `lastmod` when saving. The workspace's file-time policy lives in
+`site/config/workspace/hugo.yaml`; rebuilding does not rewrite document metadata.
+Refresh the page after an external edit to see the updated time. The header's search icon
 opens the same search dialog as ⌘K / Ctrl+K.
 
 ## Deployment
@@ -233,3 +270,10 @@ Chinese typography.
 
 `site/static/css/fonts.css` preserves the theme's serif typography and Chinese
 font fallbacks. The page language is set by `site/layouts/_partials/html_open.html`.
+
+English document prose uses serif text; `strong` and `b` emphasis in the body and
+summary use sans-serif text, including nested bold italics. Inline code retains
+its monospace family. This also applies to `en-US` documents.
+
+Run `python3 scripts/verify-document-updates.py` to check external-edit timestamps,
+second precision, creation-date separation, and stable explicit publication dates.

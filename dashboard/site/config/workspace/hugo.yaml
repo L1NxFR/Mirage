@@ -1,0 +1,3 @@
+# Local previews follow edits made in any editor, including unchanged lastmod fields.
+frontmatter:
+  lastmod: [":fileModTime", lastmod, ":default"]

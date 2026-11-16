@@ -12,6 +12,8 @@ import runpy
 
 write_layout_fixtures = runpy.run_path(str(Path(__file__).with_name('layout-fixtures.py')))['write_layout_fixtures']
 repo = Path(__file__).resolve().parents[1]
+config = json.loads(subprocess.check_output(['hugo', 'config', '--source', str(repo / 'site'), '--themesDir', str(repo.parent), '--theme', repo.name, '--format', 'json'], text=True))
+expected_repository = config.get('params', {}).get('source_repository', '')
 with tempfile.TemporaryDirectory(prefix='.navigation-search-', dir=repo / 'site') as directory:
     output = Path(directory)
     baseline = output / 'published-content'
@@ -65,7 +67,10 @@ with tempfile.TemporaryDirectory(prefix='.navigation-search-', dir=repo / 'site'
             assert (output / source_url.lstrip('/')).read_bytes() == original_path.read_bytes(), source_url
             assert page.select_one(f'.article-tools a[download="{editor["data-filename"]}"]')
             assert page.select_one('[data-edit-article][aria-controls="article-editor"]')
-            assert not page.select_one('.article-tools a[title="View GitHub repository"]')
+            repository_link = page.select_one('.article-tools a[title="View GitHub repository"]')
+            assert bool(repository_link) == bool(expected_repository)
+            if repository_link:
+                assert repository_link['href'] == expected_repository
             links = page.select('.blog-sidebar a')
             assert len(links) >= 1
             assert page.select_one('[data-sidebar-search]')
@@ -130,7 +135,7 @@ with tempfile.TemporaryDirectory(prefix='.navigation-search-', dir=repo / 'site'
         default_group = content / section / 'default-group'
         default_group.mkdir()
         (default_group / '_index.md').write_text('---\ntitle: Draft group\n---\n')
-        for name, date, extra in [('older', '2026-01-01', 'lastmod: 2026-11-13T16:45:00+01:00'), ('newer', '2026-11-14', ''),
+        for name, date, extra in [('older', '2026-01-01', 'lastmod: 2026-11-13T16:45:00+01:00'), ('newer', '2026-11-14', 'lastmod: 2026-11-14'),
                                   ('pinned', '2025-01-01', 'weight: -1'),
                                   ('private', '2026-11-14', 'draft: true')]:
             (folder / f'{name}.md').write_text(
@@ -158,8 +163,8 @@ with tempfile.TemporaryDirectory(prefix='.navigation-search-', dir=repo / 'site'
         assert folder.select_one('.journal-folder .journal-entry a')['href'] == prefix + 'deeper/result/'
         older = direct[-1].select_one('time')
         assert older['datetime'] == '2026-11-13T16:45:00+01:00'
-        assert older.get_text(strip=True) == '2026-11-13 16:45'
-        assert '2026-11-14' == direct[1].select_one('time').get_text(strip=True)
+        assert older.get_text(strip=True) == '2026-11-13 16:45:00'
+        assert '2026-11-14 00:00:00' == direct[1].select_one('time').get_text(strip=True)
         assert not any('/hidden/' in href or '/private/' in href or '/default-draft/' in href for href in entries)
         assert all(node.has_attr('open') for node in archive.select('.journal-folder > details'))
         assert all(node.select_one('.journal-leader[aria-hidden="true"]') for node in archive.select('.journal-entry'))

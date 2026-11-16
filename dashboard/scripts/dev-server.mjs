@@ -6,13 +6,14 @@ import { fileURLToPath } from 'node:url';
 import { randomBytes } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { once } from 'node:events';
 import { createStore, WorkspaceError } from './workspace-store.mjs';
 const exec = promisify(execFile);
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 process.chdir(repo);
 const args = process.argv.slice(2);
 const option = name => { const i = args.indexOf(name); return i < 0 ? undefined : args[i + 1]; };
-const port = Number(option('--port') || 1313);
+let port = Number(option('--port') || 23130);
 if (!Number.isInteger(port) || port < 1024 || port > 65535) throw new Error('Choose a port between 1024 and 65535.');
 const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'research-workspace-'));
 let output, generation = 0, queue = Promise.resolve();
@@ -48,6 +49,7 @@ const server = http.createServer(async (request, response) => {
   try {
     const host = request.headers.host;
     if (![`localhost:${port}`, `127.0.0.1:${port}`].includes(host)) throw new WorkspaceError(403, 'Invalid host.');
+    if (!output) throw new WorkspaceError(503, 'The workspace is starting. Try again shortly.');
     const url = new URL(request.url, `http://${host}`);
     if (url.pathname.startsWith('/api/workspace/')) {
       if (request.headers['sec-fetch-site'] === 'cross-site' || (request.headers.origin && request.headers.origin !== `http://${host}`)) throw new WorkspaceError(403, 'Cross-origin access is not allowed.');
@@ -74,12 +76,31 @@ const server = http.createServer(async (request, response) => {
     response.end(request.method === 'HEAD' ? undefined : bytes);
   } catch (error) { json(response, error.status || 500, { error: error.status ? error.message : 'The operation could not be completed.' }); }
 });
-try { await rebuild(); } catch (error) { console.error(error.message); fs.rmSync(temp,{recursive:true,force:true}); process.exit(1); }
-server.listen(port, '127.0.0.1', () => console.log(`Research workspace: http://localhost:${port}/ (editing saves directly to this repository)`));
-server.on('error', error => { console.error(error.message); cleanup(); });
 const watchers = [];
 let timer;
-for (const directory of ['site/content', 'site/layouts', 'site/static', 'site/data', 'layouts']) {
+function cleanup(exitCode = 0) { clearTimeout(timer); watchers.forEach(watcher=>watcher.close()); server.close(); fs.rmSync(temp,{recursive:true,force:true}); process.exit(exitCode); }
+process.on('SIGINT', () => cleanup());
+process.on('SIGTERM', () => cleanup());
+try {
+  for (;;) {
+    try {
+      // Bind the actual server: probing and releasing a port would leave a race.
+      const listening = once(server, 'listening');
+      server.listen(port, '127.0.0.1');
+      await listening;
+      break;
+    } catch (error) {
+      if (error.code !== 'EADDRINUSE' || port === 65535) throw error;
+      console.warn(`Port ${port} is in use; trying ${port + 1}.`);
+      port++;
+    }
+  }
+  // Build only after binding so every generated URL uses the selected port.
+  await rebuild();
+} catch (error) { console.error(error.message); cleanup(1); }
+console.log(`Research workspace: http://localhost:${port}/ (editing saves directly to this repository)`);
+server.on('error', error => { console.error(error.message); cleanup(1); });
+for (const directory of ['site/content', 'site/layouts', 'site/static', 'site/data', 'site/config', 'layouts']) {
   watchers.push(fs.watch(path.join(repo, directory), { recursive: true }, (_, filename) => {
     if (!filename || /(^|\/)\./.test(filename)) return;
     clearTimeout(timer);
@@ -87,5 +108,3 @@ for (const directory of ['site/content', 'site/layouts', 'site/static', 'site/da
   }));
 }
 watchers.push(fs.watch(path.join(repo,'site/hugo.yaml'), () => { clearTimeout(timer); timer=setTimeout(()=>serial(rebuild).catch(error=>console.error(error.message)),300); }));
-function cleanup() { clearTimeout(timer); watchers.forEach(watcher=>watcher.close()); server.close(); fs.rmSync(temp,{recursive:true,force:true}); process.exit(); }
-process.on('SIGINT', cleanup); process.on('SIGTERM', cleanup);

@@ -7,6 +7,10 @@
   "enable_folder_templates": true,
   "folder_templates": [
     {
+      "folder": "related-work",
+      "template": "Templates/Related Work.md"
+    },
+    {
       "folder": "research-journey",
       "template": "Templates/Research Journey.md"
     },

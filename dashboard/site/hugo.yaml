@@ -1,6 +1,6 @@
 baseurl: "/"
 locale: "en-US"
-title: "Research Project"
+title: "Mirage"
 theme: "Research-Project-Homepage"
 ignoreFiles: ["(^|/)\\.workspace-trash/", "\\.Rmd$", "\\.Rmarkdown$", "_cache$", "\\.excalidraw\\.md$", "(^|/)Templates/", "(^|/)Attachments/"]
 footnotereturnlinkcontents: "↩"
@@ -13,6 +13,10 @@ cascade:
     content_lang: en
 enableRobotsTXT: true
 disableKinds: [taxonomy, term]
+
+frontmatter:
+  date: [date]
+  lastmod: [lastmod, ":fileModTime", ":default"]
 
 module:
   mounts:
@@ -47,19 +51,19 @@ menu:
       weight: 50
 
 params:
-  source_repository: "" # Set this to the research project repository URL
+  source_repository: "https://github.com/L1NxFR/Mirage"
   journal_sections: [related-work, research-journey, system-implementation, meetings]
-  description: "Related work, research progress, system implementation, and meeting notes."
+  description: "Mirage — an LLM serving simulator."
   toc_threshold: 3
   author:
     default: "Nan Lin"
     cn: ""
   logo:
     en:
-      alt: Research Project
+      alt: Mirage
       url: /
       img: # a path to the logo
-  footer: "Research Project · {Year}"
+  footer: "Mirage · {Year}"
 
 security:
   allowContent: ['.*']
