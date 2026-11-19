@@ -125,3 +125,19 @@ test('document action build failures roll back copies, moves and deletions', asy
   assert.throws(() => store.read('meetings/weekly/notes.md'), { status: 404 });
   assert.throws(() => store.read('meetings/weekly/notes-copy-1.md'), { status: 404 });
 });
+
+for (const instant of ['2026-11-15T16:00:01.123Z', '2026-06-30T23:59:59.999Z']) {
+  test(`creation and saves use Beijing time at ${instant}`, async t => {
+    t.mock.timers.enable({ apis: ['Date'], now: new Date(instant) });
+    const { store } = fixture(t);
+    const expected = new Date(Date.parse(instant) + 8 * 60 * 60 * 1000).toISOString().replace('Z', '+08:00');
+    for (const kind of ['document', 'group']) {
+      const doc = await store.create({ kind, parent: 'meetings', title: `Beijing ${kind}` });
+      assert.equal(parseSource(doc.source).data.date, expected);
+      assert.equal(parseSource(doc.source).data.lastmod, expected);
+      const saved = await store.save({ ...doc, source: doc.source + 'Edited\n' });
+      assert.equal(parseSource(saved.source).data.lastmod, expected);
+      assert.equal(Date.parse(parseSource(saved.source).data.lastmod), Date.parse(instant));
+    }
+  });
+}

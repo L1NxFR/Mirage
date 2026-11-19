@@ -2,6 +2,7 @@
 <link rel="stylesheet" href="{{ "vendor/katex/hugo-compat.css" | relURL }}">
 <link rel="icon" type="image/svg+xml" href="{{ "icons/favicon.svg" | relURL }}">
 <link rel="stylesheet" href="{{ "css/highlight.css" | relURL }}">
+<link rel="stylesheet" href="{{ "css/text-highlights.css" | relURL }}?v={{ readFile "static/css/text-highlights.css" | sha256 }}">
 {{ if in .Content `class="paper-card"` }}
 <link rel="stylesheet" href="{{ "css/paper-card.css" | relURL }}">
 {{ end }}
@@ -24,3 +25,7 @@
 
 <link rel="stylesheet" href="{{ "css/article-tools.css" | relURL }}?v={{ readFile "static/css/article-tools.css" | sha256 }}">
 <link rel="stylesheet" href="{{ "css/workspace.css" | relURL }}?v={{ readFile "static/css/workspace.css" | sha256 }}">
+{{ if or .IsPage .IsHome }}
+<link rel="stylesheet" media="print" href="{{ "css/print.css" | relURL }}?v={{ readFile "static/css/print.css" | sha256 }}">
+<script src="{{ "js/print.js" | relURL }}?v={{ readFile "static/js/print.js" | sha256 }}" defer></script>
+{{ end }}

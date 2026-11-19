@@ -8,6 +8,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { once } from 'node:events';
 import { createStore, WorkspaceError } from './workspace-store.mjs';
+import { syncDocumentWeights } from './document-weights.mjs';
 const exec = promisify(execFile);
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 process.chdir(repo);
@@ -19,6 +20,7 @@ const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'research-workspace-'));
 let output, generation = 0, queue = Promise.resolve();
 const token = randomBytes(32).toString('hex');
 async function rebuild() {
+  syncDocumentWeights(path.join(repo, 'site/content'));
   const destination = path.join(temp, `public-${++generation}`);
   try {
     await exec('hugo', ['--source', path.join(repo, 'site'), '--themesDir', path.dirname(repo),
@@ -98,7 +100,6 @@ try {
   // Build only after binding so every generated URL uses the selected port.
   await rebuild();
 } catch (error) { console.error(error.message); cleanup(1); }
-console.log(`Research workspace: http://localhost:${port}/ (editing saves directly to this repository)`);
 server.on('error', error => { console.error(error.message); cleanup(1); });
 for (const directory of ['site/content', 'site/layouts', 'site/static', 'site/data', 'site/config', 'layouts']) {
   watchers.push(fs.watch(path.join(repo, directory), { recursive: true }, (_, filename) => {
@@ -108,3 +109,4 @@ for (const directory of ['site/content', 'site/layouts', 'site/static', 'site/da
   }));
 }
 watchers.push(fs.watch(path.join(repo,'site/hugo.yaml'), () => { clearTimeout(timer); timer=setTimeout(()=>serial(rebuild).catch(error=>console.error(error.message)),300); }));
+console.log(`Research workspace: http://localhost:${port}/ (editing saves directly to this repository)`);

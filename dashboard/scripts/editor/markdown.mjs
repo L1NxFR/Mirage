@@ -1,5 +1,29 @@
 import { Marked } from 'marked';
 
+const highlightColors = { '🔴':'red', '🟠':'orange', '🟡':'yellow', '🟢':'green', '🔵':'blue', '🟣':'purple' };
+
+function highlightToken(source) {
+  if (!source.startsWith('==') || source[2] === '=' || !source[2] || /\s/.test(source[2])) return;
+  for (let i = 2; i < source.length; i++) {
+    // Embedded code and math may contain equality operators of their own.
+    const math = mathToken(source.slice(i), false);
+    if (math) { i += math.raw.length - 1; continue; }
+    if (source[i] === '\\') { i++; continue; }
+    if (source[i] === '`') {
+      const run = source.slice(i).match(/^`+/)[0];
+      const end = source.indexOf(run, i + run.length);
+      if (end !== -1) { i = end + run.length - 1; continue; }
+    }
+    if (source.startsWith('==', i) && source[i + 2] !== '=' && !/\s/.test(source[i - 1])) {
+      let text = source.slice(2, i), color;
+      for (const [emoji, name] of Object.entries(highlightColors)) {
+        if (text.startsWith(emoji)) { color = name; text = text.slice(emoji.length).replace(/^\uFE0F/, ''); break; }
+      }
+      return { type: 'highlight', raw: source.slice(0, i + 2), color, tokens: this.lexer.inlineTokens(text) };
+    }
+  }
+}
+
 // Tokenize math before Markdown can consume TeX escapes, underscores, or stars.
 // Code spans and ordinary code fences remain owned by Marked's code tokenizers.
 function closingDelimiter(source, delimiter, from) {
@@ -39,6 +63,10 @@ export function parseMarkdown(source) {
   }
   const parser = new Marked({
     extensions: [
+      { name: 'highlight', level: 'inline', start: source => source.indexOf('=='), tokenizer: highlightToken,
+        renderer(token) {
+          return `<mark${token.color ? ` data-highlight-color="${token.color}"` : ''}>${this.parser.parseInline(token.tokens)}</mark>`;
+        } },
       { name: 'blockMath', level: 'block',
         start: source => source.match(/(?:^|\n) {0,3}(?:\$\$|\\\[)/)?.index,
         tokenizer: source => mathToken(source, true),

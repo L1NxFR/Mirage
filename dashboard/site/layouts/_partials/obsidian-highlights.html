@@ -1,0 +1,7 @@
+{{- /* Goldmark creates semantic marks. Obsidian's leading color emoji selects
+      the color and is omitted from the rendered text, including with no JS. */ -}}
+{{- $html := string . -}}
+{{- range $emoji, $color := dict "🔴" "red" "🟠" "orange" "🟡" "yellow" "🟢" "green" "🔵" "blue" "🟣" "purple" -}}
+  {{- $html = replace $html (printf "<mark>%s" $emoji) (printf "<mark data-highlight-color=%q>" $color) -}}
+{{- end -}}
+{{- return ($html | safeHTML) -}}

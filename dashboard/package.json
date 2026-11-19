@@ -3,9 +3,9 @@
   "private": true,
   "scripts": {
     "dev": "node scripts/build-editor.mjs && node scripts/dev-server.mjs",
-    "build": "npm run build:editor && hugo --source site --themesDir ../.. --theme \"$(basename \"$PWD\")\" --cleanDestinationDir",
+    "build": "node scripts/document-weights.mjs && npm run build:editor && hugo --source site --themesDir ../.. --theme \"$(basename \"$PWD\")\" --cleanDestinationDir",
     "build:editor": "node scripts/build-editor.mjs",
-    "test:workspace": "node --test scripts/test-workspace.mjs scripts/test-editor-math.mjs scripts/test-editor-summary.mjs scripts/test-dev-server.mjs scripts/test-obsidian-templates.mjs"
+    "test:workspace": "node --test scripts/test-workspace.mjs scripts/test-document-weights.mjs scripts/test-editor-math.mjs scripts/test-editor-highlights.mjs scripts/test-editor-summary.mjs scripts/test-dev-server.mjs scripts/test-obsidian-templates.mjs"
   },
   "dependencies": {
     "@codemirror/commands": "^6.11.1",

@@ -10,16 +10,13 @@
   {{ end }}{{ end }}
 {{ end }}
 <ul class="blog-tree">
-{{ $ordered := $pages.ByTitle.ByWeight }}
-{{ range slice (where $ordered "Params.sidebar_pinned" true) (where $ordered "Params.sidebar_pinned" "ne" true) }}
-{{ range . }}
+{{ range sort $pages.ByTitle "Weight" "asc" }}
   {{ if eq .File.Dir $directory }}
     <li class="sidebar-document" data-document-path="{{ .File.Path }}" data-document-title="{{ .Title }}" data-pinned="{{ if .Params.sidebar_pinned }}true{{ else }}false{{ end }}"><a href="{{ .RelPermalink }}"{{ if eq .RelPermalink $current.RelPermalink }} aria-current="page"{{ end }}>{{ .Title }}{{ if .Draft }} <small class="draft-badge">Draft</small>{{ end }}</a><button type="button" class="document-more" aria-label="{{ .Title }}：更多操作" aria-haspopup="menu" aria-expanded="false">⋯</button></li>
   {{ else if hasPrefix .File.Dir $directory }}
     {{ $folder := index (split (strings.TrimPrefix $directory .File.Dir) "/") 0 }}
     {{ $folders = $folders | append $folder }}
   {{ end }}
-{{ end }}
 {{ end }}
 {{ range sort (uniq $folders) }}
   {{ $path := printf "%s%s/" $directory . }}

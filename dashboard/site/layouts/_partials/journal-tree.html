@@ -29,13 +29,14 @@
       </details>
     </li>
   {{ end }}
-  {{ range $pages.ByTitle.ByWeight }}
+  {{ range sort $pages.ByTitle "Weight" "asc" }}
     {{ if eq .File.Dir $directory }}
       <li class="journal-entry">
         <a href="{{ .RelPermalink }}">{{ .Title }}{{ if .Draft }} <small class="draft-badge">Draft</small>{{ end }}</a>
         <span class="journal-leader" aria-hidden="true"></span>
         {{ if not .Lastmod.IsZero }}
-          <time datetime="{{ .Lastmod.Format "2006-01-02T15:04:05Z07:00" }}" title="Last updated: {{ .Lastmod.Format "2006-01-02 15:04:05 MST" }}">{{ .Lastmod.Format "2006-01-02 15:04:05" }}</time>
+          {{ $modified := .Lastmod | time.In "Asia/Shanghai" }}
+          <time datetime="{{ $modified.Format "2006-01-02T15:04:05Z07:00" }}" title="Last updated: {{ $modified.Format "2006-01-02 15:04:05 UTCZ07:00" }}">{{ $modified.Format "2006-01-02 15:04:05" }}</time>
         {{ else }}
           <span class="journal-date-missing" aria-label="Last updated date unavailable">—</span>
         {{ end }}

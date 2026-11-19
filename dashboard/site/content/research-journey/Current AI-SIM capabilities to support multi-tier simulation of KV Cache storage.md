@@ -1,148 +1,264 @@
 ---
+weight: 1
 content_lang: en
 title: Current AI-SIM capabilities to support multi-tier simulation of KV Cache storage
 date: 2026-11-15
-lastmod: 2026-11-15
+lastmod: 2026-11-16
 draft: false
 show_toc: true
-description: Code review of multi-tier simulation support against the November 13 meeting requirements.
+description: "Technical Research Report: architecture, mechanisms, and extension requirements for multi-tier KV-cache simulation."
+subtitle: Weekly Report
 tldr: |
-  The checked-out AISim already models local GPU–host KV offloading, shared host caches, and a restricted storage tier. Start Case 2 with its existing single-worker G1/G2 agentic fixture; expert offloading and direct execution from a second memory tier remain extension work. Dynamo provides implementation references and routing integration, but its checked-out replay interface has narrower support than the local AISim source.
+  AISim implements GPU–host KV-cache offloading, a deployment-wide shared host pool, and restricted storage-tier replay. These mechanisms provide a baseline for studying capacity, bandwidth, and scheduling under agentic workloads. Expert offloading, direct execution from a slower tier, and unified contention across transfer paths require additional models; runtime correctness and hardware accuracy remain unverified in this report.
 ---
 
-## Research questions
 
-The [November 13 meeting](../../meetings/2026-11-13-weekly-meeting/) asked for a comparison of two cases: shared KV cache across workers (Case 1), and a single GPU with two-level memory for KV cache followed by MoE experts (Case 2). It prioritized Case 2, scheduling and performance, and evaluation with agentic traces. This report supplies the code review and recommendation for the ten-minute sync. It does not report completed implementation or performance experiments.
+| Case 1 capability                            | Existing implementation                                                                                          | Limitations                                                                                                                                 |
+| -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Multi-worker agentic workload**            | AgentX/Weka replay supports multiple workers and prefix reuse within conversations.                              |                                                                                                                                             |
+| **Siloed KV-cache baseline**                 | Each worker has private G1; `dp_rank_local` provides private G2.                                                 |                                                                                                                                             |
+| **Shared DDR-cache pool**                    | `cluster_shared` lets workers share G2 residency, capacity, and pool bandwidth while keeping HBM private.        | Models a logical shared pool, rather than the full behavior of a specific shared-memory device or distributed-storage protocol.             |
+| **Cache lookup and eviction**                | Tracks complete prefix blocks, G1/G2 residency, capacity, store/load states, and eviction.                       |                                                                                                                                             |
+| **Cache-locality and load-aware routing**    | The Dynamo adapter can integrate the KV Router; AISim exposes placement and cache-event interfaces.              |                                                                                                                                             |
+| **Peer DDR retrieval under agentic traffic** | KVCR can fetch KV from peer G2 into local G2, then restore it to the destination GPU.                            | Current agentic traffic does not supply source hints, so peer pulls are not triggered. Source selection and hint propagation must be added. |
+| **KV-transfer latency and contention**       | Models first-byte latency, H2D/D2H bandwidth, shared-pool bandwidth contention, and KVCR source-side contention. | Lacks a complete model of destination NIC constraints, network topology, and shared-resource contention across transfer paths.              |
+| **Worker queueing and execution**            | Models worker scheduling, batching, prefill/decode, and waiting for KV restoration.                              |                                                                                                                                             |
 
-**The current code supports the KV-offloading subset of Case 2.** The meeting's “not supported” description is too broad for this checkout. The existing model copies cached KV from GPU memory to host memory and restores it before execution. If “second-level memory” instead means memory from which attention or expert kernels execute directly, that behavior is not established by these offload paths and needs a separate model.
+## Research objective
 
-## Source baseline
 
-| Repository | Reviewed commit | Local source changes |
+
+Mirage studies how memory capacity, transfer bandwidth, and scheduling affect LLM serving under agentic workloads. The [November 13 meeting](../../meetings/2026-11-13-weekly-meeting/) defines two configurations: **Case 1**, KV-cache sharing across workers; and **Case 2**, single-GPU two-level memory, starting with KV offloading and then MoE expert offloading. Case 2 remains the first implementation target.
+
+The existing G1/G2 path provides the storage-offloading baseline for Case 2: reusable KV resides in host memory between uses and returns to GPU memory before execution. Executing attention directly against a slower memory tier is a different capability, not represented by this restore path. [A3]
+
+Unless stated otherwise, implementation findings below are based on static source analysis. Test assertions specify expected behavior but have not been reproduced here. There are no locally verified runtime or GPU-performance results. Proposed extensions and performance hypotheses are identified separately; reproducibility details are in the Appendix.
+
+## System architecture and state ownership
+
+AISim separates request replay, engine behavior, and forward-pass timing. Replay owns virtual time and worker composition; the engine owns scheduling and cache state; the performance model supplies compute-time estimates. Offload transfers advance on the simulation clock without moving tensors. [A16] [A2]
+
+| Component | State and responsibility | Interface relevant to multi-tier modeling |
 | --- | --- | --- |
-| AISim | `c85b08623fc5fb8c6c6600619251d7fbf775bb1f` | None reported by Git |
-| Dynamo | `b20fe6fe94021b854597965c7305931175e8f482` | None reported by Git |
+| Replay deployment | Worker topology, placement, virtual-time progression | Creates deployment-scoped tier registries and connects them to engines [A14] |
+| vLLM host adapter | Per-request prefix lookup, destination reservations, admission dependencies | `start_load`, `advance`, `on_admitted`, and request completion/cancellation [A3] |
+| `HostTier` | G2 block residency, pending transfers, pins, eviction order | Store/load submission, completion, and residency events [A2] |
+| `G2Registry` | One shared pool and its participant contract | `join` checks layout, capacity, and shared bandwidth agreement [A4] |
+| Transfer service | Bytes remaining, readiness times, directional link budgets | FIFO service for private G2; fair sharing for shared pools [A2] [A5] |
+| Dynamo integration | Engine adaptation and routing-facing observations | Wraps an AISim core; real KVBM transfer execution remains a separate subsystem [D1] [D2] [D3] |
 
-Review date: November 15, 2026. Findings below come from local implementations, validators, and test assertions. Source links are pinned to these commits. The existing meeting note is unchanged.
+A G2 block is identified by a sequence hash. Residency belongs to the tier; routing information is a derived view of that residency. A placement decision therefore cannot guarantee that the block will still be available at admission. The adapter rechecks availability, and its load path releases a G1 reservation if the host lookup no longer succeeds. [A2] [A3]
 
-## Capability assessment
+### Admission and transfer invariants
 
-| Capability | AISim implementation | Boundary relevant to Mirage |
+| Invariant | Enforcement in the existing implementation |
+| --- | --- |
+| A queued store is not yet a resident block | `HostTier::finish` changes `PendingStore` to `Resident` at D2H completion [A2] |
+| A host hit cannot exceed available G1 destination capacity | `start_load` reserves G1 blocks before scheduling H2D and returns `CapacityBlocked` if reservation fails [A3] |
+| In-flight copies cannot be treated as completed reuse | Load state and source dependencies delay admission or reuse until the required completion [A3] |
+| Shared capacity is counted once | Participants join the same tier under an equal pool contract [A4] |
+| Equal-time transfer events have a defined order | `HostTier::advance` applies stores before loads, then orders by transfer ID [A2] |
+
+These are code-enforced simulation rules. Their end-to-end correctness still requires the tests in the validation section.
+
+## Existing implementation mechanisms
+
+### G1/G2 storage and restoration
+
+The vLLM adapter observes completed blocks and offers eligible blocks for host storage according to the selected connector profile. A later request looks up its reusable prefix. If restoration is possible, `start_load` reserves GPU destinations, waits for conflicting source-copy dependencies, and submits H2D work. Completion activates the loaded prefix for admission. Concurrent transfers or insufficient GPU capacity can defer the request. [A3]
+
+Host capacity increases the amount of reusable KV retained between requests; it does not remove the requirement to fit restored blocks in G1. Restoration reduces recomputation only when its transfer and admission costs are preferable to recomputing the missing prefix. That performance trade-off is a hypothesis to measure, not an established speedup. [A3] [A9]
+
+Connector profiles encode different policies. `offloading_v0_24` primarily stores prompt blocks, while `simple_cpu_v0_32` also stores decode blocks and uses different eviction and preemption behavior. The documented v0.32 deviations include recomputation of output blocks after preemption in the simple-CPU model. Consequently, connector choice must remain fixed within a policy comparison. The upstream documentation reports no running-vLLM comparison for these profiles. [A13]
+
+### Capacity and bandwidth model
+
+For a block of (b) tokens and (q) KV bytes per token, the model uses:
+
+\[
+S_{\mathrm{block}} = bq, \qquad C_{\mathrm{G2}} = N_{\mathrm{blocks}}bq.
+\]
+
+`HostClient::new` computes this geometry. Capacity and transfer bytes use the per-shard KV representation; a tensor-parallel multiplier must not be added implicitly. [A4] [A13]
+
+For private G2, `HostTier::submit` and `FifoLane::submit` give the following completion rule for positive bandwidth:
+
+\[
+t_{\mathrm{done}} = \max(t_{\mathrm{lane}},\ t_{\mathrm{eligible}} + L)
++ \frac{S}{10^6 B}.
+\]
+
+Here, time is in milliseconds, (S) is bytes, (B) is decimal GB/s, and (L) is first-byte latency. H2D and D2H have separate lanes. A configured bandwidth of zero means unlimited service. Shared G2 instead recalculates max-min fair rates under both per-client and aggregate directional caps. [A2] [A5]
+
+The supplied single-worker fixture uses four-token blocks and 250,000 bytes per token: 1 MB per block, 3 MB of G1 KV capacity, and 8 MB of G2 capacity. Its expected eight-token restoration moves 2 MB, whose isolated service time is 2 ms at 1 GB/s or 200 ms at 0.01 GB/s. These are arithmetic consequences of fixture parameters, not measured TTFT values; queueing and dependencies add delay. [A15] [A9]
+
+The model abstracts bandwidth and latency. It does not establish PCIe transaction behavior, NUMA/CXL topology, or contention between independent transfer subsystems. `FairTransfers` explicitly leaves budgets with its callers. Reusing this class in two paths does not make them share a physical link. [A5]
+
+### Shared G2 and peer-cache retrieval
+
+`cluster_shared` supplies one deployment-wide host pool. Its contract includes KV layout, tensor-parallel size, block geometry, capacity, and shared bandwidth. Incompatible participants are rejected. This supports Case 1 as a shared-capacity and contention model, with one authoritative residency state. [A4]
+
+KVCR instead connects private G2 caches. A source hint identifies where a missing prefix may reside; the registry tracks source availability, pins, transfer progress, and delivery into the target G2. H2D restoration then brings those blocks into G1. Tests specify source-bandwidth sharing and waits for an active source pass. The documented AgentX path provides no such hints, so enabling KVCR there does not produce remote pulls. [A7] [A11] [A13]
+
+For comparisons across (N) private ranks, total host capacity is (N C_{\mathrm{private}}); shared capacity is (C_{\mathrm{shared}}), counted once. Equal-capacity comparisons require (C_{\mathrm{shared}}=N C_{\mathrm{private}}), with aggregate bandwidth controlled separately. Otherwise resource increases confound the effect of sharing. This normalization follows from pool ownership. [A4]
+
+### G3 staging and Dynamo KVBM
+
+AISim's G3 adapter stores blocks behind G2 and stages restored blocks through G2 before H2D loading. It therefore models a storage hierarchy, with staging capacity and transfer dependencies, rather than direct attention access to storage. [A6]
+
+Dynamo KVBM has a broader execution subsystem: `OffloadEngine` coordinates G1→G2, G2→G3, and G2→G4 pipelines; `PhysicalWorker` owns layouts and a transfer manager, with object storage handled separately. These are references for physical migration semantics. They do not establish equivalent G4 or KVBM-policy support in AISim, whose reviewed engine configuration has no separate G4 tier. [D1] [D2] [A1]
+
+## Capability boundaries
+
+All entries below describe static implementation support, not reproduced runtime behavior.
+
+| Composition                                       | Supported boundary                                                      | Restriction                                                                                                       |
+| ------------------------------------------------- | ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| vLLM G2                                           | Local or shared pool; prefix caching enabled                            | Additional connector profiles are restricted to local aggregated use [A1]                                         |
+| Agentic G2 in AISim                               | Offline aggregated or P/D pools; positive replica counts; attention DP1 | Static workers; G3 rejected; speculation excluded except a restricted single-worker local-G2 MTP combination [A8] |
+| G3 replay                                         | Aggregated vLLM, attention DP1, G2 enabled, default connector           | No P/D or agentic composition [A1] [A14] [A8]                                                                     |
+| KVCR                                              | Private G2 on aggregated or prefill workers                             | No shared G2, G3, or decode-role fetch [A1]                                                                       |
+| SGLang HiCache                                    | Separate local host-cache path with prefix caching                      | Aggregated scope; it is not the vLLM connector path [A1]                                                          |
+| Agentic G2 through Dynamo mocker                  | One aggregated worker, or one prefill plus one decode worker            | Narrower worker-count and speculation gates than AISim [D4]                                                       |
+| Shared G2 through Dynamo's grouped live scheduler | Offline replay required by this path                                    | Live `cluster_shared` configuration is rejected [D5]                                                              |
+
+Dynamo's mocker dependency is separately pinned; it does not automatically use the sibling AISim checkout. Adapter compatibility must be demonstrated before combining their capabilities. The package versions and source identities are recorded in Appendix A. [D3] [D6]
+
+## Required extensions
+
+The following modules are proposed research work. Their interfaces and behavior are not implemented or validated by this report.
+
+| Research target | Existing foundation and gap | Proposed module boundary | Required correctness check |
+| --- | --- | --- | --- |
+| KV/expert contention | Transfer budgets are owned separately [A5] | A shared resource-budget owner used by KV and expert-transfer clients | Simultaneous clients cannot exceed one link's configured rate |
+| MoE expert offloading | Dispatch/combine operators model token communication; no expert-weight residency lifecycle was identified in the engine configuration or inspected offload paths [A1] [A3] [A12] | Expert identity and residency, per-layer demand input, load/eviction policy, and compute dependency tracking | Expert execution waits for required weights; cancellation releases reservations; weights and KV obey the same G1 capacity limit |
+| Direct execution from a slower tier | Current host restoration reserves G1 destinations [A3] | Memory-access costs in compute timing, distinct from migration timing | Resident slow-tier reads incur access cost without an artificial full restore |
+| Agentic G3 | G3 adapter exists, but the runner rejects this composition [A6] [A8] | Extend workload compatibility and staging tests | Preserve dependency order, isolate replay identities, and avoid restore/eviction livelock |
+| Agentic peer retrieval | KVCR exists but AgentX supplies no source hints [A7] [A13] | Hint production and routing integration | Stale hints fall back safely; source bandwidth and target capacity remain bounded |
+
+Expert-demand data is an unresolved input. A request-level agentic trace must not be assumed to contain layer-wise expert selections. Until such data or a justified demand model is supplied, no expert-offloading performance claim is supported. Similarly, whether a shared link becomes the dominant bottleneck is an unverified hypothesis to test after integrating resource budgets.
+
+## Technical decisions and trade-offs
+
+These recommendations preserve the accepted Case 2-first scope; they are proposals for implementation, not newly accepted architecture decisions.
+
+| Decision | Recommendation and evidence | Cost or condition for revisiting |
 | --- | --- | --- |
-| Single-worker GPU–host KV offload | G1 capacity plus G2 residency, eviction, store/load events, and transfer timing | vLLM path requires prefix caching; host-resident KV is restored to G1 before use |
-| Shared host cache | `cluster_shared` creates one deployment-owned G2 pool | Participants must agree on cache layout and pool parameters |
-| Private-cache peer fetch | KVCR transfers a prefix from another rank's G2 | Requires source hints and private G2; incompatible with G3; no peer pulls in the documented AgentX path |
-| Third storage tier | G3 stores blocks and stages them through G2 | Aggregated vLLM, attention DP1, default offload connector; agentic replay rejects G3 |
-| SGLang host cache | Separate `sglang.hicache` configuration | Local aggregated scope; not the same path as vLLM `host_offload` |
-| Agentic workload with G2 | Local or shared G2; aggregated or P/D pools | Offline, vLLM, static pools, attention DP1; output is qualified `functional_only` |
-| MoE expert offload | No expert-residency or migration lifecycle found in reviewed engine paths | MoE compute/communication timing does not provide expert placement, eviction, or load scheduling |
-| Direct execution from a slower tier | Not established by the reviewed paths | Current KV restoration requires GPU capacity; this is not a generic two-level execution-memory model |
+| Baseline execution path | Use AISim engine-only replay with one vLLM worker, TP1, attention DP1, prefix caching, and local G2. The supplied fixture exercises the required restoration path [A15] [A9] | Does not validate Dynamo routing; add the adapter when routing becomes an experimental variable |
+| Implementation sequence | Reproduce G1/G2 before changing tier mechanics. Existing reservation and completion rules already cover the basic KV case [A2] [A3] | A target backend's measured semantics may require connector changes |
+| Case 1 baseline | Start with `cluster_shared` when the question concerns pooled capacity/bandwidth [A4] | Use private G2 plus KVCR when placement, source selection, or network transfer is the research variable [A7] |
+| Timing calibration | Use fixed timing for functional controls, then matching hardware profiles and real-backend measurements [A15] [A13] | Fixed timing cannot establish absolute latency or speedup |
+| Expert-offload design | Add explicit expert state and compute dependencies; integrate shared capacity/link accounting [A1] [A5] [A12] | More engineering than a constant transfer penalty, but required to represent eviction, overlap, and contention |
 
-The restrictions are enforced in `EngineConfig` and runner validation, rather than being configuration suggestions. [A1](https://github.com/ai-dynamo/aisim/blob/c85b08623fc5fb8c6c6600619251d7fbf775bb1f/crates/core/src/engine/config.rs)[A8](https://github.com/ai-dynamo/aisim/blob/c85b08623fc5fb8c6c6600619251d7fbf775bb1f/python/aisim/src/aisim/sweeper/replay.py)
+Case 2's KV baseline and Case 1's shared-pool baseline mainly require configuration and validation work. Agentic remote fetch requires workload/routing integration; expert offloading and direct slow-tier execution require new state or timing models. This effort ordering is an architectural inference from the modules above, not a delivery-time estimate.
 
-### Local G1/G2: what is already modeled
+## Validation criteria
 
-`HostTier` tracks resident and pending blocks, capacity, eviction order, and in-flight transfers. `HostClient::new` derives block bytes from block size and KV bytes per token. The vLLM adapter decides when blocks are stored, which prefix can be restored, and when a request can proceed. Its `start_load` reserves G1 destination blocks and can return capacity-blocked or deferred states. A large host cache therefore does not let an active request bypass GPU capacity constraints. [A2](https://github.com/ai-dynamo/aisim/blob/c85b08623fc5fb8c6c6600619251d7fbf775bb1f/crates/core/src/engine/host_offload/tier.rs)[A3](https://github.com/ai-dynamo/aisim/blob/c85b08623fc5fb8c6c6600619251d7fbf775bb1f/crates/core/src/engine/scheduler/vllm/host_offload.rs)[A4](https://github.com/ai-dynamo/aisim/blob/c85b08623fc5fb8c6c6600619251d7fbf775bb1f/crates/core/src/engine/host_offload/registry.rs)
+The existing suite provides concrete acceptance criteria. None of the following runtime outcomes is claimed as locally verified.
 
-The configurable timing inputs include separate H2D and D2H bandwidths and a first-byte delay. Private G2 uses a FIFO lane per direction. Shared G2 uses max-min fair service under both client and pool bandwidth limits. Zero bandwidth means unlimited service in this model, not a disabled link. These mechanics support capacity/bandwidth sensitivity studies without adding a new transfer simulator. [A2](https://github.com/ai-dynamo/aisim/blob/c85b08623fc5fb8c6c6600619251d7fbf775bb1f/crates/core/src/engine/host_offload/tier.rs)[A5](https://github.com/ai-dynamo/aisim/blob/c85b08623fc5fb8c6c6600619251d7fbf775bb1f/crates/core/src/engine/offload_transfer.rs)
-
-The offload model advances logical blocks through virtual time. It does not move tensors or simulate PCIe transactions, cache coherence, NUMA placement, or a CXL fabric. Each transfer subsystem owns its budgets; sharing one fairness implementation does not establish a single physical-link budget across KV transfers, P/D transfers, and future expert loads. A shared-link contention model would need explicit integration. [A5](https://github.com/ai-dynamo/aisim/blob/c85b08623fc5fb8c6c6600619251d7fbf775bb1f/crates/core/src/engine/offload_transfer.rs)
-
-Connector choice matters. The default `offloading_v0_24` and the two v0.32 profiles use different store and eviction rules. The source documentation states that these profiles were not compared against a running vLLM instance and records semantic deviations. Existing functionality is a starting point for validation, not evidence of measured fidelity. [A13](https://github.com/ai-dynamo/aisim/blob/c85b08623fc5fb8c6c6600619251d7fbf775bb1f/docs/replay/engine/kv-cache.md)
-
-### Case 1: shared storage versus distributed fetch
-
-`G2Registry::join` creates one host pool and checks each participant's layout, block geometry, capacity, and shared bandwidth contract. All participants access the same residency state. Tests cover cross-rank reuse, shared P/D pools, fresh-pool isolation, and rejection of incompatible roles. This is enough to begin a shared-capacity/shared-bandwidth study. It does not model arbitrary network topology or failure recovery. [A4](https://github.com/ai-dynamo/aisim/blob/c85b08623fc5fb8c6c6600619251d7fbf775bb1f/crates/core/src/engine/host_offload/registry.rs)[A10](https://github.com/ai-dynamo/aisim/blob/c85b08623fc5fb8c6c6600619251d7fbf775bb1f/crates/core/tests/host_offload_scopes.rs)
-
-KVCR models a different arrangement: separate G2 caches with explicit transfers between them. Its registry tracks source availability, in-flight pulls, transferred bytes, and source wait time. Tests inspect source contention and hinted remote restoration. This is a useful basis for a distributed-cache study, but source selection must supply hints. Agentic G2 support alone does not make remote fetch active. [A7](https://github.com/ai-dynamo/aisim/blob/c85b08623fc5fb8c6c6600619251d7fbf775bb1f/crates/core/src/engine/kvcr.rs)[A11](https://github.com/ai-dynamo/aisim/blob/c85b08623fc5fb8c6c6600619251d7fbf775bb1f/crates/core/tests/kvcr_replay.rs)[A13](https://github.com/ai-dynamo/aisim/blob/c85b08623fc5fb8c6c6600619251d7fbf775bb1f/docs/replay/engine/kv-cache.md)
-
-### G3 and agentic traces
-
-The G3 adapter implements stores and staged restoration through G2. Configuration validation requires G2 and the default vLLM connector; replay further restricts G3 to aggregated attention-DP1 execution. The Python capability gate rejects agentic replay with G3. Studying three-tier agentic workloads would therefore require extending and testing this composition. [A1](https://github.com/ai-dynamo/aisim/blob/c85b08623fc5fb8c6c6600619251d7fbf775bb1f/crates/core/src/engine/config.rs)[A6](https://github.com/ai-dynamo/aisim/blob/c85b08623fc5fb8c6c6600619251d7fbf775bb1f/crates/core/src/engine/scheduler/vllm/g3_offload.rs)[A8](https://github.com/ai-dynamo/aisim/blob/c85b08623fc5fb8c6c6600619251d7fbf775bb1f/python/aisim/src/aisim/sweeper/replay.py)
-
-For G2, the local AISim validator permits positive worker counts in aggregated or P/D pools, with attention DP1 and no scaling policy. The simplest starting configuration disables speculation; a restricted single-worker local-G2 MTP exception exists but is unnecessary for the meeting's objective. [A8](https://github.com/ai-dynamo/aisim/blob/c85b08623fc5fb8c6c6600619251d7fbf775bb1f/python/aisim/src/aisim/sweeper/replay.py)
-
-The existing agentic fixture has a parent request, a child that displaces the parent's GPU prefix, and a later parent continuation. Its tests assert four completed requests, eight host-reused tokens on restoration, and zero G1 reuse at that admission. They also assert that reducing H2D bandwidth delays TTFT, shrinking G2 removes the hit, and disabling offload increases committed prefill work. These are inspected test expectations, not results reproduced in this review. [A9](https://github.com/ai-dynamo/aisim/blob/c85b08623fc5fb8c6c6600619251d7fbf775bb1f/tests/test_agentx_g2.py)
-
-## What Dynamo contributes
-
-Dynamo contains real multi-tier cache-management code. `OffloadEngine` owns G1→G2, G2→G3, and G2→G4 pipelines. `PhysicalWorker` owns layout handles and a transfer manager; object storage has a separate path. These implementations provide reference behavior for migration, staging, and resource lifetimes. They do not imply that AISim simulates all Dynamo tiers or policies. In particular, no separate G4 configuration was found in the reviewed AISim engine configuration. [D1](https://github.com/ai-dynamo/dynamo/blob/b20fe6fe94021b854597965c7305931175e8f482/lib/kvbm-engine/src/offload/engine.rs)[D2](https://github.com/ai-dynamo/dynamo/blob/b20fe6fe94021b854597965c7305931175e8f482/lib/kvbm-engine/src/worker/physical.rs)[A1](https://github.com/ai-dynamo/aisim/blob/c85b08623fc5fb8c6c6600619251d7fbf775bb1f/crates/core/src/engine/config.rs)
-
-Dynamo's mocker also wraps an AISim core through `engine_components` and `engine_factory`. That integration must be assessed separately from the downloaded AISim repository. [D3](https://github.com/ai-dynamo/dynamo/blob/b20fe6fe94021b854597965c7305931175e8f482/lib/mocker/src/engine_adapter.rs)
-
-| Integration check | Local code finding | Consequence |
+| Check | Evidence already present | Acceptance criterion for reproduction |
 | --- | --- | --- |
-| Dependency version | Dynamo pins `aisimulate-core = 0.13.0-dev.202610290000000087`; local AISim declares `aisim-core` version `0.15.0` | The sibling checkout is not automatically the core used by Dynamo |
-| Agentic G2 worker count | Dynamo's offline gate requires one worker per active role; local AISim accepts multiple replicas | Do not transfer AISim's multiworker claim to this Dynamo entrypoint |
-| Live shared G2 | Dynamo's grouped live scheduler rejects `cluster_shared` | Use offline replay for this reviewed path |
+| Agentic restore | `test_weka_g2_cli_python_and_native_agree` [A9] | Four completions; resumed request reuses eight host tokens and zero G1 tokens; CLI, Python, and native reports agree |
+| Bandwidth/capacity causality | `test_weka_g2_restore_has_causal_bandwidth_and_capacity_controls` [A9] | Slower H2D delays admission and TTFT; one-block G2 removes the restore hit; no-offload control increases prefill work |
+| Shared ownership | `host_offload_scopes.rs` [A10] | Cross-rank reuse, one pool's capacity, fresh replay isolation, and rejection of incompatible contracts |
+| Peer-transfer behavior | `kvcr_replay.rs` [A11] | Hint-driven restoration, source waits, and sharing of source bandwidth |
+| Hardware fidelity | Connector documentation records unvalidated parity [A13] | Compare matching backend/model/hardware runs; report TTFT, TPOT, throughput, and transfer behavior separately |
 
-These differences are visible in dependency declarations and validators. No compatibility build of the two checkouts was completed. Start with AISim's engine-only runner; integrate Dynamo routing only when the experiment needs it and after checking the dependency/API boundary. [D4](https://github.com/ai-dynamo/dynamo/blob/b20fe6fe94021b854597965c7305931175e8f482/lib/mocker/src/replay/offline/entrypoints.rs)[D5](https://github.com/ai-dynamo/dynamo/blob/b20fe6fe94021b854597965c7305931175e8f482/lib/mocker/src/grouped_scheduler.rs)[D6](https://github.com/ai-dynamo/dynamo/blob/b20fe6fe94021b854597965c7305931175e8f482/Cargo.toml)[A8](https://github.com/ai-dynamo/aisim/blob/c85b08623fc5fb8c6c6600619251d7fbf775bb1f/python/aisim/src/aisim/sweeper/replay.py)
+After functional reproduction, sweep G1/G2 capacity, H2D/D2H bandwidth, and first-byte latency independently. Hold workload, scheduler, connector, and compute timing fixed. Measure latency distributions, completed-request throughput, committed prefill work, host reuse, occupancy, and exposed transfer counters. These are proposed experiments. A production-trace selection and hardware-error acceptance threshold remain open; neither is inferred from the small fixture.
 
-## Implementation complexity and recommendation
+## Appendix A: source and evidence record
 
-The estimates below concern engineering scope inferred from code, not measured development time.
-
-| Work item | Relative effort | Reason |
+| Repository | Commit | Working tree at November 16 recheck |
 | --- | --- | --- |
-| Case 2: reproduce local G1/G2 KV offload | Low initial code effort | Existing fixture, scheduler integration, and regression tests |
-| Case 1: shared G2 capacity/bandwidth study | Low to moderate | Existing pool; requires controlled placement and fair capacity normalization |
-| Case 1: topology-aware peer fetch with agentic traffic | Moderate to high | Hint generation, transfer composition, and validation need work |
-| Case 2: second-tier direct execution | High | Requires execution access costs and resource constraints beyond restore-before-compute |
-| Case 2: MoE expert offloading | High | Requires expert identities, residency, demand, loads, eviction, and compute dependencies |
+| AISim | `c85b08623fc5fb8c6c6600619251d7fbf775bb1f` | Clean |
+| Dynamo | `b20fe6fe94021b854597965c7305931175e8f482` | Clean |
 
-Keep the meeting's Case 2-first order, but start by reproducing the existing KV model. Case 1's shared-pool baseline can then reuse the workload and measurements. Neither basic KV scenario requires writing a new simulator from scratch.
+AISim declares `aisim-core` version `0.15.0`. Dynamo pins `aisimulate-core = 0.13.0-dev.202610290000000087`. The source revisions are unchanged from the original report; no simulator code was modified for this revision. [D6]
 
-For MoE, the reviewed operator models price token dispatch/combine communication. They do not establish per-expert residency or weight migration. A proposed extension needs a per-layer expert-demand sequence, explicit weight sizes and tier capacities, transfer scheduling, and stalls when required experts are absent. Request traces alone may not contain expert selections. If KV and experts share a host link, they must contend for the same modeled budget; simply adding two independent transfer times would miss that interaction. This is proposed work, not an implemented capability. [A12](https://github.com/ai-dynamo/aisim/blob/c85b08623fc5fb8c6c6600619251d7fbf775bb1f/crates/core/src/perfmodel/operators/moe_dispatch.rs)
+| Evidence category | Status |
+| --- | --- |
+| Static source analysis | Implementation paths and explicit guards inspected; citations identify their scope |
+| Test specifications | Assertions inspected; this does not establish test passage |
+| Locally verified simulation behavior | None |
+| Hardware experiments | Not run; no performance, accuracy, or resource-use results |
+| Dynamo/AISim integration build | Not completed |
+| Derived arithmetic | Fixture block size, capacity, and isolated transfer times calculated from source parameters; not measurements |
 
-## Evaluation plan
+## Appendix B: reproduction and prior test attempt
 
-1. Reproduce the local G2 fixture and its no-offload, small-capacity, and slow-bandwidth controls. Keep one worker, TP1, attention DP1, prefix caching, fixed timing, and no speculation. Confirm request completion and the expected causal changes before using hardware timing data.
-2. Sweep G1 capacity, G2 capacity, directional bandwidth, and first-byte latency independently. Record TTFT distributions, completion time, throughput, committed prefill tokens, host reuse, pool occupancy, and transfer counters where exposed. Keep workload, timing source, and scheduling parameters fixed.
-3. Replay a pinned agentic dataset with matching model/hardware timing data. Record trace provenance, request count, dependency structure, warmup, concurrency, source revisions, profile revisions, and seeds when sampling is used. Report this separately from the four-request fixture.
-4. Compare private and shared G2 at equal total host capacity and stated aggregate bandwidth. With N private ranks, the total capacity is N times the per-rank capacity; a shared pool counts capacity once. Otherwise a capacity increase could be mistaken for a sharing benefit.
-5. Validate selected cases against an actual serving backend before making hardware-performance claims. Extend expert offloading only after the KV baseline has passed these checks.
-
-The upstream smoke commands below run from `src/aisim` after its documented source installation. They are proposed reproduction commands and were not executed successfully during this review.
+Run from `src/aisim` after following its source-installation instructions and building the Python/native runtime. The two fixture commands are preserved as reproduction commands; they have not been executed successfully in this report.
 
 ```bash
 aisim predict --stack engine --config examples/cli/agentx-g2-local.yaml --capture-per-request --output-dir /tmp/mirage-agentx-g2-local --format json
 aisim predict --stack engine --config examples/cli/agentx-g2-shared-pd.yaml --capture-per-request --output-dir /tmp/mirage-agentx-g2-shared --format json
 ```
 
-## Verification and limits
+The local fixture uses the Weka trace `tests/e2e/configs/unified_cli/fixtures/traces/weka-g2-restore.jsonl`, the bundled tiny model, trace timestamps, and one agentic lane. It sets fixed prefill/decode timing to 2/1 ms, G1/G2 to 3/8 blocks, and both transfer directions to 1 GB/s. Its `h200_sxm` hardware field does not turn fixed timings into H200 measurements. [A15]
 
-Static review covered the configurations, host-transfer engine, vLLM adapter, shared-pool registry, G3 and KVCR paths, agentic guards, Dynamo adapter, and KVBM transfer components. Both downloaded repositories were clean at review time.
-
-The following targeted test command was attempted from `src/aisim`:
+The earlier targeted test attempt, on November 15 on the local macOS host, was:
 
 ```bash
 cargo test --offline -p aisim-core --test host_offload_scopes --test kvcr_replay
 ```
 
-It exited with code 101 because the offline Cargo cache lacked `anyhow`. No test binary ran. Reproduction requires resolving the pinned Rust dependencies and building the source environment. Agentic CLI tests, real-GPU validation, and performance/resource measurements remain unrun. No simulator or Dynamo code was changed.
+It exited with code 101 before running any test binary:
 
-This review establishes implementation paths and explicit restrictions. It does not establish numerical accuracy, speedup, or full Dynamo–AISim compatibility.
+```text
+error: no matching package named `anyhow` found
+location searched: crates.io index
+required by package `aisim-core v0.15.0`
+```
 
-## Code references
+This is a dependency-resolution blocker, not a test failure demonstrating incorrect simulation behavior. The attempt was not rerun for this editorial revision. No simulator result artifacts were produced; toolchain versions were not recorded in the original attempt and are not reconstructed here.
 
-References below link to the exact reviewed revisions. Paths are relative to each downloaded repository.
+For subsequent experiments, record full source and timing-profile revisions, dependency versions, configuration, trace identity and request count, warmup, concurrency, seeds where sampling applies, and artifact paths. Keep deterministic fixtures separate from workload benchmarks. Choose the real trace and hardware-error threshold before interpreting benchmark results.
 
-- [A10: Shared-pool regression tests](https://github.com/ai-dynamo/aisim/blob/c85b08623fc5fb8c6c6600619251d7fbf775bb1f/crates/core/tests/host_offload_scopes.rs): `aisim/crates/core/tests/host_offload_scopes.rs`.
-- [A11: Peer-transfer regression tests](https://github.com/ai-dynamo/aisim/blob/c85b08623fc5fb8c6c6600619251d7fbf775bb1f/crates/core/tests/kvcr_replay.rs): `aisim/crates/core/tests/kvcr_replay.rs`.
-- [A12: MoE communication timing](https://github.com/ai-dynamo/aisim/blob/c85b08623fc5fb8c6c6600619251d7fbf775bb1f/crates/core/src/perfmodel/operators/moe_dispatch.rs): `aisim/crates/core/src/perfmodel/operators/moe_dispatch.rs`.
-- [A13: Connector semantics and fidelity caveats](https://github.com/ai-dynamo/aisim/blob/c85b08623fc5fb8c6c6600619251d7fbf775bb1f/docs/replay/engine/kv-cache.md): `aisim/docs/replay/engine/kv-cache.md`.
-- [A1: Configuration and validation](https://github.com/ai-dynamo/aisim/blob/c85b08623fc5fb8c6c6600619251d7fbf775bb1f/crates/core/src/engine/config.rs): `aisim/crates/core/src/engine/config.rs`.
-- [A2: Host capacity, residency, and transfer timing](https://github.com/ai-dynamo/aisim/blob/c85b08623fc5fb8c6c6600619251d7fbf775bb1f/crates/core/src/engine/host_offload/tier.rs): `aisim/crates/core/src/engine/host_offload/tier.rs`.
-- [A3: vLLM store, restore, and admission](https://github.com/ai-dynamo/aisim/blob/c85b08623fc5fb8c6c6600619251d7fbf775bb1f/crates/core/src/engine/scheduler/vllm/host_offload.rs): `aisim/crates/core/src/engine/scheduler/vllm/host_offload.rs`.
-- [A4: Private and shared G2 ownership](https://github.com/ai-dynamo/aisim/blob/c85b08623fc5fb8c6c6600619251d7fbf775bb1f/crates/core/src/engine/host_offload/registry.rs): `aisim/crates/core/src/engine/host_offload/registry.rs`.
-- [A5: Bandwidth sharing](https://github.com/ai-dynamo/aisim/blob/c85b08623fc5fb8c6c6600619251d7fbf775bb1f/crates/core/src/engine/offload_transfer.rs): `aisim/crates/core/src/engine/offload_transfer.rs`.
-- [A6: G3 staging and restoration](https://github.com/ai-dynamo/aisim/blob/c85b08623fc5fb8c6c6600619251d7fbf775bb1f/crates/core/src/engine/scheduler/vllm/g3_offload.rs): `aisim/crates/core/src/engine/scheduler/vllm/g3_offload.rs`.
-- [A7: Peer G2 transfer registry](https://github.com/ai-dynamo/aisim/blob/c85b08623fc5fb8c6c6600619251d7fbf775bb1f/crates/core/src/engine/kvcr.rs): `aisim/crates/core/src/engine/kvcr.rs`.
-- [A8: Agentic and runner compatibility gates](https://github.com/ai-dynamo/aisim/blob/c85b08623fc5fb8c6c6600619251d7fbf775bb1f/python/aisim/src/aisim/sweeper/replay.py): `aisim/python/aisim/src/aisim/sweeper/replay.py`.
-- [A9: Agentic G2 regression tests](https://github.com/ai-dynamo/aisim/blob/c85b08623fc5fb8c6c6600619251d7fbf775bb1f/tests/test_agentx_g2.py): `aisim/tests/test_agentx_g2.py`.
-- [D1: KVBM offload pipelines](https://github.com/ai-dynamo/dynamo/blob/b20fe6fe94021b854597965c7305931175e8f482/lib/kvbm-engine/src/offload/engine.rs): `dynamo/lib/kvbm-engine/src/offload/engine.rs`.
-- [D2: Physical transfers and tier handles](https://github.com/ai-dynamo/dynamo/blob/b20fe6fe94021b854597965c7305931175e8f482/lib/kvbm-engine/src/worker/physical.rs): `dynamo/lib/kvbm-engine/src/worker/physical.rs`.
-- [D3: Dynamo-to-AISim engine adapter](https://github.com/ai-dynamo/dynamo/blob/b20fe6fe94021b854597965c7305931175e8f482/lib/mocker/src/engine_adapter.rs): `dynamo/lib/mocker/src/engine_adapter.rs`.
-- [D4: Dynamo agentic replay gates](https://github.com/ai-dynamo/dynamo/blob/b20fe6fe94021b854597965c7305931175e8f482/lib/mocker/src/replay/offline/entrypoints.rs): `dynamo/lib/mocker/src/replay/offline/entrypoints.rs`.
-- [D5: Live shared-G2 restriction](https://github.com/ai-dynamo/dynamo/blob/b20fe6fe94021b854597965c7305931175e8f482/lib/mocker/src/grouped_scheduler.rs): `dynamo/lib/mocker/src/grouped_scheduler.rs`.
-- [D6: Pinned simulation-core dependency](https://github.com/ai-dynamo/dynamo/blob/b20fe6fe94021b854597965c7305931175e8f482/Cargo.toml): `dynamo/Cargo.toml`.
+## Appendix C: source references
+
+Source links identify the fixed revisions in Appendix A. Function anchors are included where a single entry point is useful.
+
+- [A1: Configuration and validation](https://github.com/ai-dynamo/aisim/blob/c85b08623fc5fb8c6c6600619251d7fbf775bb1f/crates/core/src/engine/config.rs) · `aisim/crates/core/src/engine/config.rs`.
+- [A2: Host capacity, residency, and transfer timing](https://github.com/ai-dynamo/aisim/blob/c85b08623fc5fb8c6c6600619251d7fbf775bb1f/crates/core/src/engine/host_offload/tier.rs#L273) · `aisim/crates/core/src/engine/host_offload/tier.rs`.
+- [A3: vLLM store, restore, and admission](https://github.com/ai-dynamo/aisim/blob/c85b08623fc5fb8c6c6600619251d7fbf775bb1f/crates/core/src/engine/scheduler/vllm/host_offload.rs#L599) · `aisim/crates/core/src/engine/scheduler/vllm/host_offload.rs`.
+- [A4: Private and shared G2 ownership](https://github.com/ai-dynamo/aisim/blob/c85b08623fc5fb8c6c6600619251d7fbf775bb1f/crates/core/src/engine/host_offload/registry.rs#L38) · `aisim/crates/core/src/engine/host_offload/registry.rs`.
+- [A5: Bandwidth sharing](https://github.com/ai-dynamo/aisim/blob/c85b08623fc5fb8c6c6600619251d7fbf775bb1f/crates/core/src/engine/offload_transfer.rs#L30) · `aisim/crates/core/src/engine/offload_transfer.rs`.
+- [A6: G3 staging and restoration](https://github.com/ai-dynamo/aisim/blob/c85b08623fc5fb8c6c6600619251d7fbf775bb1f/crates/core/src/engine/scheduler/vllm/g3_offload.rs) · `aisim/crates/core/src/engine/scheduler/vllm/g3_offload.rs`.
+- [A7: Peer G2 transfer registry](https://github.com/ai-dynamo/aisim/blob/c85b08623fc5fb8c6c6600619251d7fbf775bb1f/crates/core/src/engine/kvcr.rs) · `aisim/crates/core/src/engine/kvcr.rs`.
+- [A8: Agentic and runner compatibility gates](https://github.com/ai-dynamo/aisim/blob/c85b08623fc5fb8c6c6600619251d7fbf775bb1f/python/aisim/src/aisim/sweeper/replay.py#L356) · `aisim/python/aisim/src/aisim/sweeper/replay.py`.
+- [A9: Agentic G2 regression tests](https://github.com/ai-dynamo/aisim/blob/c85b08623fc5fb8c6c6600619251d7fbf775bb1f/tests/test_agentx_g2.py#L77) · `aisim/tests/test_agentx_g2.py`.
+- [A10: Shared-pool regression tests](https://github.com/ai-dynamo/aisim/blob/c85b08623fc5fb8c6c6600619251d7fbf775bb1f/crates/core/tests/host_offload_scopes.rs) · `aisim/crates/core/tests/host_offload_scopes.rs`.
+- [A11: Peer-transfer regression tests](https://github.com/ai-dynamo/aisim/blob/c85b08623fc5fb8c6c6600619251d7fbf775bb1f/crates/core/tests/kvcr_replay.rs) · `aisim/crates/core/tests/kvcr_replay.rs`.
+- [A12: MoE communication timing](https://github.com/ai-dynamo/aisim/blob/c85b08623fc5fb8c6c6600619251d7fbf775bb1f/crates/core/src/perfmodel/operators/moe_dispatch.rs) · `aisim/crates/core/src/perfmodel/operators/moe_dispatch.rs`.
+- [A13: Connector semantics and fidelity caveats](https://github.com/ai-dynamo/aisim/blob/c85b08623fc5fb8c6c6600619251d7fbf775bb1f/docs/replay/engine/kv-cache.md) · `aisim/docs/replay/engine/kv-cache.md`.
+- [A14: Replay topology validation](https://github.com/ai-dynamo/aisim/blob/c85b08623fc5fb8c6c6600619251d7fbf775bb1f/crates/core/src/replay/engine.rs) · `aisim/crates/core/src/replay/engine.rs`.
+- [A15: Single-worker agentic fixture](https://github.com/ai-dynamo/aisim/blob/c85b08623fc5fb8c6c6600619251d7fbf775bb1f/examples/cli/agentx-g2-local.yaml) · `aisim/examples/cli/agentx-g2-local.yaml`.
+- [A16: Simulation component boundaries](https://github.com/ai-dynamo/aisim/blob/c85b08623fc5fb8c6c6600619251d7fbf775bb1f/crates/core/README.md) · `aisim/crates/core/README.md`.
+- [D1: KVBM offload pipelines](https://github.com/ai-dynamo/dynamo/blob/b20fe6fe94021b854597965c7305931175e8f482/lib/kvbm-engine/src/offload/engine.rs) · `dynamo/lib/kvbm-engine/src/offload/engine.rs`.
+- [D2: Physical transfers and tier handles](https://github.com/ai-dynamo/dynamo/blob/b20fe6fe94021b854597965c7305931175e8f482/lib/kvbm-engine/src/worker/physical.rs) · `dynamo/lib/kvbm-engine/src/worker/physical.rs`.
+- [D3: Dynamo-to-AISim engine adapter](https://github.com/ai-dynamo/dynamo/blob/b20fe6fe94021b854597965c7305931175e8f482/lib/mocker/src/engine_adapter.rs#L29) · `dynamo/lib/mocker/src/engine_adapter.rs`.
+- [D4: Dynamo agentic replay gates](https://github.com/ai-dynamo/dynamo/blob/b20fe6fe94021b854597965c7305931175e8f482/lib/mocker/src/replay/offline/entrypoints.rs#L46) · `dynamo/lib/mocker/src/replay/offline/entrypoints.rs`.
+- [D5: Live shared-G2 restriction](https://github.com/ai-dynamo/dynamo/blob/b20fe6fe94021b854597965c7305931175e8f482/lib/mocker/src/grouped_scheduler.rs) · `dynamo/lib/mocker/src/grouped_scheduler.rs`.
+- [D6: Pinned simulation-core dependency](https://github.com/ai-dynamo/dynamo/blob/b20fe6fe94021b854597965c7305931175e8f482/Cargo.toml) · `dynamo/Cargo.toml`.
+
+[A10]: https://github.com/ai-dynamo/aisim/blob/c85b08623fc5fb8c6c6600619251d7fbf775bb1f/crates/core/tests/host_offload_scopes.rs
+[A11]: https://github.com/ai-dynamo/aisim/blob/c85b08623fc5fb8c6c6600619251d7fbf775bb1f/crates/core/tests/kvcr_replay.rs
+[A12]: https://github.com/ai-dynamo/aisim/blob/c85b08623fc5fb8c6c6600619251d7fbf775bb1f/crates/core/src/perfmodel/operators/moe_dispatch.rs
+[A13]: https://github.com/ai-dynamo/aisim/blob/c85b08623fc5fb8c6c6600619251d7fbf775bb1f/docs/replay/engine/kv-cache.md
+[A1]: https://github.com/ai-dynamo/aisim/blob/c85b08623fc5fb8c6c6600619251d7fbf775bb1f/crates/core/src/engine/config.rs
+[A2]: https://github.com/ai-dynamo/aisim/blob/c85b08623fc5fb8c6c6600619251d7fbf775bb1f/crates/core/src/engine/host_offload/tier.rs#L273
+[A3]: https://github.com/ai-dynamo/aisim/blob/c85b08623fc5fb8c6c6600619251d7fbf775bb1f/crates/core/src/engine/scheduler/vllm/host_offload.rs#L599
+[A4]: https://github.com/ai-dynamo/aisim/blob/c85b08623fc5fb8c6c6600619251d7fbf775bb1f/crates/core/src/engine/host_offload/registry.rs#L38
+[A5]: https://github.com/ai-dynamo/aisim/blob/c85b08623fc5fb8c6c6600619251d7fbf775bb1f/crates/core/src/engine/offload_transfer.rs#L30
+[A6]: https://github.com/ai-dynamo/aisim/blob/c85b08623fc5fb8c6c6600619251d7fbf775bb1f/crates/core/src/engine/scheduler/vllm/g3_offload.rs
+[A7]: https://github.com/ai-dynamo/aisim/blob/c85b08623fc5fb8c6c6600619251d7fbf775bb1f/crates/core/src/engine/kvcr.rs
+[A8]: https://github.com/ai-dynamo/aisim/blob/c85b08623fc5fb8c6c6600619251d7fbf775bb1f/python/aisim/src/aisim/sweeper/replay.py#L356
+[A9]: https://github.com/ai-dynamo/aisim/blob/c85b08623fc5fb8c6c6600619251d7fbf775bb1f/tests/test_agentx_g2.py#L77
+[D1]: https://github.com/ai-dynamo/dynamo/blob/b20fe6fe94021b854597965c7305931175e8f482/lib/kvbm-engine/src/offload/engine.rs
+[D2]: https://github.com/ai-dynamo/dynamo/blob/b20fe6fe94021b854597965c7305931175e8f482/lib/kvbm-engine/src/worker/physical.rs
+[D3]: https://github.com/ai-dynamo/dynamo/blob/b20fe6fe94021b854597965c7305931175e8f482/lib/mocker/src/engine_adapter.rs#L29
+[D4]: https://github.com/ai-dynamo/dynamo/blob/b20fe6fe94021b854597965c7305931175e8f482/lib/mocker/src/replay/offline/entrypoints.rs#L46
+[D5]: https://github.com/ai-dynamo/dynamo/blob/b20fe6fe94021b854597965c7305931175e8f482/lib/mocker/src/grouped_scheduler.rs
+[D6]: https://github.com/ai-dynamo/dynamo/blob/b20fe6fe94021b854597965c7305931175e8f482/Cargo.toml
+[A14]: https://github.com/ai-dynamo/aisim/blob/c85b08623fc5fb8c6c6600619251d7fbf775bb1f/crates/core/src/replay/engine.rs
+[A15]: https://github.com/ai-dynamo/aisim/blob/c85b08623fc5fb8c6c6600619251d7fbf775bb1f/examples/cli/agentx-g2-local.yaml
+[A16]: https://github.com/ai-dynamo/aisim/blob/c85b08623fc5fb8c6c6600619251d7fbf775bb1f/crates/core/README.md

@@ -202,6 +202,11 @@ show_toc: true
     assert numbers(overview, '.article-body > :is(h1,h2,h3,h4,h5,h6)') == [str(i + 1) for i in range(len(overview_headings))]
     assert overview.select_one('#article-editor')['data-path'] == '_index.md'
     assert overview.select_one('.article-tools a[download="_index.md"]'), 'Overview retains its source editing/download controls'
+    for page in [article, specimen, fixture, overview]:
+        assert page.select_one('link[media="print"][href^="/css/print.css?"]'), 'Documents need the expanded PDF stylesheet'
+        assert page.select_one('script[defer][src^="/js/print.js?"]'), 'Documents need print-state restoration'
+    assert (output / 'css/print.css').is_file() and (output / 'js/print.js').is_file()
+    print('PASS: expanded PDF assets on Overview, articles and paper pages')
     print('PASS: complete nested TOC, both footnote targets/backlinks, local script, overview and paper isolation')
     print('PASS: common header component and stylesheet across six page types')
     print('PASS: common non-blog titles, default Blog covers, optional TL;DR and removed contact/logos')

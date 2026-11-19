@@ -3,7 +3,7 @@ import { keymap } from '@codemirror/view';
 import { markdown } from '@codemirror/lang-markdown';
 import { undo, redo } from '@codemirror/commands';
 import katex from 'katex';
-import DOMPurify from 'dompurify';
+import { sanitizePreview } from './sanitize.mjs';
 import { parseMarkdown } from './markdown.mjs';
 import { parseDocument } from 'yaml';
 import { readSummary, writeSummary } from './summary.mjs';
@@ -60,7 +60,7 @@ export function setupEditor() {
   function renderMarkdown(markdownSource) {
     // Only sanitized DOM nodes enter the preview; scripts, handlers, and unsafe URLs are removed.
     const { html, formulas } = parseMarkdown(markdownSource);
-    const fragment = DOMPurify.sanitize(html, { RETURN_DOM_FRAGMENT:true, FORBID_TAGS:['style','form','iframe'], FORBID_ATTR:['style'] });
+    const fragment = sanitizePreview(html);
     for (const input of fragment.querySelectorAll('input')) {
       if (input.type === 'checkbox') input.disabled = true; else input.remove();
     }

@@ -1,0 +1,15 @@
+/* Obsidian's ==text== and ==color-emoji text== share the same inline marks. */
+:is(.document-page,.workspace-preview) mark {
+  background-color: #fff09c;
+  color: inherit;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+:is(.document-page,.workspace-preview) mark[data-highlight-color="red"] { background-color: #ffc1c1; }
+:is(.document-page,.workspace-preview) mark[data-highlight-color="orange"] { background-color: #ffdab0; }
+:is(.document-page,.workspace-preview) mark[data-highlight-color="yellow"] { background-color: #fff09c; }
+:is(.document-page,.workspace-preview) mark[data-highlight-color="green"] { background-color: #c7edbd; }
+:is(.document-page,.workspace-preview) mark[data-highlight-color="blue"] { background-color: #c2ddff; }
+:is(.document-page,.workspace-preview) mark[data-highlight-color="purple"] { background-color: #e2ccff; }

@@ -10,14 +10,14 @@
 {{ partial "page-title.html" . }}
 </div>
 <div class="blog-index">
-{{ .Content }}
+{{ partial "obsidian-highlights.html" .Content }}
 {{ block "page-list" . }}{{ end }}
 </div>
 </main>
 {{ else }}
 {{ partial "page-title.html" . }}
 <main class="main{{ if not .Content }} archive{{ end }}">
-{{ .Content }}
+{{ partial "obsidian-highlights.html" .Content }}
 {{ template "page-list" . }}
 </main>
 {{ end }}

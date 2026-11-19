@@ -1,7 +1,7 @@
 {{ partial "header.html" . }}
 {{ partial "page-title.html" . }}
 <main class="main archive taxonomy-index">
-{{ .Content }}
+{{ partial "obsidian-highlights.html" .Content }}
 {{ $visibleTerms := 0 }}
 <ul class="terms">
 {{ range .Data.Terms.Alphabetical }}

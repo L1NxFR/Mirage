@@ -13,7 +13,7 @@
 {{ end }}
 {{ partial "contents.html" . }}
 <article class="article-body">
-{{ .Content }}
+{{ partial "obsidian-highlights.html" .Content }}
 </article>
 {{ if not .IsHome }}{{ partial "post_nav.html" . }}{{ end }}
 {{ partial "main_extra.html" . }}

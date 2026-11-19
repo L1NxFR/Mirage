@@ -9,6 +9,9 @@ These rules apply across the project. Nested `AGENTS.md` files add local rules. 
 - `dashboard/` also contains the dashboard application. Change it only when relevant to the task.
 
 Use English by default. Write clear, concise prose with a direct, neutral tone.
+Use Beijing time (`Asia/Shanghai`, UTC+08:00) for project dates and timestamps,
+including records, generated metadata, and displayed times, regardless of the
+computer's local time zone. Include `+08:00` in timestamps that record an instant.
 
 ## Before working
 

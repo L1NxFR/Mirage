@@ -1,4 +1,5 @@
 ---
+weight: 1
 content_lang: en
 title: 2026-11-13-Weekly Meeting
 date: 2026-11-13

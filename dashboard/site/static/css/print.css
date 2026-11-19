@@ -1,0 +1,76 @@
+/* Loaded only for printing, after component styles. */
+.document-page :is(.main,.article-body,.blog-tldr-content) {
+  display: block !important;
+  width: 100% !important;
+  max-width: none !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+}
+.document-page :is(.article-body,.blog-tldr-content) :is(pre,.highlight,table,.katex-display,.print-expand) {
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  overflow: visible !important;
+}
+.document-page :is(.article-body,.blog-tldr-content) :is(pre,figure,details,.paper-card,.print-expand) {
+  break-inside: auto !important;
+}
+.document-page :is(.article-body,.blog-tldr-content) pre {
+  width: 100% !important;
+  white-space: pre-wrap !important;
+  overflow-wrap: anywhere !important;
+}
+.document-page :is(.article-body,.blog-tldr-content) pre code {
+  white-space: inherit !important;
+  overflow-wrap: inherit !important;
+}
+.document-page :is(.article-body,.blog-tldr-content) table {
+  display: table !important;
+  width: 100% !important;
+  table-layout: fixed;
+}
+.document-page :is(.article-body,.blog-tldr-content) :is(th,td) {
+  min-width: 0 !important;
+  width: auto !important;
+  white-space: normal !important;
+  overflow-wrap: anywhere;
+}
+.document-page :is(.article-body,.blog-tldr-content) thead { display: table-header-group; }
+.document-page :is(.article-body,.blog-tldr-content) summary { break-after: avoid; }
+.document-page :is(.article-body,.blog-tldr-content) :is(figure,.print-expand) > :is(img,svg,canvas) {
+  max-width: 100% !important;
+  height: auto;
+}
+/* Timeline history, details and long running-step titles must survive printing. */
+.document-page .timeline__steps { display: block; }
+.document-page .timeline__step + .timeline__step { margin-top: 8px; }
+.document-page :is(.timeline__line,.timeline__trigger) { flex-wrap: wrap; }
+.document-page .timeline__text {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  background: none !important;
+  -webkit-text-fill-color: currentColor !important;
+  animation: none !important;
+}
+.document-page .timeline__line { opacity: 1; }
+.document-page :is(.timeline__chevron,.copy-button,.article-body button,.blog-tldr-content button) { display: none !important; }
+/* Desktop margin notes return to ordinary endnotes in the PDF. */
+.document-page .footnotes,
+.document-page .footnotes > ol {
+  display: block !important;
+  height: auto !important;
+  overflow: visible !important;
+}
+.document-page .footnotes > ol { padding-left: 1.5em; list-style: decimal; }
+.document-page .footnotes > ol > li {
+  display: list-item !important;
+  position: static !important;
+  float: none !important;
+  width: auto !important;
+  top: auto !important;
+  left: auto !important;
+}
+.document-page .footnotes > ol > li::before { content: none !important; }

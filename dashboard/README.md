@@ -9,8 +9,8 @@ progress timelines, and article reading tools.
 | --- | --- | --- |
 | Overview | `/` | `site/content/_index.md` |
 | Related | `/related-work/` | `site/content/related-work/` |
-| Journey | `/research-journey/` | `site/content/research-journey/` |
-| System | `/system-implementation/` | `site/content/system-implementation/` |
+| Research | `/research-journey/` | `site/content/research-journey/` |
+| Docs | `/system-implementation/` | `site/content/system-implementation/` |
 | Meetings | `/meetings/` | `site/content/meetings/` |
 
 The four journal indexes show expandable folder hierarchies. Each entry has a
@@ -28,7 +28,8 @@ details, and configure the site name and repository URL in `site/hugo.yaml`.
 
 ## Local development
 
-Install Hugo and Node.js 22 or newer, then run:
+Install Hugo 0.146.0 or newer (for explicit time zone conversion) and Node.js 22
+or newer, then run:
 
 ```sh
 npm ci --ignore-scripts
@@ -101,12 +102,18 @@ show_toc: true
 
 Local previews use the Markdown file's modification time, including edits in
 Obsidian or another editor when `lastmod` is absent or unchanged. Cover, document
-information, and index timestamps include seconds. Production builds prefer an
-explicit `lastmod`, for example `lastmod: 2026-11-14T16:45:00+01:00`, and otherwise
+information, and index timestamps include seconds. All project dates and times
+use Beijing time (`Asia/Shanghai`, UTC+08:00), regardless of the computer's time
+zone. This includes document covers, information panels, journal indexes,
+archive dates and grouping, and the footer year. Dates without an offset are
+interpreted in Beijing time; dates with an explicit offset are converted for
+display without changing the recorded instant. Date-only fields keep their
+calendar date. The web editor writes creation and save timestamps with an
+explicit `+08:00` offset. Production builds prefer an
+explicit `lastmod`, for example `lastmod: 2026-11-14T16:45:00+08:00`, and otherwise
 fall back to the file modification time. This preserves recorded publication
 timestamps across copies and checkouts. Creation dates remain the explicit
-`date` field; a missing creation date displays a dash. Folders
-appear first; entries within each folder sort by weight, then title. Use
+`date` field; a missing creation date displays a dash. Documents within each folder sort by integer weight, then title. Folder groups retain their separate placement. Use
 `weight: -1` to place an entry before its siblings. Documents default to
 `draft: true`, including when the field is omitted on the Overview, a group, or
 an article. New documents and groups created in the web editor, Hugo, and Obsidian
@@ -117,6 +124,30 @@ production builds and their navigation and search exclude them. Obsidian's `Temp
 Research Journey, System & Implementation, and Meetings templates, which are
 excluded from publication.
 
+## Sidebar document order
+
+Every document in Related, Research, Docs and Meetings has an integer `weight` in
+its YAML properties. Smaller numbers appear higher; `0` is an ordinary number.
+Each folder has its own sequence. A new document takes the largest existing sibling
+weight plus one (the first document gets `1`), so it appears below existing documents.
+Copies and documents moved into another group also append there. Folder `_index.md`
+pages are excluded; folder ordering remains separate and unchanged.
+
+Edit `weight` in Obsidian Properties or the web editor's **Properties** YAML to move
+a document. Equal weights fall back to title order. Pinning assigns a weight below
+the current minimum; unpinning appends the document. Weight remains the ordering rule.
+
+Startup, builds and watched rebuilds persist missing weights, including notes added
+outside the web editor. Existing valid weights are retained. Run
+`node scripts/document-weights.mjs --check` to audit without writing, or omit
+`--check` to fill missing weights. `python3 scripts/verify-document-weights.py`
+checks rendered sidebar and index order; `npm run test:workspace` covers creation,
+manual changes, moves, pinning, watched imports and the Obsidian helper.
+
+Templater uses `Templates/Scripts/document_weight.js` via its **User scripts folder**
+setting, `Templates/Scripts`. After applying this update to an open vault, reload
+Templater or reopen the vault; restart an already running `pnpm dev` once.
+
 ## Automatic note templates in Obsidian
 
 Open `site/content/` as the vault. After reviewing and trusting the included
@@ -126,12 +157,14 @@ so copying `.obsidian/` settings alone does not activate automatic templates.
 This trust choice must be made for each new vault on each machine.
 
 Templater is configured to apply folder templates to new empty Markdown notes:
-`related-work/` uses `Templates/Related Work.md`; Journey, System and Meetings
+`related-work/` uses `Templates/Related Work.md`; Research, Docs and Meetings
 use their corresponding templates. Subfolders inherit their nearest configured
 parent; `/` uses `Templates/New Note.md` as the fallback. Keep **Trigger Templater
 on new file creation** and **Enable folder templates** enabled. The related-work
 template supplies YAML defaults, takes the initial title from the filename,
-and uses the note's creation day instead of a fixed example date.
+and uses the note's creation day in Beijing time instead of a fixed example
+date. All five Obsidian templates calculate that day using UTC+8 explicitly,
+independent of the computer's time zone.
 
 Automatic insertion applies when a note is created empty. Existing notes and
 files created with body text are not rewritten. Reload the vault after editing
@@ -258,6 +291,49 @@ including drawings used only by drafts, so do not put private images there.
 For a new checkout, keep the vault's Excalidraw settings and its relative-link
 setting; reload Obsidian after editing those settings outside the app.
 
+## Obsidian highlights
+
+Body text, summaries and the web editor preview support Obsidian's highlight syntax:
+
+```md
+==Default highlight==
+==🔴Red== ==🟠Orange== ==🟡Yellow==
+==🟢Green== ==🔵Blue== ==🟣Purple==
+```
+
+The leading color emoji selects the color and is omitted from the displayed text,
+following [Obsidian's highlight format](https://obsidian.md/help/syntax).
+Emphasis can be nested inside highlights; code and escaped delimiters remain literal.
+Custom colors also work with HTML shared by Obsidian and the website:
+
+```html
+<mark style="background: #ADCCFFA6;">Custom blue highlight</mark>
+<mark style="background-color: #ffb8c6; color: #5b1528;">Custom background and text</mark>
+```
+
+The web editor keeps only text/background color declarations on `mark`; other
+inline styles remain filtered from its preview. Print styles preserve highlight
+colors. Run `python3 scripts/verify-highlights.py` to check built body/summary
+output; `npm run test:workspace` includes editor highlight checks.
+
+## Export a complete PDF
+
+Open the document, press **Cmd+P** (Windows/Linux: **Ctrl+P**) and choose **Save as PDF**.
+Keep **Margins: Default** to use the document's print page margins.
+The print layout wraps code and table cells, expands internal scroll containers,
+and opens document details, including timeline history and paper abstracts.
+Closing print preview restores the reader's original open/closed states.
+The screen layout keeps its scrolling and interactions.
+
+For custom clipped components, add `class="print-expand"` to their container.
+Only content already loaded into the page can be printed; virtual lists, paginated
+data, embedded frames and interactive charts need their own complete static view.
+Share a deployed webpage URL alongside the PDF when interaction is useful.
+
+Print styles live in `site/static/css/print.css`; `site/static/js/print.js` handles
+temporary expansion using [browser print events](https://developer.mozilla.org/en-US/docs/Web/CSS/Guides/Media_queries/Printing).
+Run `node --test scripts/test-print.cjs` for expansion/restoration checks.
+
 ## Content language and typography
 
 The interface defaults to English (`locale: en-US`, `defaultContentLanguage: en`).
@@ -277,3 +353,7 @@ its monospace family. This also applies to `en-US` documents.
 
 Run `python3 scripts/verify-document-updates.py` to check external-edit timestamps,
 second precision, creation-date separation, and stable explicit publication dates.
+It builds under `America/Los_Angeles` to verify Beijing time conversion, including
+cross-day and cross-year boundaries, explicit offsets, and dates without offsets.
+`TZ=America/Los_Angeles npm run test:workspace` also checks that web editor
+timestamps and Obsidian template dates remain in Beijing time.

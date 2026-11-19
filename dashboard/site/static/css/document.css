@@ -36,10 +36,16 @@
 .document-page .article-body > :is(h4,h5,h6) { font-size: 15.94016px; line-height: 1.4; margin: 20px 0 8px; }
 .document-page .article-body > :first-child { margin-top: 0; }
 .document-page .article-body :is(h1,h2,h3,h4,h5,h6) .section-number { display: inline-block; min-width: 1.55em; margin-right: .25em; white-space: nowrap; font-variant-numeric: tabular-nums; }
-.document-page .article-body :is(ul,ol) { margin: 9.6px 0; padding-left: 1.25em; }
-.document-page .article-body li { margin: 6px 0; }
-.document-page .article-body li li { font-size: 1em; }
-.document-page .article-body li p { margin: .4em 0; }
+/* Keep items together, while separating a finished list from the next paragraph.
+   Nested lists stay inside their parent item instead of ending a prose group. */
+.document-page :is(.article-body,.blog-tldr-content) :is(ul,ol) { margin: .6em 0 1.2em; padding-left: 1.25em; }
+.document-page :is(.article-body,.blog-tldr-content) li { margin: 0; }
+.document-page :is(.article-body,.blog-tldr-content) li + li { margin-top: .15em; }
+.document-page :is(.article-body,.blog-tldr-content) li li { font-size: 1em; }
+.document-page :is(.article-body,.blog-tldr-content) li > p { margin: .4em 0; }
+.document-page :is(.article-body,.blog-tldr-content) li > :first-child { margin-top: 0; }
+.document-page :is(.article-body,.blog-tldr-content) li > :last-child { margin-bottom: 0; }
+.document-page :is(.article-body,.blog-tldr-content) li > :is(ul,ol) { margin-bottom: 0; margin-top: .3em; }
 /* Inline emphasis keeps the surrounding type size, including nested bold/italic.
    CJK fonts without italic/bold faces may synthesize these requested styles. */
 .document-page .article-body :is(strong,b,em,i) { font-family: inherit; font-size: inherit; font-synthesis: weight style; }

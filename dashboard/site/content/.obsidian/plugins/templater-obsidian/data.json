@@ -32,5 +32,6 @@
     {
       "folder": "Excalidraw/"
     }
-  ]
+  ],
+  "user_scripts_folder": "Templates/Scripts"
 }

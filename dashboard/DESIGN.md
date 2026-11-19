@@ -1,6 +1,6 @@
 # Research project structure (2026-11-14)
 
-The current navigation is Overview, Related, Journey, System, and Meetings, with Search as a shared tool. The repository contains only the project structure and authoring tools.
+The current navigation is Overview, Related, Research, Docs, and Meetings, with Search as a shared tool. The repository contains only the project structure and authoring tools.
 
 - Overview uses a prose layout. Missing project details are marked as placeholders.
 - The four journal indexes use expandable folder hierarchies, dotted leaders,

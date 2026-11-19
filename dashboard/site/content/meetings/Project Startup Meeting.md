@@ -1,4 +1,5 @@
 ---
+weight: 3
 content_lang: en
 title: Project Kickoff Meeting
 date: 2026-11-12

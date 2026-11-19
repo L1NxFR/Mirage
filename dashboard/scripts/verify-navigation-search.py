@@ -51,7 +51,7 @@ with tempfile.TemporaryDirectory(prefix='.navigation-search-', dir=repo / 'site'
         styles = [link['href'] for link in page.select('link[rel="stylesheet"]')]
         assert any('/css/blog-layout.css' in href for href in styles) == (route in blog_routes or route == 'index.html'), route
         assert not page.select_one('.site-header a[href="/docs/"]'), route
-        assert [a.get_text(strip=True) for a in page.select('.site-header .menu a')] == ['Overview', 'Related', 'Journey', 'System', 'Meetings', 'Search']
+        assert [a.get_text(strip=True) for a in page.select('.site-header .menu a')] == ['Overview', 'Related', 'Research', 'Docs', 'Meetings', 'Search']
         assert len(page.select('.site-header .menu [aria-current="page"]')) == 1
         assert page.select_one('.site-header [data-search-open]'), route
         assert len(page.select('#site-search')) == 1, route
@@ -162,8 +162,8 @@ with tempfile.TemporaryDirectory(prefix='.navigation-search-', dir=repo / 'site'
         assert [node.a['href'] for node in direct] == [prefix + 'pinned/', prefix + 'newer/', prefix + 'older/']
         assert folder.select_one('.journal-folder .journal-entry a')['href'] == prefix + 'deeper/result/'
         older = direct[-1].select_one('time')
-        assert older['datetime'] == '2026-11-13T16:45:00+01:00'
-        assert older.get_text(strip=True) == '2026-11-13 16:45:00'
+        assert older['datetime'] == '2026-11-13T23:45:00+08:00'
+        assert older.get_text(strip=True) == '2026-11-13 23:45:00'
         assert '2026-11-14 00:00:00' == direct[1].select_one('time').get_text(strip=True)
         assert not any('/hidden/' in href or '/private/' in href or '/default-draft/' in href for href in entries)
         assert all(node.has_attr('open') for node in archive.select('.journal-folder > details'))

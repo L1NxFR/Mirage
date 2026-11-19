@@ -2,8 +2,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
 import { parseDocument } from 'yaml';
+import { syncDocumentWeights, nextDocumentWeight, firstDocumentWeight, validWeight } from './document-weights.mjs';
 
 export const sections = ['related-work', 'research-journey', 'system-implementation', 'meetings'];
+// Beijing uses UTC+8 year-round; preserve the instant and milliseconds in metadata.
+const beijingTimestamp = () => new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString().replace('Z', '+08:00');
 export class WorkspaceError extends Error {
   constructor(status, message) { super(message); this.status = status; }
 }
@@ -23,6 +26,7 @@ export function parseSource(source) {
 const slug = value => value.normalize('NFKC').toLowerCase().trim().replace(/[^\p{L}\p{N}_-]+/gu, '-').replace(/^-+|-+$/g, '');
 export function createStore(contentRoot, rebuild = async () => {}) {
   const root = fs.realpathSync(contentRoot);
+  syncDocumentWeights(root);
   function resolve(relative, directory = false) {
     if (typeof relative !== 'string' || !relative || relative.includes('\\') || relative.includes('\0')) fail(400, 'Invalid document path.');
     const parts = relative.split('/');
@@ -60,9 +64,13 @@ export function createStore(contentRoot, rebuild = async () => {}) {
     const before = read(relative);
     if (expected !== before.revision) fail(409, 'This document changed outside the editor. Reload the latest version before saving. Your edits are still here.');
     const parsed = parseSource(source);
+    if (parsed.metadata.has('weight') && !validWeight(parsed.data.weight)) fail(422, 'weight must be a safe integer.');
+    if (sections.includes(relative.split('/')[0]) && path.basename(relative) !== '_index.md' && !parsed.metadata.has('weight')) {
+      parsed.metadata.set('weight', nextDocumentWeight(path.dirname(resolve(relative)), resolve(relative)));
+    }
     if (!parsed.metadata.has('content_lang')) parsed.metadata.set('content_lang', 'en');
     if (!parsed.metadata.has('draft')) parsed.metadata.set('draft', true);
-    parsed.metadata.set('lastmod', new Date().toISOString());
+    parsed.metadata.set('lastmod', beijingTimestamp());
     const updated = `---\n${String(parsed.metadata)}---\n${parsed.body}`;
     const file = resolve(relative);
     atomic(file, updated);
@@ -102,8 +110,9 @@ export function createStore(contentRoot, rebuild = async () => {}) {
     const stem = path.join(directory, name);
     if (fs.existsSync(stem) || fs.existsSync(`${stem}.md`)) fail(409, 'A document or group with this name already exists here.');
     const relative = `${parent}/${name}${kind === 'group' ? '/_index.md' : '.md'}`;
-    const now = new Date().toISOString();
-    const source = `---\ntitle: ${JSON.stringify(title.trim())}\ndate: ${now}\nlastmod: ${now}\ndraft: true\ncontent_lang: en\n${kind === 'document' ? 'show_toc: true\n' : ''}---\n\n`;
+    syncDocumentWeights(root);
+    const now = beijingTimestamp();
+    const source = `---\ntitle: ${JSON.stringify(title.trim())}\ndate: ${now}\nlastmod: ${now}\ndraft: true\ncontent_lang: en\n${kind === 'document' ? `show_toc: true\nweight: ${nextDocumentWeight(directory)}\n` : ''}---\n\n`;
     if (kind === 'group') fs.mkdirSync(stem);
     const file = resolve(relative);
     fs.writeFileSync(file, source, { flag: 'wx' });
@@ -128,6 +137,7 @@ export function createStore(contentRoot, rebuild = async () => {}) {
     if (action === 'pin') {
       const pinned = parsed.data.sidebar_pinned === true;
       parsed.metadata.set('sidebar_pinned', !pinned);
+      parsed.metadata.set('weight', pinned ? nextDocumentWeight(path.dirname(resolve(relative)), resolve(relative)) : firstDocumentWeight(path.dirname(resolve(relative))));
     }
     if (['rename', 'pin'].includes(action)) return save({ ...before, source: `---\n${String(parsed.metadata)}---\n${parsed.body}` });
     const file = resolve(relative);
@@ -157,6 +167,7 @@ export function createStore(contentRoot, rebuild = async () => {}) {
     if (fs.existsSync(resolve(target)) || fs.existsSync(path.join(directory, name))) fail(409, 'A document with this name already exists here.');
     // Keep the public address stable when reorganizing a document.
     if (action !== 'copy') parsed.metadata.set('url', url(relative, parsed.data));
+    parsed.metadata.set('weight', nextDocumentWeight(directory));
     const source = `---\n${String(parsed.metadata)}---\n${parsed.body}`;
     fs.writeFileSync(resolve(target), source, { flag: 'wx' });
     if (action !== 'copy') fs.unlinkSync(file);

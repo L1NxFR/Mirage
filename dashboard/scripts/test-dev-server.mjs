@@ -31,7 +31,7 @@ function fixture(t) {
   for (const dir of ['scripts', 'layouts', 'site/content', 'site/layouts', 'site/static', 'site/data', 'site/config']) {
     fs.mkdirSync(path.join(root, dir), { recursive: true });
   }
-  for (const name of ['dev-server.mjs', 'workspace-store.mjs']) {
+  for (const name of ['dev-server.mjs', 'workspace-store.mjs', 'document-weights.mjs']) {
     fs.copyFileSync(path.join(repo, 'scripts', name), path.join(root, 'scripts', name));
   }
   fs.symlinkSync(path.join(repo, 'node_modules'), path.join(root, 'node_modules'), 'dir');
@@ -45,6 +45,7 @@ function fixture(t) {
     fs.rmSync(root, { recursive: true, force: true });
   });
   return {
+    root,
     launch(args = []) {
       child = spawn(process.execPath, ['scripts/dev-server.mjs', ...args], { cwd: root, stdio: ['ignore', 'pipe', 'pipe'] });
       exited = once(child, 'exit');
@@ -152,4 +153,20 @@ test('invalid requested ports fail instead of silently changing configuration', 
     assert.notEqual(code, 0);
     assert.ok(!run.output().includes('http://localhost:'));
   }
+});
+
+test('external Markdown gets a persisted weight on the next watched rebuild', { timeout: 20000 }, async t => {
+  const site = fixture(t);
+  fs.mkdirSync(path.join(site.root, 'site/content/meetings'));
+  fs.writeFileSync(path.join(site.root, 'site/content/meetings/old.md'), '---\ntitle: Old\nweight: 8\n---\n');
+  const run = site.launch();
+  await ready(run);
+  const file = path.join(site.root, 'site/content/meetings/incoming.md');
+  fs.writeFileSync(file, '---\ntitle: Incoming\n---\nExternal body.\n');
+  const deadline = Date.now() + 10000;
+  while (!/^weight: 9$/m.test(fs.readFileSync(file, 'utf8')) && Date.now() < deadline) {
+    await new Promise(resolve => setTimeout(resolve, 50));
+  }
+  assert.match(fs.readFileSync(file, 'utf8'), /^weight: 9$/m);
+  assert.ok(fs.readFileSync(file, 'utf8').endsWith('External body.\n'));
 });

@@ -1,5 +1,6 @@
 baseurl: "/"
 locale: "en-US"
+timeZone: "Asia/Shanghai"
 title: "Mirage"
 theme: "Research-Project-Homepage"
 ignoreFiles: ["(^|/)\\.workspace-trash/", "\\.Rmd$", "\\.Rmarkdown$", "_cache$", "\\.excalidraw\\.md$", "(^|/)Templates/", "(^|/)Attachments/"]
@@ -40,10 +41,10 @@ menu:
     - name: Related
       pageRef: /related-work
       weight: 20
-    - name: Journey
+    - name: Research
       pageRef: /research-journey
       weight: 30
-    - name: System
+    - name: Docs
       pageRef: /system-implementation
       weight: 40
     - name: Meetings
@@ -75,6 +76,9 @@ markup:
     lineNos: false
   goldmark:
     extensions:
+      extras:
+        mark:
+          enable: true
       passthrough:
         enable: true
         delimiters:

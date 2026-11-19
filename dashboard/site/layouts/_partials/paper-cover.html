@@ -12,7 +12,7 @@
   {{ with .GetTerms "tags" }}<div class="blog-cover-tags">{{ range . }}<a href="{{ .RelPermalink }}">{{ .LinkTitle }}</a>{{ end }}</div>{{ end }}
   {{ with .Params.tldr }}
   <section class="blog-tldr" aria-label="Summary">
-    <div class="blog-tldr-content">{{ $.RenderString (dict "display" "block") . }}</div>
+    <div class="blog-tldr-content">{{ partial "obsidian-highlights.html" ($.RenderString (dict "display" "block") .) }}</div>
   </section>
   {{ end }}
 </header>
