@@ -1,20 +1,20 @@
 {{- $root := .FirstSection -}}
-<aside data-section="{{ .Section }}" data-directory="{{ with .File }}{{ strings.TrimSuffix "/" .Dir }}{{ end }}" data-search-index="{{ "index.json" | relURL }}" class="blog-sidebar" aria-label="{{ $root.Title }} navigation">
+<aside data-section="{{ .Section }}" data-directory="{{ with .File }}{{ strings.TrimSuffix "/" .Dir }}{{ end }}" data-search-index="{{ "index.json" | relURL }}" class="blog-sidebar" aria-label="{{ $root.Title }}导航">
   <details class="blog-navigation-panel" open>
-    <summary class="blog-navigation-toggle">{{ $root.Title }} navigation</summary>
+    <summary class="blog-navigation-toggle">{{ $root.Title }}导航</summary>
     <div class="sidebar-controls">
-      <label class="sidebar-search"><span class="visually-hidden">Search this section</span><input type="search" data-sidebar-search placeholder="Search" aria-label="Search this section" autocomplete="off"></label>
+      <label class="sidebar-search"><span class="visually-hidden">搜索当前栏目</span><input type="search" data-sidebar-search placeholder="搜索" aria-label="搜索当前栏目" autocomplete="off"></label>
       <div class="sidebar-create">
-        <button type="button" data-add aria-label="New document or group" aria-expanded="false" aria-controls="sidebar-create-menu" disabled>+</button>
+        <button type="button" data-add aria-label="新建文档或分组" aria-expanded="false" aria-controls="sidebar-create-menu" disabled>+</button>
         <div id="sidebar-create-menu" class="sidebar-create-menu" data-create-menu hidden>
-          <button type="button" data-create-kind="document">Document</button>
-          <button type="button" data-create-kind="group">Group</button>
+          <button type="button" data-create-kind="document">文档</button>
+          <button type="button" data-create-kind="group">分组</button>
         </div>
       </div>
     </div>
     <p class="sidebar-status" data-sidebar-status role="status" aria-live="polite"></p>
     <ul class="blog-tree sidebar-results" data-sidebar-results hidden></ul>
-    <nav data-sidebar-tree aria-label="{{ $root.Title }} articles">
+    <nav data-sidebar-tree aria-label="{{ $root.Title }}文档">
       <a class="blog-home" href="{{ $root.RelPermalink }}"{{ if eq .RelPermalink $root.RelPermalink }} aria-current="page"{{ end }}>{{ $root.Title }}</a>
       {{ partial "blog-tree.html" (dict "pages" (partial "journal-pages.html" $root) "directory" (printf "%s/" .Section) "current" .) }}
     </nav>

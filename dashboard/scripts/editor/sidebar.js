@@ -23,8 +23,8 @@ export function setupSidebar() {
           const more=document.createElement('button');more.type='button';more.className='document-more';more.textContent='⋯';more.setAttribute('aria-label',`${page.title}：更多操作`);more.setAttribute('aria-haspopup','menu');more.setAttribute('aria-expanded','false');li.append(more);
         }
         results.append(li);}
-      message.textContent=found.length?`${found.length} result${found.length===1?'':'s'}`:'No matching documents.';
-    }catch{pages=null;message.textContent='Search could not be loaded. Try again.';}
+      message.textContent=found.length?`找到 ${found.length} 条结果`:'没有匹配的文档。';
+    }catch{pages=null;message.textContent='无法加载搜索，请重试。';}
   });
   document.addEventListener('keydown',event=>{if((event.metaKey||event.ctrlKey)&&event.key.toLowerCase()==='j'){event.preventDefault();sidebar.querySelector('.blog-navigation-panel').open=true;input.focus();}});
   const menu=sidebar.querySelector('[data-create-menu]');
@@ -38,7 +38,7 @@ export function setupSidebar() {
   const status=dialog.querySelector('[role=status]'); const submit=dialog.querySelector('[type=submit]');
   let kind,busy=false;
   async function open(type){
-    kind=type;hide();dialog.querySelector('h2').textContent=type==='group'?'New group':'New document';form.reset();parent.replaceChildren();status.textContent='Loading groups…';submit.disabled=true;dialog.showModal();
+    kind=type;hide();dialog.querySelector('h2').textContent=type==='group'?'新建分组':'新建文档';form.reset();parent.replaceChildren();status.textContent='正在加载分组…';submit.disabled=true;dialog.showModal();
     try{
       const groups=await request(`groups?section=${encodeURIComponent(sidebar.dataset.section)}`);
       for(const group of groups){const option=document.createElement('option');option.value=group.path;option.textContent='— '.repeat(group.depth)+group.title;parent.append(option);}
@@ -48,11 +48,11 @@ export function setupSidebar() {
   }
   menu.querySelectorAll('[data-create-kind]').forEach(button=>button.addEventListener('click',()=>open(button.dataset.createKind)));
   form.addEventListener('submit',async event=>{
-    event.preventDefault();if(busy||!form.reportValidity())return;busy=true;submit.disabled=true;status.textContent='Creating…';
+    event.preventDefault();if(busy||!form.reportValidity())return;busy=true;submit.disabled=true;status.textContent='正在创建…';
     try{const result=await request('create',{kind,parent:parent.value,title:title.value});location.assign(result.url+(kind==='document'?'?edit=1':''));}
     catch(error){status.textContent=error.message;busy=false;submit.disabled=false;}
   });
   dialog.querySelector('[data-create-close]').addEventListener('click',()=>{if(!busy){dialog.close();add.focus();}});
   dialog.addEventListener('cancel',event=>{if(busy)event.preventDefault();});
-  connect().then(session=>{add.disabled=!session;add.title=session?'Create a document or group':'Run npm run dev to create documents and groups';});
+  connect().then(session=>{add.disabled=!session;add.title=session?'新建文档或分组':'运行 npm run dev 后即可创建文档和分组';});
 }

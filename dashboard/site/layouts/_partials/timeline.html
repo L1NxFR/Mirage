@@ -2,20 +2,20 @@
 {{- $steps := .steps -}}
 {{- $statuses := dict "done" "done" "active" "running" "running" "running" "pending" "pending" "error" "error" -}}
 {{- if not (reflect.IsSlice $steps) -}}
-  {{- errorf "timeline: expected a YAML list of steps at %s" .Position -}}
+  {{- errorf "timeline: 步骤应为 YAML 列表，位置：%s" .Position -}}
 {{- else if not (len $steps) -}}
-  {{- errorf "timeline: add at least one step at %s" .Position -}}
+  {{- errorf "timeline: 请至少添加一个步骤，位置：%s" .Position -}}
 {{- else -}}
   {{- $collapse := 0 -}}
   {{- with .collapse -}}
     {{- if not (findRE `^[0-9]+$` (string .)) -}}
-      {{- errorf "timeline: collapse must be a non-negative integer at %s" $.Position -}}
+      {{- errorf "timeline: collapse 必须为非负整数，位置：%s" $.Position -}}
     {{- else -}}
       {{- $collapse = int . -}}
     {{- end -}}
   {{- end -}}
   {{- if gt $collapse (len $steps) -}}
-    {{- errorf "timeline: collapse exceeds the number of steps at %s" .Position -}}
+    {{- errorf "timeline: collapse 超过步骤总数，位置：%s" .Position -}}
     {{- $collapse = len $steps -}}
   {{- end -}}
   {{- $groups := slice (dict "steps" $steps "start" 1 "collapsed" false) -}}
@@ -28,21 +28,21 @@
     {{- if .steps -}}
       {{- if .collapsed }}
   <details class="timeline__history">
-    <summary class="timeline__trigger"><span class="timeline__text">{{ $collapse }} earlier steps</span><svg class="timeline__chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg></summary>
+    <summary class="timeline__trigger"><span class="timeline__text">前 {{ $collapse }} 个步骤</span><svg class="timeline__chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg></summary>
       {{- end }}
     <ol class="timeline__steps" role="list" start="{{ .start }}">
       {{- range .steps -}}
         {{- if not (reflect.IsMap .) -}}
-          {{- errorf "timeline: each step needs text and status at %s" $.Position -}}
+          {{- errorf "timeline: 每个步骤需要 text 和 status，位置：%s" $.Position -}}
         {{- else -}}
           {{- $status := .status | default "pending" | string -}}
           {{- if not (isset $statuses $status) -}}
-            {{- errorf "timeline: unknown status %q (use done, active, running, pending, error) at %s" $status $.Position -}}
+            {{- errorf "timeline: 未知状态 %q（可用值：done、active、running、pending、error），位置：%s" $status $.Position -}}
             {{- $status = "pending" -}}
           {{- end -}}
           {{- $status = index $statuses $status -}}
           {{- if not .text -}}
-            {{- errorf "timeline: step text is required at %s" $.Position -}}
+            {{- errorf "timeline: 步骤必须包含 text，位置：%s" $.Position -}}
           {{- end }}
       <li class="timeline__step">
         {{- if .content }}

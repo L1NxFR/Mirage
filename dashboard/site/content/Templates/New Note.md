@@ -1,5 +1,5 @@
 ---
-content_lang: en
+content_lang: zh-CN
 title: ""
 subtitle: ""
 date: <% new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString().slice(0, 10) %>

@@ -40,7 +40,7 @@ test('all configured templates provide safe default YAML metadata', () => {
     const data = renderMetadata(source, 'Example note', '2026-11-15');
     assert.equal(data.draft, true, template);
     assert.equal(data.show_toc, true, template);
-    assert.ok(['en', 'zh-CN'].includes(data.content_lang), template);
+    assert.equal(data.content_lang, 'zh-CN', template);
     assert.equal(data.date, '2026-11-15', `${template} must use the creation date`);
     assert.ok(Object.hasOwn(data, 'title'), template);
     assert.equal(data.weight, 7, template);

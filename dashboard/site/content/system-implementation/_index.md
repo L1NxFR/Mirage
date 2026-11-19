@@ -1,9 +1,9 @@
 ---
-content_lang: en
-title: Docs
-description: System design, implementation details, and performance optimization.
+lastmod: 2026-11-19T10:26:49+08:00
+content_lang: zh-CN
+title: 文档
+description: 系统设计、实现细节、设计决策与性能优化。
 draft: true
-lastmod: 2026-11-16T03:41:52+01:00
 ---
 
-System design, implementation details, and performance optimization.
+系统设计、实现细节、设计决策与性能优化。

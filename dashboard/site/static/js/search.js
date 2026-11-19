@@ -34,13 +34,13 @@
     async function update() {
       const current = ++revision, query = input.value.trim();
       results.replaceChildren();
-      if (!query) { status.textContent = 'Enter keywords to search articles and sections.'; return; }
-      status.textContent = 'Searching…';
+      if (!query) { status.textContent = '输入关键词搜索文章和章节。'; return; }
+      status.textContent = '正在搜索…';
       try {
         const pages = await loadIndex(panel.dataset.indexUrl);
         if (revision !== current) return;
         const found = SiteSearch.search(pages, query);
-        status.textContent = found.length ? `${found.length} ${found.length === 1 ? 'article' : 'articles'} found${found.length > 20 ? ', showing the first 20' : ''}` : 'No results found. Try a shorter keyword or a different spelling.';
+        status.textContent = found.length ? `找到 ${found.length} 篇文档${found.length > 20 ? '，显示前 20 篇' : ''}` : '没有找到结果，请尝试更短的关键词或其他写法。';
         for (const page of found.slice(0, 20)) {
           const group = element('section', 'search-result-group');
           const heading = element('h3');
@@ -62,7 +62,7 @@
         }
       } catch (error) {
         if (revision !== current) return;
-        status.textContent = error.message === 'Use paired double quotes for an exact phrase.' ? error.message : 'The search index could not be loaded. Check your connection and try again.';
+        status.textContent = error.message === '精确匹配短语时，请使用成对的双引号。' ? error.message : '无法加载搜索索引，请检查连接后重试。';
       }
     }
     input.addEventListener('input', () => { ++revision; clearTimeout(timer); timer = setTimeout(update, 120); });
@@ -87,7 +87,7 @@
   }
   document.querySelectorAll('[data-search-open]').forEach(link => {
     link.setAttribute('aria-keyshortcuts', 'Control+k Meta+k');
-    link.title = 'Search (⌘K / Ctrl+K)';
+    link.title = '搜索 (⌘K / Ctrl+K)';
     link.addEventListener('click', event => {
       if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
       event.preventDefault(); openSearch();

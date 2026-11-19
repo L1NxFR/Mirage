@@ -18,7 +18,7 @@ with tempfile.TemporaryDirectory(prefix='reading-layout-') as directory:
     content = Path(directory) / 'content'
     shutil.copytree(repo / 'site/content', content, ignore=shutil.ignore_patterns('.obsidian', '.git'))
     write_layout_fixtures(content)
-    (content / '_index.md').write_text('---\ntitle: Overview\ndraft: false\nshow_toc: true\n---\n\n## Context\n\nLayout fixture.\n\n## Goals\n\n## Progress\n')
+    (content / '_index.md').write_text('---\ntitle: 项目概览\ndraft: false\nshow_toc: true\n---\n\n## Context\n\nLayout fixture.\n\n## Goals\n\n## Progress\n')
     undated_group = content / 'meetings/undated'
     undated_group.mkdir(parents=True)
     (undated_group / '_index.md').write_text('---\ntitle: Undated group\n---\n')
@@ -120,7 +120,7 @@ show_toc: true
         page = BeautifulSoup((output / route).read_text(), 'html.parser')
         assert 'site-page' in page.body['class']
         nav = page.select_one('nav.site-header')
-        assert nav and nav.get('aria-label') == 'Main navigation'
+        assert nav and nav.get('aria-label') == '主导航'
         labels = [(a.get_text(), a['href']) for a in nav.select('a')]
         if nav_labels is None:
             nav_labels = labels
@@ -151,14 +151,14 @@ show_toc: true
     assert datetime.fromisoformat(fixture.select_one('.document-meta-modified time')['datetime']) == datetime.fromisoformat('2026-11-14T18:25:00+01:00')
     assert not fixture.select('.document-meta-created .document-meta-modified'), 'Creation and modification are separate fields'
     assert len(fixture.select('.document-meta > .document-meta-item > svg[aria-hidden="true"]')) == 3
-    assert {'Created', 'Last modified'} <= {node.get_text() for node in fixture.select('.article-info dt')}
+    assert {'创建时间', '最后修改'} <= {node.get_text() for node in fixture.select('.article-info dt')}
     search_link = fixture.select_one('.site-header a[data-search-open]')
-    assert search_link['aria-label'] == 'Search' and search_link.select_one('svg[aria-hidden="true"]')
-    assert search_link.select_one('.visually-hidden').get_text() == 'Search'
+    assert search_link['aria-label'] == '搜索' and search_link.select_one('svg[aria-hidden="true"]')
+    assert search_link.select_one('.visually-hidden').get_text() == '搜索'
     undated = BeautifulSoup((output / 'meetings/undated/index.html').read_text(), 'html.parser')
     assert not undated.select('.document-meta-created time'), 'Child dates must not become group creation dates'
     assert undated.select_one('.document-meta-modified time'), 'Groups use their own source modification time'
-    assert len(undated.select('.document-meta [aria-label="Not recorded"]')) == 1
+    assert len(undated.select('.document-meta [aria-label="未记录"]')) == 1
     summary = fixture.select_one('.blog-tldr-content')
     assert summary.select_one('strong').get_text() == 'Key result'
     assert summary.select_one('em').get_text() == 'emphasis'
@@ -190,8 +190,8 @@ show_toc: true
     assert not disabled.select('.section-number'), 'Per-page opt-out applies to both heading and TOC'
     overview = BeautifulSoup((output / 'index.html').read_text(), 'html.parser')
     assert overview.select_one('.document-meta-author .author').get_text() == 'Nan Lin'
-    assert overview.select_one('.site-header .site-byline').get_text() == 'by Nan Lin'
-    assert overview.select_one('main.article-layout.blog-layout > .blog-page-heading > header.blog-cover > h1.title').get_text() == 'Overview'
+    assert overview.select_one('.site-header .site-byline').get_text() == '作者：Nan Lin'
+    assert overview.select_one('main.article-layout.blog-layout > .blog-page-heading > header.blog-cover > h1.title').get_text() == '项目概览'
     assert not overview.select('header.page-title, .blog-sidebar'), 'Overview uses the document cover without a journal tree'
     assert {'document-page', 'reading-page', 'blog'} <= set(overview.body['class'])
     assert overview.select_one('.article-body > p'), 'Overview Markdown uses the shared article body'

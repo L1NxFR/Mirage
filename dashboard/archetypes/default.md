@@ -1,5 +1,5 @@
 ---
-content_lang: en
+content_lang: zh-CN
 title: ''
 date: ''
 draft: true

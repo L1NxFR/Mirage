@@ -1,15 +1,15 @@
 ---
-content_lang: en
+content_lang: zh-CN
 title: ""
 date: <% new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString().slice(0, 10) %>
 draft: true
 show_toc: true
 <% await tp.user.document_weight(tp) %>
 ---
-## Discussion
+## 讨论
 
-## Decisions
+## 决策
 
-## Action Items
+## 行动项
 
-- [ ] To be added
+- [ ] 待补充

@@ -41,14 +41,14 @@
   {{ $class := complement (slice nil "") (slice "site-page" (cond (or .IsHome (partial "is-journal.html" .)) "blog" "") (cond .IsPage "single" "") (cond $isDocument "document-page" "") (cond (and $isDocument (not .Params.paper_source)) "reading-page" "") $section .Params.page_class (cond .IsHome "" ($.Scratch.Get "lang")) ) }}
   {{ if len $class }}<body class="{{ delimit (uniq $class) " " }}">{{ else }}<body>{{ end }}
     <div class="crop-h"></div><div class="crop-v"></div><div class="crop-c"></div>
-    <nav class="nav-top site-header" aria-label="Main navigation">
+    <nav class="nav-top site-header" aria-label="主导航">
     <div class="logo">
     {{ with default .Site.Params.logo.en (index .Site.Params.logo $section) }}
       <a href="{{ relURL .url }}">
       {{ if .img }}
       <img src="{{ relURL .img }}" alt="{{ .alt }}" />
       {{ else }}
-      <span class="site-title">{{ $.Site.Title }}</span> {{ with $.Site.Params.author.default }}<span class="site-byline">by {{ . }}</span>{{ end }}
+      <span class="site-title">{{ $.Site.Title }}</span> {{ with $.Site.Params.author.default }}<span class="site-byline">作者：{{ . }}</span>{{ end }}
       {{ end }}
       </a>
     {{ end }}
@@ -68,7 +68,7 @@
       {{- $mclass = append (slice "active") $mclass -}}
       {{- end -}}
       {{- $mclass = delimit $mclass " " -}}
-      <span{{ with $mclass }} class="{{ . }}"{{ end }}><a href="{{ relURL .URL }}"{{ if eq .Name "Search" }} data-search-open aria-haspopup="dialog" aria-label="Search" title="Search (⌘K / Ctrl+K)"{{ end }}{{ if eq $active .URL }} aria-current="page"{{ end }}>{{ if eq .Name "Search" }}{{ partial "tool-icon.html" "search" }}<span class="visually-hidden">Search</span>{{ else }}{{ .Name }}{{ end }}</a></span>
+      <span{{ with $mclass }} class="{{ . }}"{{ end }}><a href="{{ relURL .URL }}"{{ if eq .Name "搜索" }} data-search-open aria-haspopup="dialog" aria-label="搜索" title="搜索 (⌘K / Ctrl+K)"{{ end }}{{ if eq $active .URL }} aria-current="page"{{ end }}>{{ if eq .Name "搜索" }}{{ partial "tool-icon.html" "search" }}<span class="visually-hidden">搜索</span>{{ else }}{{ .Name }}{{ end }}</a></span>
       {{ end }}
     </div>
     </nav>

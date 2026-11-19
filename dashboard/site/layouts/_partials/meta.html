@@ -4,17 +4,17 @@
 <span class="document-meta">
   {{- $author := partial "document-author.html" . -}}
   {{- if and $author (not .Params.paper_authors) -}}
-  <span class="document-meta-item document-meta-author" title="Author">
-    {{ partial "tool-icon.html" "author" }}<span class="visually-hidden">Author: </span><span class="author">{{ $author }}</span>
+  <span class="document-meta-item document-meta-author" title="作者">
+    {{ partial "tool-icon.html" "author" }}<span class="visually-hidden">作者：</span><span class="author">{{ $author }}</span>
   </span>
   {{- end -}}
-  <span class="document-meta-item document-meta-created" title="Created">
-    {{ partial "tool-icon.html" "calendar" }}<span class="visually-hidden">Created: </span>
-    {{ if and (isset .Params "date") (not .Date.IsZero) }}<time datetime="{{ $created.Format "2006-01-02T15:04:05Z07:00" }}">{{ $created.Format "2006-01-02" }}{{ if ne ($created.Format "15:04:05") "00:00:00" }} {{ $created.Format "15:04:05 UTCZ07:00" }}{{ end }}</time>{{ else }}<span aria-label="Not recorded">—</span>{{ end }}
+  <span class="document-meta-item document-meta-created" title="创建时间">
+    {{ partial "tool-icon.html" "calendar" }}<span class="visually-hidden">创建时间：</span>
+    {{ if and (isset .Params "date") (not .Date.IsZero) }}<time datetime="{{ $created.Format "2006-01-02T15:04:05Z07:00" }}">{{ $created.Format "2006-01-02" }}{{ if ne ($created.Format "15:04:05") "00:00:00" }} {{ $created.Format "15:04:05 UTCZ07:00" }}{{ end }}</time>{{ else }}<span aria-label="未记录">—</span>{{ end }}
   </span>
-  <span class="document-meta-item document-meta-modified" title="Last modified">
-    {{ partial "tool-icon.html" "clock" }}<span class="visually-hidden">Last modified: </span>
-    {{ if not .Lastmod.IsZero }}<time datetime="{{ $modified.Format "2006-01-02T15:04:05Z07:00" }}">{{ $modified.Format "2006-01-02 15:04:05 UTCZ07:00" }}</time>{{ else }}<span aria-label="Not recorded">—</span>{{ end }}
+  <span class="document-meta-item document-meta-modified" title="最后修改">
+    {{ partial "tool-icon.html" "clock" }}<span class="visually-hidden">最后修改：</span>
+    {{ if not .Lastmod.IsZero }}<time datetime="{{ $modified.Format "2006-01-02T15:04:05Z07:00" }}">{{ $modified.Format "2006-01-02 15:04:05 UTCZ07:00" }}</time>{{ else }}<span aria-label="未记录">—</span>{{ end }}
   </span>
 </span>
 {{- end -}}

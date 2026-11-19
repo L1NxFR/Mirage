@@ -1,42 +1,28 @@
-# Research project structure (2026-11-14)
+# Mirage Dashboard 结构
 
-The current navigation is Overview, Related, Research, Docs, and Meetings, with Search as a shared tool. The repository contains only the project structure and authoring tools.
+主导航包括项目概览、相关工作、研究、文档和会议记录；搜索是共享工具。Dashboard 提供项目记录与写作工具。
 
-- Overview uses a prose layout. Missing project details are marked as placeholders.
-- The four journal indexes use expandable folder hierarchies, dotted leaders,
-  and right-aligned last updated dates. Folders precede entries; entries sort
-  by weight and title within their folder. All folders start expanded.
-- The four journals share article trees,
-  document tools, paper covers, and reading layouts. Each tree contains only its
-  section's published entries.
-- `params.journal_sections` selects journal behavior. The `blog` CSS class remains
-  an internal layout hook.
-- About, tags, categories, and CV pages are removed. The four journals start empty; drafts remain excluded from production, navigation, and search.
-- The interface, project pages, and new authoring templates use English. Chinese research notes are supported.
-- On narrow screens, the article tree collapses and the navigation wraps. Empty
-  journals display “No published entries yet.”
-- Changes remain local until deployment is requested.
-- Overview uses the same document template, cover, typography, heading numbering,
-  contents rail, and document controls as journal articles. Its left article tree
-  is omitted because it does not belong to a journal.
-- The shared navigation's project name uses 20px type; menu links retain their
-  existing size.
-- Every current document and template has `draft: true`. The global cascade
-  defaults all future page kinds to drafts, including home and group documents.
-  Workspace previews include drafts; explicit `draft: false` remains the publish action.
-- `title` and `params.author.default` supply the header's project name and byline.
-  Document authors use the same default, with a per-document `author` override.
-  Creation (`date`) and modification (`lastmod`) are separate icon-labelled fields;
-  unrecorded dates show a dash. Search uses an accessible icon link.
+- 项目概览使用正文布局，与栏目文章共用封面、排版、标题编号、目录和文档工具；不显示左侧栏目树。
+- 四个栏目使用可展开的文件夹层级、点状引导线及右侧最后更新日期。索引中的文件夹排在文章前，边栏中的文件夹排在文章后；同组文档按整数权重、标题排序，文件夹默认展开。
+- 栏目共用文章树、编辑下载工具、封面和阅读布局。正式构建仅显示本栏目的已发布文章。
+- `params.journal_sections` 指定记录栏目；`blog` CSS 类仍作为内部布局标识。
+- 关于、标签、分类和简历页面不生成。项目文档保留原有内容与发布状态。
+- 界面、项目说明和写作模板默认使用简体中文；单篇英文文档可显式设置 `content_lang: en`。
+- 窄屏下文章树折叠，主导航换行。空栏目显示“暂无已发布记录。”
+- 修改保留在本地，发布须处于用户授权范围内。
+- 项目名称字号为 20px，导航链接沿用已有字号。
+- 新建文档和模板默认使用 `draft: true`。全局 cascade 让未来各类页面默认成为草稿，包括主页与分组。工作区预览包含草稿；显式 `draft: false` 才会发布。
+- `title` 和 `params.author.default` 设置项目名称与默认作者；文档自身的 `author` 可覆盖默认作者。
+- 创建时间 `date` 和修改时间 `lastmod` 使用独立图标，缺失时显示横线。网页保存只更新 `lastmod`。搜索图标提供可访问名称。
 
-Navigation density: sidebar rows use 15px type at 1.3 line-height with 3px vertical padding;
-index rows use 16px type at 1.35 line-height with 4px vertical padding. Archive
-grids align content to the top so title-to-index spacing does not stretch.
+## 排版与界面
 
-The sidebar, directory index, search interface, and editor controls share
-`--site-font`, matching the existing site navigation and page titles. Only source
-editing and code use monospace. Article-specific reading typography is preserved.
-The local workspace supplies section search, Document/Group creation, and a
-CodeMirror editor with preview and direct repository saves. Mutations stay inside
-approved content directories, reject stale revisions and symbolic links, and
-restore the previous file when a build fails.
+侧栏条目使用 15px 字号、1.3 行高、3px 垂直内边距；目录条目使用 16px 字号、1.35 行高、4px 垂直内边距。归档网格顶部对齐，防止标题与目录间距被拉伸。
+
+侧栏、目录索引、搜索和编辑工具共用 `--site-font`，与导航和页面标题保持一致。仅源码编辑与代码使用等宽字体。文档按其语言保留相应阅读排版。
+
+## 本地工作区
+
+工作区支持栏目搜索、新建文档和分组，以及 CodeMirror 预览和直接保存。修改范围限制在允许的内容目录中，拒绝过期修订和符号链接；构建失败时恢复原文件。
+
+Mirage 保留原目录、URL、YAML 字段、插件标识及技术接口，界面和新建文档默认使用中文，单篇文档可显式使用 `content_lang: en`。项目时间统一使用北京时间（`Asia/Shanghai`、UTC+08:00），创建、保存、模板日期和页面时间均遵循此规则。

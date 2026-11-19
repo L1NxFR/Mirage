@@ -45,7 +45,7 @@
   {{- with $data.keywords }}
     {{- $keywords := . -}}
     {{- if not (reflect.IsSlice $keywords) -}}{{- $keywords = split (printf "%v" .) ";" -}}{{- end }}
-  <div class="paper-card__keywords" aria-label="Keywords">
+  <div class="paper-card__keywords" aria-label="关键词">
     {{- range $keywords }}{{ with strings.TrimSpace (printf "%v" .) }}<span class="paper-card__badge">{{ . }}</span>{{ end }}{{ end }}
   </div>
   {{- end }}
@@ -56,7 +56,7 @@
       {{- with $data.rating }}
         {{- if findRE `^[0-9]+$` (printf "%v" .) }}
           {{- $rating := math.Min 5 (int .) | int }}
-          {{- if gt $rating 0 }}<span class="paper-card__rating" aria-label="Rating: {{ $rating }} / 5">{{ strings.Repeat $rating "★" }}{{ strings.Repeat (sub 5 $rating) "☆" }}</span>{{ end }}
+          {{- if gt $rating 0 }}<span class="paper-card__rating" aria-label="评分：{{ $rating }} / 5">{{ strings.Repeat $rating "★" }}{{ strings.Repeat (sub 5 $rating) "☆" }}</span>{{ end }}
         {{- end }}
       {{- end }}
       {{- with $data.tags }}
@@ -70,12 +70,12 @@
   {{- end }}
   {{- with $data.abstract }}
   <details class="paper-card__abstract">
-    <summary>Abstract</summary>
+    <summary>摘要</summary>
     <p>{{ . }}</p>
   </details>
   {{- end }}
 </article>
 {{- else -}}
-  {{- warnf "Invalid paper card at %s: expected YAML metadata with a title or url; displaying source" .Position -}}
+  {{- warnf "论文卡片无效，位置 %s：YAML 元数据需包含 title 或 url；显示原文" .Position -}}
 <pre tabindex="0"><code class="language-paper" data-lang="paper">{{ .Inner }}</code></pre>
 {{- end -}}

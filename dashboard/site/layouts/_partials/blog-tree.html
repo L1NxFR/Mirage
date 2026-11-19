@@ -12,7 +12,7 @@
 <ul class="blog-tree">
 {{ range sort $pages.ByTitle "Weight" "asc" }}
   {{ if eq .File.Dir $directory }}
-    <li class="sidebar-document" data-document-path="{{ .File.Path }}" data-document-title="{{ .Title }}" data-pinned="{{ if .Params.sidebar_pinned }}true{{ else }}false{{ end }}"><a href="{{ .RelPermalink }}"{{ if eq .RelPermalink $current.RelPermalink }} aria-current="page"{{ end }}>{{ .Title }}{{ if .Draft }} <small class="draft-badge">Draft</small>{{ end }}</a><button type="button" class="document-more" aria-label="{{ .Title }}：更多操作" aria-haspopup="menu" aria-expanded="false">⋯</button></li>
+    <li class="sidebar-document" data-document-path="{{ .File.Path }}" data-document-title="{{ .Title }}" data-pinned="{{ if .Params.sidebar_pinned }}true{{ else }}false{{ end }}"><a href="{{ .RelPermalink }}"{{ if eq .RelPermalink $current.RelPermalink }} aria-current="page"{{ end }}>{{ .Title }}{{ if .Draft }} <small class="draft-badge">草稿</small>{{ end }}</a><button type="button" class="document-more" aria-label="{{ .Title }}：更多操作" aria-haspopup="menu" aria-expanded="false">⋯</button></li>
   {{ else if hasPrefix .File.Dir $directory }}
     {{ $folder := index (split (strings.TrimPrefix $directory .File.Dir) "/") 0 }}
     {{ $folders = $folders | append $folder }}
@@ -28,7 +28,7 @@
   <li>
     <details class="blog-tree-group"{{ if $active }} open{{ end }}>
       <summary{{ if $active }} class="contains-current"{{ end }}><span>{{ $label }}</span></summary>
-      {{ with $current.Site.GetPage (strings.TrimSuffix "/" $path) }}{{ if .IsSection }}<a class="blog-group-home" href="{{ .RelPermalink }}"{{ if eq .RelPermalink $current.RelPermalink }} aria-current="page"{{ end }}>Open group</a>{{ end }}{{ end }}
+      {{ with $current.Site.GetPage (strings.TrimSuffix "/" $path) }}{{ if .IsSection }}<a class="blog-group-home" href="{{ .RelPermalink }}"{{ if eq .RelPermalink $current.RelPermalink }} aria-current="page"{{ end }}>打开分组</a>{{ end }}{{ end }}
       {{ partial "blog-tree.html" (dict "pages" $pages "directory" $path "current" $current) }}
     </details>
   </li>

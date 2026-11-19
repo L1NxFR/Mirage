@@ -1,19 +1,19 @@
-# Source repositories
+# 源码仓库
 
-The upstream reference repositories are tracked as submodules at specific commits.
+上游参考仓库通过 Git 子模块固定到具体提交。
 
-| Directory | Repository |
+| 目录 | 仓库 |
 | --- | --- |
 | `aisim/` | [NVIDIA AI Simulator](https://github.com/ai-dynamo/aisim) |
 | `dynamo/` | [NVIDIA Dynamo](https://github.com/ai-dynamo/dynamo) |
 
-Clone Mirage with the reference repositories:
+克隆 Mirage 并获取参考仓库：
 
 ```sh
 git clone --recurse-submodules https://github.com/L1NxFR/Mirage.git
 ```
 
-For an existing clone:
+对于已有的本地副本：
 
 ```sh
 git submodule update --init --recursive

@@ -101,8 +101,8 @@ abstract: No title or URL
     assert len(features.select("article", **{"class": "paper-card"})) == 2
     for value in ("Alice, Bob", "Nature", "2025", "12(3):1-9", "Reading", "#systems", "#two", "#three", "MoE", "Scheduling", "Second paragraph."):
         assert value in text, value
-    assert features.select("span", **{"aria-label": "Rating: 4 / 5"})
-    assert features.select("span", **{"aria-label": "Rating: 5 / 5"})
+    assert features.select("span", **{"aria-label": "评分：4 / 5"})
+    assert features.select("span", **{"aria-label": "评分：5 / 5"})
     for href in ("https://doi.org/10.1000/example", "https://pubmed.ncbi.nlm.nih.gov/1234/", "https://pmc.ncbi.nlm.nih.gov/articles/PMC1234/"):
         assert features.select("a", href=href), href
     assert "<script>alert(1)</script>" in text

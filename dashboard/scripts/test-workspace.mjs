@@ -74,19 +74,19 @@ test('failed builds restore edited files and remove only newly created files',as
   await assert.rejects(store.create({kind:'group',parent:'meetings',title:'Failed'}),/Broken shortcode/);
   assert.equal(store.groups('meetings').length,1);
 });
-test('documents and groups default to English while explicit languages survive saves', async t => {
+test('documents and groups default to Chinese while explicit languages survive saves', async t => {
   const {store}=fixture(t);
   for (const section of sections) {
     for (const kind of ['document','group']) {
-      const doc=await store.create({kind,parent:section,title:`English ${kind}`});
-      assert.equal(parseSource(doc.source).data.content_lang,'en');
+      const doc=await store.create({kind,parent:section,title:`中文${kind}`});
+      assert.equal(parseSource(doc.source).data.content_lang,'zh-CN');
     }
   }
   const doc=store.read('_index.md');
   const saved=await store.save({...doc,source:doc.source+'Edited\n'});
-  assert.equal(parseSource(saved.source).data.content_lang,'en');
-  const chinese=await store.save({...saved,source:saved.source.replace('content_lang: en','content_lang: zh-CN')});
-  assert.equal(parseSource(chinese.source).data.content_lang,'zh-CN');
+  assert.equal(parseSource(saved.source).data.content_lang,'zh-CN');
+  const english=await store.save({...saved,source:saved.source.replace('content_lang: zh-CN','content_lang: en')});
+  assert.equal(parseSource(english.source).data.content_lang,'en');
 });
 test('document menu renames, pins, copies, moves, removes and backs up deletions', async t => {
   const { root, store } = fixture(t);
@@ -141,3 +141,16 @@ for (const instant of ['2026-11-15T16:00:01.123Z', '2026-06-30T23:59:59.999Z']) 
     }
   });
 }
+
+test('Chinese document paths and text round-trip through creation and saving', async t => {
+  const {store}=fixture(t);
+  const group=await store.create({kind:'group',parent:'research-journey',title:'实验记录'});
+  const doc=await store.create({kind:'document',parent:'research-journey/实验记录',title:'精度对比'});
+  assert.equal(group.path,'research-journey/实验记录/_index.md');
+  assert.equal(doc.path,'research-journey/实验记录/精度对比.md');
+  assert.equal(doc.url,'/research-journey/'+encodeURIComponent('实验记录')+'/'+encodeURIComponent('精度对比')+'/');
+  const saved=await store.save({...doc,source:doc.source+'## 结果\n\n中文正文与 English 混排。\n'});
+  assert.equal(parseSource(saved.source).data.content_lang,'zh-CN');
+  assert.match(saved.source,/中文正文与 English 混排。/);
+  assert.equal(parseSource(saved.source).data.draft,true);
+});

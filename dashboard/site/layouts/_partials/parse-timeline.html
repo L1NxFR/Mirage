@@ -22,7 +22,7 @@
   {{- else if and (not $current) (findRE `^collapse: [0-9]+$` $line) -}}
     {{- $model = merge $model (dict "collapse" (int (strings.TrimPrefix "collapse: " $line))) -}}
   {{- else -}}
-    {{- errorf "timeline: line %d needs a task (- [ ] Title) or two-space-indented details at %s" (add $index 1) $.Position -}}
+    {{- errorf "timeline: 第 %d 行应为任务（- [ ] 标题）或缩进两个空格的详情，位置：%s" (add $index 1) $.Position -}}
   {{- end -}}
 {{- end -}}
 {{- if $current -}}{{- $steps = $steps | append $current -}}{{- end -}}

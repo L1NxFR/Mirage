@@ -1,17 +1,17 @@
 baseurl: "/"
-locale: "en-US"
+locale: "zh-CN"
 timeZone: "Asia/Shanghai"
 title: "Mirage"
 theme: "Research-Project-Homepage"
 ignoreFiles: ["(^|/)\\.workspace-trash/", "\\.Rmd$", "\\.Rmarkdown$", "_cache$", "\\.excalidraw\\.md$", "(^|/)Templates/", "(^|/)Attachments/"]
 footnotereturnlinkcontents: "↩"
-defaultContentLanguage: "en"
+defaultContentLanguage: "zh-cn"
 hasCJKLanguage: true
 buildFuture: true
 buildDrafts: false
 cascade:
   - draft: true
-    content_lang: en
+    content_lang: zh-CN
 enableRobotsTXT: true
 disableKinds: [taxonomy, term]
 
@@ -35,26 +35,26 @@ outputs:
 
 menu:
   main:
-    - name: Overview
+    - name: 项目概览
       url: /
       weight: 10
-    - name: Related
+    - name: 相关工作
       pageRef: /related-work
       weight: 20
-    - name: Research
+    - name: 研究
       pageRef: /research-journey
       weight: 30
-    - name: Docs
+    - name: 文档
       pageRef: /system-implementation
       weight: 40
-    - name: Meetings
+    - name: 会议记录
       pageRef: /meetings
       weight: 50
 
 params:
   source_repository: "https://github.com/L1NxFR/Mirage"
   journal_sections: [related-work, research-journey, system-implementation, meetings]
-  description: "Mirage — an LLM serving simulator."
+  description: "Mirage — 大语言模型推理服务模拟器。"
   toc_threshold: 3
   author:
     default: "Nan Lin"

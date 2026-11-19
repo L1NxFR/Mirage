@@ -1,0 +1,128 @@
+---
+content_lang: en
+title: 2026-11-19-Weekly Meeting
+date: 2026-11-19
+draft: false
+show_toc: true
+weight: 4
+---
+## 场景：每张卡的两级内存
+
+计算芯片之下需要存储的空间
+- 完整空间权重
+	- 专家权重
+		- 区分冷/热
+- KV Cache
+	- 区分冷/热（特别是稀疏 Attention 场景下）
+- （临时buffer）
+
+计算芯片之下的两级内存
+1. 3D-stacked DRAM
+2. LPDDR
+
+推理引擎实现
+- Hot KV buffer 取减少外部内存读取
+- 提前卸载和预取
+
+## Motivation：两级内存设计
+
+像 Decode memory-bound 的计算，特别在乎能不能让底层内存系统提前准备好其所需要计算的数据
+- BW, prefetch (overlapped), on-demand fetch
+- 这可以通过两级内存实现！
+
+
+基于不同的卡数/模型/推理场景（如 BS），如何设计两级 DRAM 内存大小
+- BS 变大 -> Hot Expert 权重更大，需要更多空间给 Hot Expert
+- 长上下文 -> (Hot) KV Cache 更大，需要更多空间给 (Hot) KV Cache
+
+观察到
+1. 增大 L1 Capacity，性能会先变好之后不再变好
+	1. 转折点：L2 搬运是否被计算掩盖
+2. L2 Capacity 越大越好（当然……也更贵）
+
+
+
+## 数学建模
+
+### 内存占用
+
+KV Cache 建模，可以通过获取数据 + 公式推导：
+
+$$
+M(KV) = 2 LHds\sum_{i=1}^B l_{i}, \; s = \text{byte}(\text{format})
+$$
+
+稀疏 attention 场景下
+- hot token 统计：激活的 token 对应 kv cache 比例
+- 跨步复用，利用时间局部性
+
+### Decode step 访问数据量
+
+对于 MoE 模型，随着 ${}b{}$ 增大，需要用到的热专家空间
+$$
+ \mathbb E[M_{\rm expert,step}] =\sum_e m_e\big[1-(1-p_e)^B\big]. 
+$$
+
+可以计算出利用比例
+
+
+对于 GPU 上空间建模
+
+$$
+D(C, r) = D_{e}(rC) + D_{KV}((1-r)C)
+$$
+- 固定 ${}C{}$，变 ${}r{}$，比较搬运量
+- 改变 ${}C{}$，求 ${}r^*(C){}$，求搬运量最小的候选分配
+
+
+### 通信计算 Overlap
+
+注意体现在 L1-L2 之间
+- 如果我们能够得到 ${}D(C_{1},r){}$ = 对于容量 C1 的 L1 平均每一步都必须从 L2 度入的字节数量
+- 能够估算通信时长下界
+- 再比较估算的计算时长，比较通信 % 能被覆盖程度
+- 最后得到理论 throughput 上界
+
+$$
+T_{move}(C,r)= \frac{D(c,r)}{BW}, \text{TPOT} \geq max(T_{d}, T_{move}), B\leq \frac{B}{max(T_{d},T_{\text{move}})}
+$$
+
+
+
+
+## AI-SIM
+
+显式区分了两级存储：G1 = GPU 显存，G2 = 主机内存
+- 和我们场景不符
+- 无法建模分层 GPU，以及在这里面我们想实现 overlap 的思路
+
+没有我们想要的稀疏 attention 场景
+
+## On-going 
+
+
+现有的 `G1Manager` 通过 `VllmKvManager` 管理整套 KV 的生命周期
+
+所以我们需要设计新的 `DeviceMemoryTier`，每卡池创建两个实例，分别对应 stacked DRAM 和 LPDDR
+- 复用代码，毕竟他们都是缓存级别的结构
+- 各自维护容量和管理策略，物理位置等
+
+
+~~KV Cache~~ Memory Pool 设计
+- 由于我们新增了一层内存池，KV Cache 移动的整体逻辑都需要改变。
+- 增加对于多级缓存的 metadata 的 record
+- 现有的实现和 sequence 强绑定，sequence 在运行它就一定在 GPU 上。在我们的场景里 不一定如此，需要独立记录 不同大小 KV Cache Page 数据
+- 现有是爱你只支持对 KV Cache 维护，我们的实现还要考虑到在卡上权重大小是动态。
+
+KV Cache 生命周期再设计。
+- 在原先的实现里，KV Cache 只有在请求开始的时候才会找回缓存的前缀，而且路径是串行的：只有恢复完成之后才会开始运算
+- 但是现在双层设计里面，我们会有存在在线传输 overlap 场景，以及在稀疏 attention 计算等场景能提前判断会提前使用的时候会触发预取，其传输开销就能被覆盖
+- 实现：decode 期间搬运**暂时**不用的 KV 到 LPDDR，后续选中再拉回来，维护对该页引用
+- 复用现有 KV 驱逐、保护，传输 engine
+
+权重行为建模。
+- 现有模拟器没有对 MoE Offloading 行为进行建模……
+- 维护 Expert Id，计算那些专家命中
+
+多层级之间相关行为建模
+- 增加新的访问事件，除了要维护请求的 metadata、搬运涉及的 KV 块之外，现在还要维护所有要被读取的 KV 块，得到**命中集合**和**需要加载的集合**，以结合 eviction 策略更好的判断整个 memory "cache" 行为

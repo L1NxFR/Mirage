@@ -3,27 +3,27 @@
 {{- $created := $page.Date | time.In "Asia/Shanghai" -}}
 {{- $modified := $page.Lastmod | time.In "Asia/Shanghai" -}}
 {{- $source := resources.FromString (printf "sources/%s" .Path) (readFile .Filename) -}}
-<div class="article-tools" aria-label="Document tools">
+<div class="article-tools" aria-label="文档工具">
   <details class="article-info">
-    <summary class="article-tool" aria-label="Article information" title="Article information">
+    <summary class="article-tool" aria-label="文档信息" title="文档信息">
       {{ partial "tool-icon.html" "info" }}
     </summary>
     <div class="article-info-panel">
       <strong>{{ $page.Title }}</strong>
       <dl>
-        <dt>Source file</dt><dd>{{ .Path }}</dd>
+        <dt>源文件</dt><dd>{{ .Path }}</dd>
         {{ $author := partial "document-author.html" $page }}
-        {{ with $author }}<dt>Author</dt><dd>{{ . }}</dd>{{ end }}
-        {{ if and (isset $page.Params "date") (not $page.Date.IsZero) }}<dt>Created</dt><dd>{{ $created.Format "2006-01-02" }}{{ if ne ($created.Format "15:04:05") "00:00:00" }} {{ $created.Format "15:04:05 UTCZ07:00" }}{{ end }}</dd>{{ end }}
-        {{ if not $page.Lastmod.IsZero }}<dt>Last modified</dt><dd>{{ $modified.Format "2006-01-02 15:04:05 UTCZ07:00" }}</dd>{{ end }}
-        {{ with $page.Params.license }}<dt>License</dt><dd>{{ . }}</dd>{{ end }}
+        {{ with $author }}<dt>作者</dt><dd>{{ . }}</dd>{{ end }}
+        {{ if and (isset $page.Params "date") (not $page.Date.IsZero) }}<dt>创建时间</dt><dd>{{ $created.Format "2006-01-02" }}{{ if ne ($created.Format "15:04:05") "00:00:00" }} {{ $created.Format "15:04:05 UTCZ07:00" }}{{ end }}</dd>{{ end }}
+        {{ if not $page.Lastmod.IsZero }}<dt>最后修改</dt><dd>{{ $modified.Format "2006-01-02 15:04:05 UTCZ07:00" }}</dd>{{ end }}
+        {{ with $page.Params.license }}<dt>许可协议</dt><dd>{{ . }}</dd>{{ end }}
       </dl>
     </div>
   </details>
   {{ with $page.Site.Params.source_repository }}
-  <a class="article-tool" href="{{ . }}" target="_blank" rel="noopener noreferrer" aria-label="View GitHub repository (opens in a new tab)" title="View GitHub repository">{{ partial "tool-icon.html" "github" }}</a>
+  <a class="article-tool" href="{{ . }}" target="_blank" rel="noopener noreferrer" aria-label="查看 GitHub 仓库（在新标签页打开）" title="查看 GitHub 仓库">{{ partial "tool-icon.html" "github" }}</a>
   {{ end }}
-  <button class="article-tool article-edit" type="button" data-edit-article aria-haspopup="dialog" aria-controls="article-editor" aria-label="Edit Markdown" title="Edit Markdown" hidden>{{ partial "tool-icon.html" "edit" }}</button>
-  <a class="article-tool" href="{{ $source.RelPermalink }}" download="{{ .LogicalName }}" aria-label="Download original Markdown" title="Download original Markdown (with metadata)">{{ partial "tool-icon.html" "download" }}</a>
+  <button class="article-tool article-edit" type="button" data-edit-article aria-haspopup="dialog" aria-controls="article-editor" aria-label="编辑 Markdown" title="编辑 Markdown" hidden>{{ partial "tool-icon.html" "edit" }}</button>
+  <a class="article-tool" href="{{ $source.RelPermalink }}" download="{{ .LogicalName }}" aria-label="下载 Markdown 原文" title="下载 Markdown 原文（含元数据）">{{ partial "tool-icon.html" "download" }}</a>
 </div>
 {{- end -}}

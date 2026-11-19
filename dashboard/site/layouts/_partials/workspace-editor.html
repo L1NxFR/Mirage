@@ -2,55 +2,55 @@
 {{ $source := resources.FromString (printf "sources/%s" .Path) (readFile .Filename) }}
 <dialog id="article-editor" class="workspace-editor" aria-labelledby="article-editor-title" data-source-url="{{ $source.RelPermalink }}" data-path="{{ .Path }}" data-filename="{{ .LogicalName }}" data-mode="split">
   <header class="workspace-editor-header">
-    <div><p id="article-editor-title">Markdown editor</p><strong data-editor-document-title>{{ $.Title }}</strong></div>
+    <div><p id="article-editor-title">Markdown 编辑器</p><strong data-editor-document-title>{{ $.Title }}</strong></div>
     <div class="workspace-editor-actions">
-      <button type="button" data-editor-reload hidden>Reload latest</button>
-      <button type="button" class="workspace-primary" data-editor-save disabled>Save <kbd>⌘S</kbd></button>
-      <button type="button" data-editor-close aria-label="Close editor">{{ partial "tool-icon.html" "close" }}</button>
+      <button type="button" data-editor-reload hidden>重新载入最新版本</button>
+      <button type="button" class="workspace-primary" data-editor-save disabled>保存 <kbd>⌘S</kbd></button>
+      <button type="button" data-editor-close aria-label="关闭编辑器">{{ partial "tool-icon.html" "close" }}</button>
     </div>
   </header>
-  <div class="workspace-toolbar" role="toolbar" aria-label="Markdown formatting">
+  <div class="workspace-toolbar" role="toolbar" aria-label="Markdown 格式工具">
     <div>
-      <button type="button" data-format="heading" title="Heading">H2</button>
-      <button type="button" data-format="bold" title="Bold (⌘B)"><b>B</b></button>
-      <button type="button" data-format="italic" title="Italic (⌘I)"><i>I</i></button>
-      <button type="button" data-format="link">Link</button>
-      <button type="button" data-format="list">List</button>
-      <button type="button" data-format="code">Code</button>
-      <button type="button" data-format="undo">Undo</button>
-      <button type="button" data-format="redo">Redo</button>
+      <button type="button" data-format="heading" title="标题">H2</button>
+      <button type="button" data-format="bold" title="加粗 (⌘B)"><b>B</b></button>
+      <button type="button" data-format="italic" title="斜体 (⌘I)"><i>I</i></button>
+      <button type="button" data-format="link">链接</button>
+      <button type="button" data-format="list">列表</button>
+      <button type="button" data-format="code">代码</button>
+      <button type="button" data-format="undo">撤销</button>
+      <button type="button" data-format="redo">重做</button>
     </div>
-    <div class="workspace-view-switch" aria-label="Editor view">
-      <button type="button" data-editor-mode="write" aria-pressed="false">Write</button>
-      <button type="button" data-editor-mode="split" aria-pressed="true">Split</button>
-      <button type="button" data-editor-mode="preview" aria-pressed="false">Preview</button>
+    <div class="workspace-view-switch" aria-label="编辑器视图">
+      <button type="button" data-editor-mode="write" aria-pressed="false">编辑</button>
+      <button type="button" data-editor-mode="split" aria-pressed="true">分栏</button>
+      <button type="button" data-editor-mode="preview" aria-pressed="false">预览</button>
     </div>
   </div>
   <section class="workspace-summary" aria-labelledby="editor-summary-label">
-    <label id="editor-summary-label" for="editor-summary">TL;DR <span>Optional</span></label>
-    <textarea id="editor-summary" data-editor-summary rows="2" aria-describedby="editor-summary-help editor-summary-error" placeholder="Summarize the key takeaway…" disabled></textarea>
-    <p id="editor-summary-help">Supports Markdown. Leave empty to hide the summary.</p>
+    <label id="editor-summary-label" for="editor-summary">内容摘要 <span>可选</span></label>
+    <textarea id="editor-summary" data-editor-summary rows="2" aria-describedby="editor-summary-help editor-summary-error" placeholder="概括主要结论…" disabled></textarea>
+    <p id="editor-summary-help">支持 Markdown，留空时不显示摘要。</p>
     <p id="editor-summary-error" data-summary-error role="status" hidden></p>
   </section>
-  <details class="workspace-metadata"><summary>Properties</summary><label for="editor-metadata">YAML metadata · title, date, and page settings</label><textarea id="editor-metadata" data-editor-metadata spellcheck="false"></textarea></details>
+  <details class="workspace-metadata"><summary>文档属性</summary><label for="editor-metadata">YAML 元数据 · 标题、日期与页面设置</label><textarea id="editor-metadata" data-editor-metadata spellcheck="false"></textarea></details>
   <div class="workspace-panes">
-    <section class="workspace-write" aria-label="Markdown source"><div data-editor-code></div></section>
-    <section class="workspace-preview" data-editor-preview aria-label="Markdown preview"></section>
+    <section class="workspace-write" aria-label="Markdown 源文"><div data-editor-code></div></section>
+    <section class="workspace-preview" data-editor-preview aria-label="Markdown 预览"></section>
   </div>
   <div class="workspace-unsaved" data-unsaved-warning hidden>
-    <span>You have unsaved changes.</span><button type="button" data-keep-editing>Keep editing</button><button type="button" data-discard>Discard changes</button>
+    <span>有尚未保存的修改。</span><button type="button" data-keep-editing>继续编辑</button><button type="button" data-discard>放弃修改</button>
   </div>
-  <footer class="workspace-editor-footer"><p class="editor-status" role="status" aria-live="polite">Loading document…</p><span>Markdown · UTF-8</span></footer>
+  <footer class="workspace-editor-footer"><p class="editor-status" role="status" aria-live="polite">正在加载文档…</p><span>Markdown · UTF-8</span></footer>
 </dialog>
 {{ end }}
 {{ if partial "is-journal.html" . }}
 <dialog id="create-entry" class="workspace-create" aria-labelledby="create-entry-title">
   <form>
-    <header><h2 id="create-entry-title">New document</h2><button type="button" data-create-close aria-label="Close creation dialog">{{ partial "tool-icon.html" "close" }}</button></header>
-    <label for="entry-title">Title</label><input id="entry-title" name="title" required maxlength="180" autocomplete="off" placeholder="Untitled">
-    <label for="entry-parent">Group</label><select id="entry-parent" name="parent" required></select>
+    <header><h2 id="create-entry-title">新建文档</h2><button type="button" data-create-close aria-label="关闭新建窗口">{{ partial "tool-icon.html" "close" }}</button></header>
+    <label for="entry-title">标题</label><input id="entry-title" name="title" required maxlength="180" autocomplete="off" placeholder="未命名">
+    <label for="entry-parent">分组</label><select id="entry-parent" name="parent" required></select>
     <p role="status" aria-live="polite"></p>
-    <button class="workspace-primary" type="submit">Create</button>
+    <button class="workspace-primary" type="submit">创建</button>
   </form>
 </dialog>
 {{ end }}

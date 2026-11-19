@@ -17,6 +17,7 @@ with tempfile.TemporaryDirectory(prefix='timeline-hugo-') as tmp:
     content.mkdir()
     (content / 'modern.md').write_text('''---
 title: Timeline fixture
+draft: false
 ---
 ````timeline
 # Progress
@@ -35,6 +36,7 @@ collapse: 1
 ''')
     (content / 'legacy.md').write_text('''---
 title: Legacy
+draft: false
 ---
 {{< timeline >}}
 - text: Legacy step

@@ -3,8 +3,8 @@
 {{- $pages = where $pages "Draft" false -}}
 {{- $pinned := where $pages "Weight" "lt" 0 -}}
 {{ with $pinned }}
-<section class="archive-pinned" aria-label="Pinned entries">
-<h2>Pinned</h2>
+<section class="archive-pinned" aria-label="置顶记录">
+<h2>置顶记录</h2>
 <ul>
 {{ range . }}{{ partial "archive-entry.html" . }}{{ end }}
 </ul>
@@ -26,5 +26,5 @@
 {{ partial "archive-entry.html" . }}
 {{ end }}
 {{ if $month }}</ul>{{ end }}
-{{ with $pages }}<p class="archive-stats">{{ len . }} {{ if eq (len .) 1 }}entry{{ else }}entries{{ end }}</p>{{ end }}
-{{ if not $pages }}<p class="archive-empty">No published entries yet.</p>{{ end }}
+{{ with $pages }}<p class="archive-stats">{{ len . }} 篇记录</p>{{ end }}
+{{ if not $pages }}<p class="archive-empty">暂无已发布记录。</p>{{ end }}

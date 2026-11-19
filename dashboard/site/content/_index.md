@@ -1,18 +1,18 @@
 ---
-content_lang: en
-title: Overview
-description: Mirage — an LLM serving simulator.
+content_lang: zh-CN
+title: 项目概览
+description: Mirage — 大语言模型推理服务模拟器。
 draft: true
-lastmod: 2026-11-16T03:41:52+01:00
+lastmod: 2026-11-19T10:26:49+08:00
 ---
 
-Mirage is an LLM serving simulator that models memory architectures across the hardware and software stack to explore the design trade-offs of shared and distributed KV-cache architectures under agentic workloads.
+Mirage 是一个大语言模型推理服务模拟器。它对硬件与软件栈中的内存架构建模，探索智能体工作负载下共享式与分布式 KV-cache 架构的设计权衡。
 
-## Project Files
+## 项目文件
 
-Simulator code, experiments, and evaluation belong in `src/`.
+模拟器代码、实验与评估放在 `src/` 中。
 
-- [Related](related-work/): related work.
-- [Research](research-journey/): experiments and findings.
-- [Docs](system-implementation/): design and implementation notes.
-- [Meetings](meetings/): meeting notes.
+- [相关工作](related-work/)：文献与相关方法。
+- [研究](research-journey/)：实验与发现。
+- [文档](system-implementation/)：设计与实现记录。
+- [会议记录](meetings/)：讨论与行动项。

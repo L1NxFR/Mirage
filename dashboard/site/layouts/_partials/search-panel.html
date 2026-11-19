@@ -1,8 +1,8 @@
 <div class="site-search" data-index-url="{{ "index.json" | relURL }}">
-  <label class="search-label" for="{{ .id }}">Keywords</label>
-  <input id="{{ .id }}" type="search" autocomplete="off" placeholder="Search articles, topics, or sections…" aria-describedby="{{ .id }}-help" aria-controls="{{ .id }}-results">
-  <p class="search-help" id="{{ .id }}-help">Search in English or Chinese. Separate words to match all of them: <code>GPU communication</code>; use <code>|</code> to match either term: <code>AllReduce | AllGather</code>; use double quotes for an exact phrase: <code>"Collective Communication"</code>. Try shorter words or common abbreviations if needed.</p>
-  <p class="search-status" role="status" aria-live="polite">Enter keywords to search articles and sections.</p>
+  <label class="search-label" for="{{ .id }}">关键词</label>
+  <input id="{{ .id }}" type="search" autocomplete="off" placeholder="搜索文章、主题或章节…" aria-describedby="{{ .id }}-help" aria-controls="{{ .id }}-results">
+  <p class="search-help" id="{{ .id }}-help">支持中英文搜索。空格分隔表示同时匹配：<code>GPU 通信</code>；用 <code>|</code> 匹配任意词：<code>AllReduce | AllGather</code>；用双引号精确匹配短语：<code>"集合通信"</code>。必要时可尝试更短的关键词或常用缩写。</p>
+  <p class="search-status" role="status" aria-live="polite">输入关键词搜索文章和章节。</p>
   <div class="search-results" id="{{ .id }}-results"></div>
-  <noscript>Enable JavaScript to search, or browse articles using the navigation above.</noscript>
+  <noscript>启用 JavaScript 后即可搜索，也可通过上方导航浏览文档。</noscript>
 </div>

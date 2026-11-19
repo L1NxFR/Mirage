@@ -4,5 +4,5 @@
 {{- if isset .Params "show_toc" -}}{{- $show = .Params.show_toc -}}{{- end -}}
 {{- if and $show (gt $headingCount 0) -}}
   {{- .Scratch.Set "has_toc" true -}}
-  {{- replace $toc `<nav ` `<nav aria-label="Table of contents" ` | safeHTML -}}
+  {{- replace $toc `<nav ` `<nav aria-label="目录" ` | safeHTML -}}
 {{- end -}}

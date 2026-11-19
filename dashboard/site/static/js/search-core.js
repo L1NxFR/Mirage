@@ -12,7 +12,7 @@
       else if (!quoted && /\s/u.test(char)) { flush(); }
       else token += char;
     }
-    if (quoted) throw new Error('Use paired double quotes for an exact phrase.');
+    if (quoted) throw new Error('精确匹配短语时，请使用成对的双引号。');
     flush();
     return groups.filter(group => group.length);
   }

@@ -1,5 +1,5 @@
 ---
-content_lang: en
+content_lang: zh-CN
 title: ""
 date: <% new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString().slice(0, 10) %>
 draft: true
@@ -7,8 +7,8 @@ show_toc: true
 <% await tp.user.document_weight(tp) %>
 ---
 
-## Research Questions
+## 研究问题
 
-## Experiments and Observations
+## 实验与观察
 
-## Conclusions and Next Steps
+## 结论与下一步

@@ -26,7 +26,7 @@ test('empty input, literal punctuation, and malformed quotes', () => {
   assert.deepEqual(parse(' | '), []);
   assert.deepEqual(search(pages, ''), []);
   assert.deepEqual(search(pages, '[.*]'), []);
-  assert.throws(() => parse('"unfinished'), /double quotes/);
+  assert.throws(() => parse('"unfinished'), /双引号/);
 });
 test('case and compatibility forms match; snippets retain matching context', () => {
   assert.equal(search(pages, 'ｎｃｃｌ')[0].uri, '/collectives/');

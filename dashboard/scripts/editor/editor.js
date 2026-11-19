@@ -1,5 +1,6 @@
 import { basicSetup, EditorView } from 'codemirror';
 import { keymap } from '@codemirror/view';
+import { EditorState } from '@codemirror/state';
 import { markdown } from '@codemirror/lang-markdown';
 import { undo, redo } from '@codemirror/commands';
 import katex from 'katex';
@@ -29,7 +30,7 @@ export function setupEditor() {
   function update(syncSummary = true) {
     if (!editor) return;
     saveButton.disabled = !writable || pending || changedOnDisk || !dirty();
-    if (!pending) setStatus(dirty() ? 'Unsaved changes' : 'All changes saved');
+    if (!pending) setStatus(dirty() ? '尚未保存的修改' : '所有修改已保存');
     let summaryText = '';
     try {
       summaryText = readSummary(metadata.value);
@@ -43,7 +44,7 @@ export function setupEditor() {
       summaryError.hidden = false;
       setStatus(error.message, true);
     }
-    let title = 'Untitled';
+    let title = '未命名';
     try { title = String(parseDocument(metadata.value).get('title') || title); } catch { /* Server validates metadata on save. */ }
     dialog.querySelector('[data-editor-document-title]').textContent = title;
     const heading = document.createElement('h1'); heading.textContent = title;
@@ -51,7 +52,7 @@ export function setupEditor() {
     if (summaryText.trim()) {
       const section = document.createElement('section');
       section.className = 'workspace-summary-preview';
-      section.setAttribute('aria-label', 'Summary');
+      section.setAttribute('aria-label', '内容摘要');
       section.append(renderMarkdown(summaryText));
       preview.append(section);
     }
@@ -89,30 +90,40 @@ export function setupEditor() {
     return fragment;
   }
   async function load() {
-    pending = true; saveButton.disabled = true; reloadButton.hidden = true; setStatus('Loading document…');
+    pending = true; saveButton.disabled = true; reloadButton.hidden = true; setStatus('正在加载文档…');
     try {
       writable = Boolean(await connect());
       const data = writable ? await request(`document?path=${encodeURIComponent(dialog.dataset.path)}`) :
-        { source: await fetch(dialog.dataset.sourceUrl).then(r=>{if(!r.ok) throw new Error('Could not load this document.'); return r.text();}) };
+        { source: await fetch(dialog.dataset.sourceUrl).then(r=>{if(!r.ok) throw new Error('无法加载此文档。'); return r.text();}) };
       const match = data.source.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/);
-      if (!match) throw new Error('This document needs YAML metadata.');
+      if (!match) throw new Error('此文档缺少 YAML 元数据。');
       metadata.value = match[1]; revision = data.revision; changedOnDisk = false;
       editor?.destroy();
       editor = new EditorView({
         doc:data.source.slice(match[0].length), parent:dialog.querySelector('[data-editor-code]'),
         extensions:[basicSetup, markdown(), EditorView.lineWrapping,
-          EditorView.contentAttributes.of({'aria-label':'Markdown source',spellcheck:'false'}),
-          keymap.of([{key:'Mod-s',run:()=>{save();return true;}},{key:'Mod-b',run:()=>{insert('**','**','bold text');return true;}},{key:'Mod-i',run:()=>{insert('*','*','italic text');return true;}}]),
+          EditorState.phrases.of({
+            'Find':'查找', 'Replace':'替换', 'next':'下一个', 'previous':'上一个', 'all':'全部',
+            'match case':'区分大小写', 'regexp':'正则表达式', 'by word':'全字匹配',
+            'replace':'替换', 'replace all':'全部替换', 'close':'关闭',
+            'Go to line':'跳转到行', 'go':'跳转', 'current match':'当前匹配项', 'on line':'所在行',
+            'replaced match on line $':'已替换第 $ 行的匹配项', 'replaced $ matches':'已替换 $ 个匹配项',
+            'Selection deleted':'已删除所选内容', 'Folded lines':'已折叠行', 'Unfolded lines':'已展开行',
+            'to':'至', 'folded code':'已折叠的代码', 'unfold':'展开',
+            'Fold line':'折叠行', 'Unfold line':'展开行', 'Control character':'控制字符'
+          }),
+          EditorView.contentAttributes.of({'aria-label':'Markdown 源文',spellcheck:'false'}),
+          keymap.of([{key:'Mod-s',run:()=>{save();return true;}},{key:'Mod-b',run:()=>{insert('**','**','加粗文本');return true;}},{key:'Mod-i',run:()=>{insert('*','*','斜体文本');return true;}}]),
           EditorView.updateListener.of(change=>{if(change.docChanged)update();})]
       });
       baseline=source(); pending=false; update();
-      if (!writable) setStatus('Local editing is unavailable. Run npm run dev in this repository to enable saving.',true);
+      if (!writable) setStatus('本地编辑暂不可用，请在本项目中运行 npm run dev 后保存。',true);
       editor.focus();
     } catch(error) { pending=false; setStatus(error.message,true); reloadButton.hidden=false; }
   }
   async function save() {
     if (!editor || pending || !writable || changedOnDisk || !dirty()) return;
-    pending=true; saveButton.disabled=true; setStatus('Saving and rebuilding…');
+    pending=true; saveButton.disabled=true; setStatus('正在保存并重新构建…');
     const submitted=source();
     try {
       const result=await request('save',{path:dialog.dataset.path,source:submitted,revision});
@@ -121,13 +132,13 @@ export function setupEditor() {
       if (source()===submitted) { metadata.value=match[1]; baseline=source(); }
       else { baseline=result.source; }
       revision=result.revision; savedUrl=result.url;
-      setStatus(dirty()?'Saved. New edits are still unsaved.':'Saved to repository');
+      setStatus(dirty()?'已保存；新输入的内容尚未保存。':'已保存到本地仓库');
     } catch(error) {
       if(error.status===409) {changedOnDisk=true;reloadButton.hidden=false;}
       setStatus(error.message,true);
     } finally {pending=false;saveButton.disabled=!writable||changedOnDisk||!dirty();}
   }
-  function insert(before,after='',placeholder='text') {
+  function insert(before,after='',placeholder='文本') {
     if(!editor) return;
     const selection=editor.state.selection.main;
     const chosen=editor.state.sliceDoc(selection.from,selection.to)||placeholder;
@@ -135,7 +146,7 @@ export function setupEditor() {
     editor.focus();
   }
   function close(discard=false) {
-    if(pending) {setStatus('Wait for the current operation to finish.');return;}
+    if(pending) {setStatus('请等待当前操作完成。');return;}
     if(dirty()&&!discard) {closeWarning.hidden=false;return;}
     if(discard && editor) baseline=source();
     closeWarning.hidden=true;dialog.close();trigger.focus();
@@ -160,7 +171,7 @@ export function setupEditor() {
       event.preventDefault(); save();
     }
   });
-  reloadButton.addEventListener('click',()=>{if(dirty()) {closeWarning.hidden=false;setStatus('Copy your edits before reloading the changed file.',true);return;} load();});
+  reloadButton.addEventListener('click',()=>{if(dirty()) {closeWarning.hidden=false;setStatus('重新载入前，请先复制尚未保存的编辑内容。',true);return;} load();});
   dialog.querySelector('[data-editor-close]').addEventListener('click',()=>close());
   dialog.addEventListener('cancel',event=>{event.preventDefault();close();});
   dialog.querySelector('[data-keep-editing]').addEventListener('click',()=>{closeWarning.hidden=true;editor?.focus();});
@@ -171,7 +182,7 @@ export function setupEditor() {
     dialog.querySelectorAll('[data-editor-mode]').forEach(item=>item.setAttribute('aria-pressed',String(item===button)));
     editor?.requestMeasure();
   }));
-  const actions={bold:()=>insert('**','**','bold text'),italic:()=>insert('*','*','italic text'),heading:()=>insert('\n## ','\n','Heading'),link:()=>insert('[','](https://example.com)','link text'),code:()=>insert('\n```\n','\n```\n','code'),list:()=>insert('\n- ','\n','List item'),undo:()=>editor&&undo(editor),redo:()=>editor&&redo(editor)};
+  const actions={bold:()=>insert('**','**','加粗文本'),italic:()=>insert('*','*','斜体文本'),heading:()=>insert('\n## ','\n','标题'),link:()=>insert('[','](https://example.com)','链接文本'),code:()=>insert('\n```\n','\n```\n','代码'),list:()=>insert('\n- ','\n','列表项'),undo:()=>editor&&undo(editor),redo:()=>editor&&redo(editor)};
   dialog.querySelectorAll('[data-format]').forEach(button=>button.addEventListener('click',()=>actions[button.dataset.format]?.()));
   // Preview links do not navigate away from unsaved edits.
   preview.addEventListener('click',event=>{if(event.target.closest('a'))event.preventDefault();});

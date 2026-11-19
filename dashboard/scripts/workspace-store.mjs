@@ -13,14 +13,14 @@ export class WorkspaceError extends Error {
 const fail = (status, message) => { throw new WorkspaceError(status, message); };
 export const revision = source => createHash('sha256').update(source).digest('hex');
 export function parseSource(source) {
-  if (typeof source !== 'string' || Buffer.byteLength(source) > 2_000_000) fail(422, 'Document must be smaller than 2 MB.');
+  if (typeof source !== 'string' || Buffer.byteLength(source) > 2_000_000) fail(422, '文档大小必须小于 2 MB。');
   const match = source.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/);
-  if (!match) fail(422, 'A YAML metadata block is required at the start of the document.');
+  if (!match) fail(422, '文档开头必须包含 YAML 元数据块。');
   const metadata = parseDocument(match[1]);
-  if (metadata.errors.length) fail(422, `Invalid metadata: ${metadata.errors[0].message.split('\n')[0]}`);
+  if (metadata.errors.length) fail(422, `元数据无效：${metadata.errors[0].message.split('\n')[0]}`);
   let data;
-  try { data = metadata.toJS({ maxAliasCount: 20 }); } catch { fail(422, 'Metadata aliases are too complex.'); }
-  if (!data || typeof data !== 'object' || Array.isArray(data) || typeof data.title !== 'string' || !data.title.trim()) fail(422, 'Metadata must include a nonempty title.');
+  try { data = metadata.toJS({ maxAliasCount: 20 }); } catch { fail(422, '元数据别名过于复杂。'); }
+  if (!data || typeof data !== 'object' || Array.isArray(data) || typeof data.title !== 'string' || !data.title.trim()) fail(422, '元数据必须包含非空标题（title）。');
   return { metadata, data, body: source.slice(match[0].length) };
 }
 const slug = value => value.normalize('NFKC').toLowerCase().trim().replace(/[^\p{L}\p{N}_-]+/gu, '-').replace(/^-+|-+$/g, '');
@@ -28,22 +28,22 @@ export function createStore(contentRoot, rebuild = async () => {}) {
   const root = fs.realpathSync(contentRoot);
   syncDocumentWeights(root);
   function resolve(relative, directory = false) {
-    if (typeof relative !== 'string' || !relative || relative.includes('\\') || relative.includes('\0')) fail(400, 'Invalid document path.');
+    if (typeof relative !== 'string' || !relative || relative.includes('\\') || relative.includes('\0')) fail(400, '文档路径无效。');
     const parts = relative.split('/');
-    if (parts.some(part => !part || part.startsWith('.') || /[\u0000-\u001f]/.test(part))) fail(400, 'Invalid document path.');
-    if (!(sections.includes(parts[0]) || (!directory && parts.length === 1 && ['_index.md', 'search.md'].includes(relative)))) fail(403, 'This path is outside the editable content.');
-    if (!directory && !relative.endsWith('.md')) fail(400, 'Only Markdown documents can be edited.');
+    if (parts.some(part => !part || part.startsWith('.') || /[\u0000-\u001f]/.test(part))) fail(400, '文档路径无效。');
+    if (!(sections.includes(parts[0]) || (!directory && parts.length === 1 && ['_index.md', 'search.md'].includes(relative)))) fail(403, '此路径超出可编辑内容范围。');
+    if (!directory && !relative.endsWith('.md')) fail(400, '只能编辑 Markdown 文档。');
     let target = root;
     for (const part of parts) {
       target = path.join(target, part);
-      try { if (fs.lstatSync(target).isSymbolicLink()) fail(403, 'Symbolic links cannot be edited.'); }
+      try { if (fs.lstatSync(target).isSymbolicLink()) fail(403, '不能编辑符号链接。'); }
       catch (error) { if (error.code !== 'ENOENT') throw error; }
     }
     return target;
   }
   function read(relative) {
     const file = resolve(relative);
-    if (!fs.existsSync(file) || !fs.statSync(file).isFile()) fail(404, 'Document not found.');
+    if (!fs.existsSync(file) || !fs.statSync(file).isFile()) fail(404, '未找到文档。');
     const source = fs.readFileSync(file, 'utf8');
     return { path: relative, source, revision: revision(source) };
   }
@@ -62,13 +62,13 @@ export function createStore(contentRoot, rebuild = async () => {}) {
   }
   async function save({ path: relative, source, revision: expected }) {
     const before = read(relative);
-    if (expected !== before.revision) fail(409, 'This document changed outside the editor. Reload the latest version before saving. Your edits are still here.');
+    if (expected !== before.revision) fail(409, '此文档已在编辑器外被修改。请重新载入最新版本后保存；当前编辑内容仍被保留。');
     const parsed = parseSource(source);
     if (parsed.metadata.has('weight') && !validWeight(parsed.data.weight)) fail(422, 'weight must be a safe integer.');
     if (sections.includes(relative.split('/')[0]) && path.basename(relative) !== '_index.md' && !parsed.metadata.has('weight')) {
       parsed.metadata.set('weight', nextDocumentWeight(path.dirname(resolve(relative)), resolve(relative)));
     }
-    if (!parsed.metadata.has('content_lang')) parsed.metadata.set('content_lang', 'en');
+    if (!parsed.metadata.has('content_lang')) parsed.metadata.set('content_lang', 'zh-CN');
     if (!parsed.metadata.has('draft')) parsed.metadata.set('draft', true);
     parsed.metadata.set('lastmod', beijingTimestamp());
     const updated = `---\n${String(parsed.metadata)}---\n${parsed.body}`;
@@ -82,7 +82,7 @@ export function createStore(contentRoot, rebuild = async () => {}) {
     return { ...read(relative), url: url(relative, parsed.data) };
   }
   function groups(section) {
-    if (!sections.includes(section)) fail(400, 'Unknown journal.');
+    if (!sections.includes(section)) fail(400, '未知栏目。');
     const result = [];
     function walk(relative, depth = 0) {
       if (depth > 16) return;
@@ -101,18 +101,18 @@ export function createStore(contentRoot, rebuild = async () => {}) {
     return result;
   }
   async function create({ kind, parent, title }) {
-    if (!['document', 'group'].includes(kind)) fail(400, 'Choose Document or Group.');
-    if (typeof title !== 'string' || !title.trim() || title.length > 180) fail(422, 'Enter a title of 1–180 characters.');
+    if (!['document', 'group'].includes(kind)) fail(400, '请选择文档或分组。');
+    if (typeof title !== 'string' || !title.trim() || title.length > 180) fail(422, '请输入 1–180 个字符的标题。');
     const name = slug(title);
-    if (!name || ['index', '_index'].includes(name)) fail(422, 'Choose a different title.');
+    if (!name || ['index', '_index'].includes(name)) fail(422, '请使用其他标题。');
     const directory = resolve(parent, true);
-    if (!fs.existsSync(directory) || !fs.statSync(directory).isDirectory()) fail(404, 'Parent group not found.');
+    if (!fs.existsSync(directory) || !fs.statSync(directory).isDirectory()) fail(404, '未找到上级分组。');
     const stem = path.join(directory, name);
-    if (fs.existsSync(stem) || fs.existsSync(`${stem}.md`)) fail(409, 'A document or group with this name already exists here.');
+    if (fs.existsSync(stem) || fs.existsSync(`${stem}.md`)) fail(409, '此位置已存在同名文档或分组。');
     const relative = `${parent}/${name}${kind === 'group' ? '/_index.md' : '.md'}`;
     syncDocumentWeights(root);
     const now = beijingTimestamp();
-    const source = `---\ntitle: ${JSON.stringify(title.trim())}\ndate: ${now}\nlastmod: ${now}\ndraft: true\ncontent_lang: en\n${kind === 'document' ? `show_toc: true\nweight: ${nextDocumentWeight(directory)}\n` : ''}---\n\n`;
+    const source = `---\ntitle: ${JSON.stringify(title.trim())}\ndate: ${now}\nlastmod: ${now}\ndraft: true\ncontent_lang: zh-CN\n${kind === 'document' ? `show_toc: true\nweight: ${nextDocumentWeight(directory)}\n` : ''}---\n\n`;
     if (kind === 'group') fs.mkdirSync(stem);
     const file = resolve(relative);
     fs.writeFileSync(file, source, { flag: 'wx' });
@@ -125,13 +125,13 @@ export function createStore(contentRoot, rebuild = async () => {}) {
     return { ...read(relative), url: url(relative), kind };
   }
   async function action({ path: relative, revision: expected, action, title, parent }) {
-    if (!['rename', 'pin', 'copy', 'move', 'remove', 'delete'].includes(action)) fail(400, 'Unknown document operation.');
-    if (['index.md', '_index.md'].includes(path.basename(relative || ''))) fail(400, 'Group pages cannot use document operations.');
+    if (!['rename', 'pin', 'copy', 'move', 'remove', 'delete'].includes(action)) fail(400, '未知文档操作。');
+    if (['index.md', '_index.md'].includes(path.basename(relative || ''))) fail(400, '分组页面不能使用文档操作。');
     const before = read(relative);
-    if (before.revision !== expected) fail(409, 'Document changed. Reload and try again.');
+    if (before.revision !== expected) fail(409, '文档已被修改，请重新载入后重试。');
     const parsed = parseSource(before.source);
     if (action === 'rename') {
-      if (typeof title !== 'string' || !title.trim() || title.length > 180) fail(422, 'Enter a title of 1–180 characters.');
+      if (typeof title !== 'string' || !title.trim() || title.length > 180) fail(422, '请输入 1–180 个字符的标题。');
       parsed.metadata.set('title', title.trim());
     }
     if (action === 'pin') {
@@ -143,7 +143,7 @@ export function createStore(contentRoot, rebuild = async () => {}) {
     const file = resolve(relative);
     if (action === 'delete') {
       const trash = path.join(root, '.workspace-trash');
-      if (fs.existsSync(trash) && fs.lstatSync(trash).isSymbolicLink()) fail(403, 'Invalid trash directory.');
+      if (fs.existsSync(trash) && fs.lstatSync(trash).isSymbolicLink()) fail(403, '备份目录无效。');
       fs.mkdirSync(trash, { recursive: true });
       const backup = path.join(trash, `${randomUUID()}.md`);
       fs.renameSync(file, backup);
@@ -152,7 +152,7 @@ export function createStore(contentRoot, rebuild = async () => {}) {
     }
     if (action === 'remove') parent = relative.split('/')[0];
     const directory = resolve(parent, true);
-    if (!fs.existsSync(directory) || !fs.statSync(directory).isDirectory()) fail(404, 'Parent group not found.');
+    if (!fs.existsSync(directory) || !fs.statSync(directory).isDirectory()) fail(404, '未找到上级分组。');
     let name = path.basename(relative, '.md');
     if (action === 'copy') {
       let suffix = 1;
@@ -163,8 +163,8 @@ export function createStore(contentRoot, rebuild = async () => {}) {
       parsed.metadata.set('draft', true);
     }
     const target = `${parent}/${name}.md`;
-    if (target === relative) fail(409, 'Document is already in this group.');
-    if (fs.existsSync(resolve(target)) || fs.existsSync(path.join(directory, name))) fail(409, 'A document with this name already exists here.');
+    if (target === relative) fail(409, '文档已在此分组中。');
+    if (fs.existsSync(resolve(target)) || fs.existsSync(path.join(directory, name))) fail(409, '此位置已存在同名文档。');
     // Keep the public address stable when reorganizing a document.
     if (action !== 'copy') parsed.metadata.set('url', url(relative, parsed.data));
     parsed.metadata.set('weight', nextDocumentWeight(directory));

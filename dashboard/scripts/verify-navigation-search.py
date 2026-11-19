@@ -43,6 +43,9 @@ with tempfile.TemporaryDirectory(prefix='.navigation-search-', dir=repo / 'site'
     assert not (output / 'docs').exists(), 'Removed documentation must not be published'
     for route in blog_routes + ordinary_routes:
         page = BeautifulSoup((output / route).read_text(), 'html.parser')
+        assert page.html['lang'] == 'zh-CN', route
+        assert page.select_one('[data-editor-save]').get_text(strip=True).startswith('保存')
+        assert page.select_one('#site-search-title').get_text() == '搜索本站'
         assert bool(page.select('.blog-sidebar')) == (route in blog_routes), route
         assert len(page.select('.article-tools')) == 1, route
         assert page.select_one('#article-editor[data-path]')
@@ -51,7 +54,7 @@ with tempfile.TemporaryDirectory(prefix='.navigation-search-', dir=repo / 'site'
         styles = [link['href'] for link in page.select('link[rel="stylesheet"]')]
         assert any('/css/blog-layout.css' in href for href in styles) == (route in blog_routes or route == 'index.html'), route
         assert not page.select_one('.site-header a[href="/docs/"]'), route
-        assert [a.get_text(strip=True) for a in page.select('.site-header .menu a')] == ['Overview', 'Related', 'Research', 'Docs', 'Meetings', 'Search']
+        assert [a.get_text(strip=True) for a in page.select('.site-header .menu a')] == ['项目概览', '相关工作', '研究', '文档', '会议记录', '搜索']
         assert len(page.select('.site-header .menu [aria-current="page"]')) == 1
         assert page.select_one('.site-header [data-search-open]'), route
         assert len(page.select('#site-search')) == 1, route
@@ -67,21 +70,21 @@ with tempfile.TemporaryDirectory(prefix='.navigation-search-', dir=repo / 'site'
             assert (output / source_url.lstrip('/')).read_bytes() == original_path.read_bytes(), source_url
             assert page.select_one(f'.article-tools a[download="{editor["data-filename"]}"]')
             assert page.select_one('[data-edit-article][aria-controls="article-editor"]')
-            repository_link = page.select_one('.article-tools a[title="View GitHub repository"]')
+            repository_link = page.select_one('.article-tools a[title="查看 GitHub 仓库"]')
             assert bool(repository_link) == bool(expected_repository)
             if repository_link:
                 assert repository_link['href'] == expected_repository
             links = page.select('.blog-sidebar a')
             assert len(links) >= 1
             assert page.select_one('[data-sidebar-search]')
-            assert [b.get_text() for b in page.select('[data-create-kind]')] == ['Document', 'Group']
+            assert [b.get_text() for b in page.select('[data-create-kind]')] == ['文档', '分组']
             assert len(page.select('.blog-sidebar a[aria-current="page"]')) == 1
             assert page.select_one('main.blog-layout > .blog-sidebar')
             group = page.select_one('.blog-tree-group')
             if route in empty_routes:
                 empty = page.select_one('.archive-empty')
                 if empty:
-                    assert empty.get_text(strip=True) == 'No published entries yet.'
+                    assert empty.get_text(strip=True) == '暂无已发布记录。'
                     assert not group
                 else:
                     assert page.select_one('.journal-index'), 'Populated journals show their entries'
@@ -93,7 +96,7 @@ with tempfile.TemporaryDirectory(prefix='.navigation-search-', dir=repo / 'site'
                 active = page.select_one('.blog-sidebar a[aria-current="page"]')
                 assert active.find_parent('details', class_='blog-tree-group') == group
     index = json.loads((output / 'index.json').read_text())
-    assert any(page['uri'] == '/' and page['title'] == 'Overview' for page in index)
+    assert any(page['uri'] == '/' and page['title'] == '项目概览' for page in index)
     assert not any(page['section'] in ['blog', 'docs', 'tags'] for page in index)
     assert not any('private-note' in page['uri'].lower() for page in index)
     assert not any('private-note' in str(p).lower() for p in (output / 'sources').rglob('*.md'))
