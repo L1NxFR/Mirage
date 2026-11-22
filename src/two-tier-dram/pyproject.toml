@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aisim-two-tier-dram"
+version = "0.1.0"
+description = "Two-tier DRAM decode model as an AISim stack and configuration section"
+requires-python = ">=3.11"
+dependencies = ["aisim"]
+
+[project.entry-points."aisim.runner_factories"]
+two_tier_dram = "two_tier_dram.runner:TwoTierRunnerFactory"
+
+[project.entry-points."aisim.config_adapters"]
+"two_tier_dram.two_tier_dram" = "two_tier_dram.adapter:TwoTierConfigAdapter"
+
+[tool.setuptools]
+packages = ["two_tier_dram"]
+
+[tool.setuptools.package-data]
+two_tier_dram = ["template.html"]

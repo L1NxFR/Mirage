@@ -1,122 +1,135 @@
-"""Scenario catalog for the two-tier DRAM decode model: run, check, and render the replay.
+"""Scenario catalog: run `aisim predict --stack two_tier_dram` per scenario, check, and render one replay page.
 
-    python3 src/two-tier-dram/scenarios.py [--out DIR] [--only SLUG ...]
+    python3 src/two-tier-dram/scenarios.py [--out DIR] [--only SLUG ...] [--publish PATH]
 
-Each scenario overrides a few `Config` fields. After the run, the observable
-results are compared with `expect`; any mismatch prints MISMATCH and exits 1.
-Outputs: DIR/<slug>/trace.json (config, metrics, events, snapshots, segments)
-and DIR/two-tier-dram-replay.html (self-contained animated page).
+Every scenario is a real AISim prediction: AISim loads the trace, schedules the
+request, and prices each pass with its op-level perf model; the two_tier_dram
+stack re-times the decode steps per layer. Scenarios differ only in fields of
+the top-level `two_tier_dram` section. Observable results are compared with
+each scenario's `expect`; a mismatch prints MISMATCH and exits 1.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
-from dataclasses import fields
+import subprocess
+import sys
 from pathlib import Path
 
-from model import Config, simulate
-
 HERE = Path(__file__).resolve().parent
-BASE = Config()
+AISIM = HERE.parent / "aisim"
+CLI = AISIM / "python/aisim/.venv/bin/aisim"
+sys.path.insert(0, str(HERE))
+
+from two_tier_dram.config import TwoTierConfig  # noqa: E402
+from two_tier_dram.render import write_replay  # noqa: E402
+
+BASE = TwoTierConfig()
+CONTEXT_TOKENS, OUTPUT_TOKENS = 200_000, 4  # 1 prefill token + 3 decode steps
+
+ENGINE = {
+    "mode": "aggregated", "model": "sgl-project/DeepSeek-V4-Pro-FP8", "hardware": "b200_sxm", "backend": "vllm",
+    "context_length": 262144,
+    "ais_perf_model": {"estimation_mode": "op_level", "database_mode": "SOL"},
+    "workers": {"aggregated": {
+        "parallelism": {"replicas": 1, "tensor": 1, "attention_data": 1},
+        # The model's 1579 GB of weights exceed one device, which is the premise of the
+        # two-tier design; a fixed KV capacity keeps AISim's single-tier memory check out of the way.
+        "kv_cache": {"capacity": {"type": "fixed", "blocks": 40000}},
+    }},
+}
 
 SCENARIOS = [
-    {
-        "slug": "prefetch-hot-kv", "title": "基线：逐层预取 + 热 KV 缓存",
-        "summary": "方案 A。每层计算时预取下一层的权重与 indexer KV；取入的 attention KV 留在一级，供后续 step 复用。",
-        "finding": "第 1 个 step 冷启动：第 0 层权重按需取入，top-k 全部缺失，29.25 ms。之后预取都在当前层结束前到达，top-k 约 75% 命中，每 token 约 25 ms，接近纯计算的 24 ms。",
-        "overrides": {},
-        "expect": {"token_ms": [29.25, 25.225, 24.975], "kv_hit_rate": 0.5, "prefetch_late": 0, "wait_weights_ms": 2.45, "wait_kv_ms": 5.0},
-    },
-    {
-        "slug": "on-demand", "title": "对照：全部按需搬运",
-        "summary": "关闭预取和热 KV 缓存。每层开始时才取权重，每步都重新取 top-k KV。相当于把“卸载”直接搬到逐层粒度。",
-        "finding": "每层都要等权重 2.45 ms、等 KV 0.7 ms，每 token 36.6 ms，比纯计算多 52%。链路搬运 108 MB 权重，全部在关键路径上。",
-        "overrides": {"prefetch": False, "hot_kv_entries": 0},
-        "expect": {"token_ms": [36.6, 36.6, 36.6], "kv_hit_rate": 0.0, "wait_weights_ms": 29.4, "wait_kv_ms": 8.4},
-    },
-    {
-        "slug": "prefetch-only", "title": "对照：只开预取",
-        "summary": "逐层预取，但取入的 KV 用完即丢。",
-        "finding": "权重等待只剩冷启动的一次；KV 每层仍等 0.7 ms，每 token 26.8 ms。预取隐藏了权重搬运，KV 缺失成为剩余的等待。",
-        "overrides": {"hot_kv_entries": 0},
-        "expect": {"token_ms": [29.25, 26.8, 26.8], "kv_hit_rate": 0.0, "wait_weights_ms": 2.45, "wait_kv_ms": 8.4},
-    },
-    {
-        "slug": "hot-kv-only", "title": "对照：只开热 KV 缓存",
-        "summary": "保留热 KV 缓存，不预取权重。",
-        "finding": "命中率 50%（冷启动 step 为 0，之后约 75%），KV 等待从 8.4 降到 5.0 ms；但每层仍等权重，每 token 约 35 ms。在这组参数下，权重搬运是主要代价。",
-        "overrides": {"prefetch": False},
-        "expect": {"token_ms": [36.6, 35.025, 34.775], "kv_hit_rate": 0.5, "wait_weights_ms": 29.4, "wait_kv_ms": 5.0},
-    },
-    {
-        "slug": "zero-overlap", "title": "极端：top-k 零重合",
-        "summary": "每个 step 每层选出的 top-k 与之前完全不同（overlap = 0）。",
-        "finding": "热 KV 缓存占着一级空间却没有一次命中，时延与“只开预取”相同（26.8 ms）。缓存收益完全取决于跨步重合度。",
-        "overrides": {"overlap": 0.0},
-        "expect": {"token_ms": [29.25, 26.8, 26.8], "kv_hit_rate": 0.0, "wait_kv_ms": 8.4},
-    },
-    {
-        "slug": "lru-thrash", "title": "极端：热 KV 容量恰好一步工作集",
-        "summary": "热 KV 软上限 16 条 = 4 层 × top-k 4，重合度仍是 0.75。",
-        "finding": "命中率为 0：新 token 的脏 KV 也占名额，全局 LRU 淘汰的正好是最久未用、也就是下一步马上要用的那一层。容量等于一步工作集时，跨层 LRU 会抖动。",
-        "overrides": {"hot_kv_entries": 16},
-        "expect": {"token_ms": [29.25, 26.8, 26.8], "kv_hit_rate": 0.0, "wait_kv_ms": 8.4},
-    },
-    {
-        "slug": "prefetch-crowds-kv", "title": "极端：预取缓冲挤占热 KV",
-        "summary": "一级从 32 MB 缩到 28 MB，热 KV 软上限不变（24 条）。",
-        "finding": "每层开始时预取缓冲先预留 9 MB，热 KV 只能在剩余空间里周转，旧条目在被复用前就因容量不足被淘汰，命中率 0。一级空间在预取缓冲与热 KV 之间是此消彼长的。",
-        "overrides": {"tier1_mb": 28.0},
-        "expect": {"token_ms": [29.25, 26.8, 26.8], "kv_hit_rate": 0.0, "prefetch_skipped": 0},
-    },
-    {
-        "slug": "slow-link", "title": "极端：链路慢，预取来不及",
-        "summary": "链路带宽 4 → 1 MB/ms：预取一层要 9.2 ms，超过一层的计算时间 6 ms。按需读取优先（demand_first）。",
-        "finding": "11 次预取全部没有按时到达，计算每层都在等权重（共 44.4 ms）。按需取 KV 会抢占预取，KV 等待 16.7 ms。每 token 约 40 ms，仍明显好于同样链路下全部按需的 69.6 ms：预取虽然迟到，但已经提前搬了一部分。",
-        "overrides": {"link_mb_per_ms": 1.0},
-        "expect": {"token_ms": [51.6, 39.9, 41.6], "prefetch_late": 11, "wait_weights_ms": 44.4, "wait_kv_ms": 16.7},
-    },
-    {
-        "slug": "slow-link-fifo", "title": "极端：同样慢的链路，改用 FIFO",
-        "summary": "链路 1 MB/ms，传输按到达顺序排队，不抢占。",
-        "finding": "按需取的 KV 排在预取后面：attention 等缺失 KV 的时间从 16.7 涨到 93.4 ms，每 token 50 ms 以上。预取与按需读取共用一条链路时，调度策略直接决定时延。",
-        "overrides": {"link_mb_per_ms": 1.0, "link_policy": "fifo"},
-        "expect": {"token_ms": [76.9, 53.8, 51.7], "prefetch_late": 2, "wait_weights_ms": 17.0, "wait_kv_ms": 93.4},
-    },
-    {
-        "slug": "tier1-too-small", "title": "极端：一级放不下一层的工作集",
-        "summary": "一级只有 22 MB：scratch 2 + 当前层 9 + 预取缓冲 9 之后只剩 2 MB。",
-        "finding": "第 0 层勉强放下。到第 1 层取入 4 条 KV 时差 0.5 MB：第 0 层新 token 的脏 KV 还没写回（写回优先级最低，被预取抢占），不能淘汰，模型在 10.15 ms 报容量不足并停止。一级容量要按同一时刻各项之和的峰值检查，写回的优先级也会影响峰值。",
-        "overrides": {"tier1_mb": 22.0},
-        "expect": {"error": True},
-    },
+    {"slug": "baseline", "title": "基线",
+     "summary": "非专家权重常驻一级，路由专家走 LRU 缓存，top-k KV 走热缓存；链路 64 GB/s。",
+     "finding": "冷启动的 step 用 385 ms：61 层 × 6 个专家 × 66 MB ≈ 24 GB，在 64 GB/s 下要 378 ms。之后专家约一半命中，每 token 203 / 184 ms。等专家共 751 ms，等 top-k KV 只有 1.3 ms。AISim 原生每 token 6.54 ms：在这组参数下，专家搬运决定了时延。",
+     "expect": {"token_ms": [385.477123, 202.595547, 184.014651], "expert_hits": 372, "kv_hits": 46078},
+     "overrides": {}},
+    {"slug": "reconcile", "title": "对账：链路无限快",
+     "summary": "链路带宽设为 1e6 GB/s、每次传输开销 0。",
+     "finding": "每 token 6.56 / 6.55 / 6.55 ms，与 AISim 原生的 6.54 ms 相差 0.4% 以内。两级模型在搬运代价趋于零时退化为 AISim 的原生定价。",
+     "expect": {"token_ms": [6.563285, 6.551581, 6.550391]},
+     "overrides": {"link_gbps": 1e6, "link_overhead_ms": 0.0}},
+    {"slug": "sticky-experts", "title": "专家路由更稳定",
+     "summary": "相邻 decode step 路由到同一专家的概率从 0.5 提到 0.9。",
+     "finding": "专家命中从 372 升到 657（共 1098 次路由），冷启动之后每 token 约 45 ms。时延对路由的跨步稳定性很敏感，而这个参数目前是合成的，没有真实路由统计。",
+     "expect": {"token_ms": [385.477123, 45.381019, 46.403923], "expert_hits": 657},
+     "overrides": {"expert_overlap": 0.9}},
+    {"slug": "small-tier1", "title": "一级缩到 48 GB",
+     "summary": "一级从 96 GB 缩到 48 GB，非专家权重仍常驻，留给专家缓存的空间变小。",
+     "finding": "专家缓存只剩 179 个位置，而一个 step 要用 61 × 6 = 366 个专家。LRU 在专家被再次用到之前就把它淘汰了，命中 0 次，每个 token 都是 385 ms。专家缓存至少要放得下一个 step 的工作集（约 24 GB）才有用。",
+     "expect": {"token_ms": [385.477123, 385.293531, 385.292091], "expert_hits": 0, "expert_cache_slots": 179},
+     "overrides": {"tier1_gb": 48.0}},
+    {"slug": "small-tier1-prefetch", "title": "48 GB + 按上一步路由预取专家",
+     "summary": "一级 48 GB；计算第 L 层时，预取第 L+1 层上一步用过、但已不在缓存里的专家。",
+     "finding": "反而更慢：574 / 551 ms。预取了 732 个专家，但重合度只有 0.5，每层 6 个里只有约 3 个用得上；这一层却要等整个预取传输完成，再按需取 3 个新的，相当于每层搬 9 个专家而不是 6 个（385 × 1.5 ≈ 578）。预取不准时，它占用的是关键路径上的链路。",
+     "expect": {"token_ms": [385.477123, 574.397691, 550.791752], "expert_prefetched": 732},
+     "overrides": {"tier1_gb": 48.0, "expert_prefetch": "last_step"}},
+    {"slug": "no-hot-kv", "title": "关闭热 top-k KV 缓存",
+     "summary": "取入的 top-k KV 用完即丢，每个 CSA 层每步都重新取 1024 条。",
+     "finding": "等 KV 的时间从 1.27 ms 变成 1.64 ms，每 token 只多 0.18 ms。一层的 top-k 只有 1024 × 512 B = 0.5 MB，KV 搬运不是瓶颈。",
+     "expect": {"token_ms": [385.477123, 202.779139, 184.199683], "kv_hits": 0},
+     "overrides": {"hot_kv_entries": 0}},
+    {"slug": "link-overhead", "title": "每次传输开销变大",
+     "summary": "每次传输的固定开销从 0.01 ms 提到 0.5 ms（约 5 层的计算时间）。",
+     "finding": "等 KV 从 1.3 ms 涨到 45.4 ms（30 个 CSA 层 × 3 个 step × 0.5 ms），每 token 多约 45 ms。KV 传输量很小，代价几乎全是每次传输的固定开销，所以小而频繁的读取要看开销，不是带宽。",
+     "expect": {"token_ms": [430.067123, 247.185547, 228.604651]},
+     "overrides": {"link_overhead_ms": 0.5}},
+    {"slug": "layer-prefetch", "title": "方案 A：非专家权重逐层换入",
+     "summary": "一级只保留当前层的非专家权重，并预取下一层的（每层约 0.46 GB）。",
+     "finding": "182 次预取全部迟到，等非专家权重共 1313 ms，每 token 多约 437 ms。一层的非专家权重 0.46 GB，在 64 GB/s 下要 7.2 ms，而一层的计算只有 0.1 ms，预取不可能在一层的计算窗口内完成。按 AISim 的数字，非专家权重（共约 32 GB）应当常驻一级。",
+     "expect": {"token_ms": [823.270599, 640.045038, 621.464142], "base_late": 182},
+     "overrides": {"base_weights": "layer_prefetch"}},
+    {"slug": "tier1-too-small", "title": "一级放不下",
+     "summary": "一级只有 36 GB，而 scratch、全局权重和常驻的非专家权重已经约 36 GB。",
+     "finding": "scratch 与全局权重 7.7 GB、常驻的非专家权重 28.3 GB 之后，专家缓存没有空间，连一层的 6 个专家（0.40 GB）都放不下。模型在开始前报容量不足。",
+     "overrides": {"tier1_gb": 36.0}, "expect": {"error": True}},
 ]
 
 RELATIONS = [
-    ("预取+热 KV 不慢于只开预取", lambda m: m["prefetch-hot-kv"]["decode_ms"] <= m["prefetch-only"]["decode_ms"]),
-    ("只开预取快于全部按需", lambda m: m["prefetch-only"]["decode_ms"] < m["on-demand"]["decode_ms"]),
-    ("只开热 KV 快于全部按需", lambda m: m["hot-kv-only"]["decode_ms"] < m["on-demand"]["decode_ms"]),
-    ("零重合时没有命中", lambda m: m["zero-overlap"]["kv_hits"] == 0),
-    ("FIFO 下 KV 等待长于按需优先", lambda m: m["slow-link-fifo"]["wait_kv_ms"] > m["slow-link"]["wait_kv_ms"]),
-    ("关闭预取与缓存时每 token = 纯计算 + 每层两次按需搬运",
-     lambda m: abs(m["on-demand"]["token_ms"][0] - (m["on-demand"]["compute_only_token_ms"]
-               + BASE.layers * (2 * BASE.link_setup_ms + (BASE.bundle_mb + BASE.topk * BASE.kv_entry_mb) / BASE.link_mb_per_ms))) < 1e-6),
+    ("链路无限快时，两级时延回到 AISim 原生时延（1% 以内）",
+     lambda m: all(abs(t - m["reconcile"]["native_token_ms"]) <= 0.01 * m["reconcile"]["native_token_ms"] for t in m["reconcile"]["token_ms"])),
+    ("专家路由更稳定时命中更多、更快", lambda m: m["sticky-experts"]["expert_hits"] > m["baseline"]["expert_hits"]
+     and m["sticky-experts"]["total_ms"] < m["baseline"]["total_ms"]),
+    ("关闭热 KV 后 top-k 没有命中", lambda m: m["no-hot-kv"]["kv_hits"] == 0),
+    ("传输开销变大后等 KV 的时间变长", lambda m: m["link-overhead"]["wait_kv_ms"] > m["baseline"]["wait_kv_ms"]),
+    ("一级变小后专家缓存位更少", lambda m: m["small-tier1"]["expert_cache_slots"] < m["baseline"]["expert_cache_slots"]),
 ]
 
 
-def changes(overrides: dict) -> list[dict]:
-    return [{"param": k, "base": getattr(BASE, k), "value": v} for k, v in overrides.items()]
+def run(scenario: dict, out: Path) -> dict:
+    folder = out / scenario["slug"]
+    folder.mkdir(parents=True, exist_ok=True)
+    trace_file = folder / "requests.mooncake.jsonl"
+    trace_file.write_text(json.dumps({"request_id": "R1", "timestamp": 0, "input_length": CONTEXT_TOKENS,
+                                      "output_length": OUTPUT_TOKENS, "hash_ids": [1]}) + "\n")
+    config = {
+        "traffic": {"source": {"type": "trace", "format": "mooncake", "block_size": 262144, "paths": [str(trace_file)]},
+                    "load": {"type": "trace_timestamps"}},
+        "engine": ENGINE,
+        "two_tier_dram": {**scenario["overrides"], "trace_dir": str(folder)},
+    }
+    (folder / "config.json").write_text(json.dumps(config, indent=1))  # JSON is valid YAML
+    (folder / "trace.json").unlink(missing_ok=True)
+    proc = subprocess.run([str(CLI), "predict", "--stack", "two_tier_dram", "--config", str(folder / "config.json"),
+                           "--output-dir", str(folder / "aisim"), "--overwrite"], cwd=AISIM, capture_output=True, text=True)
+    (folder / "run.log").write_text(proc.stdout + proc.stderr)
+    if not (folder / "trace.json").exists():
+        raise SystemExit(f"{scenario['slug']}: aisim produced no trace (exit {proc.returncode}); see {folder / 'run.log'}")
+    return json.loads((folder / "trace.json").read_text())
 
 
-def check(scenario: dict, result: dict) -> list[str]:
+def check(scenario: dict, request: dict) -> list[str]:
     errors = []
-    for key, want in scenario["expect"].items():
-        got = bool(result["error"]) if key == "error" else result["metrics"][key]
+    if not request.get("native_itl_matches_profile", False):
+        errors.append("AISim replay ITL does not match the per-operator profile")
+    for key, want in scenario.get("expect", {}).items():
+        got = bool(request["error"]) if key == "error" else request["metrics"][key]
         if got != want:
             errors.append(f"{key}: expected {want}, got {got}")
-    if "error" not in scenario["expect"] and result["error"]:
-        errors.append(f"unexpected error: {result['error']}")
+    if "error" not in scenario.get("expect", {}) and request["error"]:
+        errors.append(f"unexpected error: {request['error']}")
     return errors
 
 
@@ -125,24 +138,26 @@ def main() -> int:
     parser.add_argument("--out", type=Path, default=HERE / "output")
     parser.add_argument("--only", nargs="*", help="scenario slugs to run")
     parser.add_argument("--publish", type=Path, help="also copy the page to this path")
+    parser.add_argument("--show", action="store_true", help="print each scenario's key metrics as JSON")
     args = parser.parse_args()
-    valid = {f.name for f in fields(Config)}
+    out = args.out.resolve()
     chosen = [s for s in SCENARIOS if not args.only or s["slug"] in args.only]
-    page, metrics, failed = [], {}, False
+    items, metrics, failed = [], {}, False
     for scenario in chosen:
-        unknown = set(scenario["overrides"]) - valid
-        if unknown:
-            raise SystemExit(f"{scenario['slug']}: unknown Config fields {sorted(unknown)}")
-        result = simulate(Config(**scenario["overrides"]))
-        folder = args.out / scenario["slug"]
-        folder.mkdir(parents=True, exist_ok=True)
-        (folder / "trace.json").write_text(json.dumps(result, ensure_ascii=False, indent=1))
-        errors = check(scenario, result)
+        trace = run(scenario, out)
+        request = trace["requests"][0]
+        errors = check(scenario, request)
         failed |= bool(errors)
-        metrics[scenario["slug"]] = result["metrics"]
+        metrics[scenario["slug"]] = request["metrics"]
         print(f"{scenario['slug']}: " + ("OK" if not errors else "MISMATCH " + "; ".join(errors)))
-        page.append({**{k: scenario[k] for k in ("slug", "title", "summary", "finding")},
-                     "changes": changes(scenario["overrides"]), **result})
+        if args.show:
+            m = request["metrics"]
+            print("  " + json.dumps({"error": bool(request["error"]), **{k: m[k] for k in (
+                "token_ms", "expert_hits", "kv_hits", "wait_experts_ms", "wait_kv_ms", "wait_base_ms", "base_late",
+                "expert_cache_slots", "expert_prefetched", "expert_prefetch_used", "total_ms")}}))
+        items.append({"title": scenario["title"], "summary": scenario["summary"], "finding": scenario.get("finding", ""),
+                      "changes": [{"param": k, "base": getattr(BASE, k), "value": v} for k, v in scenario["overrides"].items()],
+                      "trace": trace})
     if not args.only:
         for name, holds in RELATIONS:
             ok = holds(metrics)
@@ -150,12 +165,11 @@ def main() -> int:
             print(f"relation: {name}: " + ("OK" if ok else "MISMATCH"))
     if failed:
         return 1
-    html = (HERE / "template.html").read_text().replace("/*__DATA__*/null", json.dumps(page, ensure_ascii=False))
-    out = args.out / "two-tier-dram-replay.html"
-    out.write_text(html)
-    print(f"wrote {out}")
+    page = out / "two-tier-dram-replay.html"
+    write_replay(items, page)
+    print(f"wrote {page}")
     if args.publish:
-        args.publish.write_text(html)
+        args.publish.write_bytes(page.read_bytes())
         print(f"published {args.publish}")
     return 0
 
