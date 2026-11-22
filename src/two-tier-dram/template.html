@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>两级 DRAM decode 行为回放</title>
+<style>
+  :root { --bg:#fafafa; --card:#fff; --ink:#1d2330; --mute:#6b7280; --line:#e5e7eb; --accent:#4f7cff;
+          --w:#f08a24; --pre:#fdba74; --kv:#4f7cff; --idx:#8b5cf6; --moe:#f59e0b; --wb:#21a179; --miss:#d64545; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:14px/1.5 -apple-system,BlinkMacSystemFont,"PingFang SC","Noto Sans CJK SC","Segoe UI",sans-serif; background:var(--bg); color:var(--ink); }
+  body.embedded { background:transparent; }
+  .wrap { padding:14px 18px 18px; max-width:1240px; margin:0 auto; }
+  body.embedded .wrap { padding:4px 2px 8px; }
+  h1 { font-size:17px; margin:0 0 2px; }
+  body.embedded h1, body.embedded .sub { display:none; }
+  .sub { color:var(--mute); font-size:12px; }
+  .pick { display:flex; flex-wrap:wrap; gap:6px; margin:10px 0 6px; }
+  .tab { border:1px solid var(--line); background:#fff; padding:4px 10px; border-radius:6px; cursor:pointer; font-size:12.5px; }
+  .tab.on { border-color:var(--accent); color:var(--accent); font-weight:600; }
+  .tab.edge::before { content:"⚠ "; color:#b45309; }
+  .scn { background:#fff; border:1px solid var(--line); border-radius:8px; padding:8px 12px; margin-bottom:10px; font-size:13px; }
+  .scn b { margin-right:6px; }
+  .scn .find { margin-top:4px; color:#374151; }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; align-items:center; }
+  .chip { font-size:11.5px; background:#f1f3f7; border-radius:4px; padding:1px 7px; white-space:nowrap; }
+  .chip.changed { background:#fff1c2; color:#7a4b00; box-shadow:inset 0 0 0 1px #f0b429; font-weight:600; }
+  .chip.changed s { color:#a37b2c; font-weight:400; }
+  .chip.metric { background:#eef2ff; color:#3730a3; }
+  .chip.bad { background:#fee2e2; color:#991b1b; font-weight:600; }
+  .chip-note { font-size:11px; color:var(--mute); }
+  .grid { display:grid; grid-template-columns:minmax(0,1fr) 320px; gap:12px; }
+  @media (max-width:900px) { .grid { grid-template-columns:minmax(0,1fr); } }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:12px 14px; min-width:0; }
+  .card h2 { font-size:12.5px; margin:0 0 8px; color:var(--mute); font-weight:600; }
+  .full { grid-column:1 / -1; }
+  .controls { display:flex; align-items:center; gap:6px; margin-bottom:10px; flex-wrap:wrap; }
+  .controls button, .controls select { border:1px solid var(--line); background:#fff; border-radius:6px; padding:3px 9px; cursor:pointer; font-size:13px; }
+  .controls input[type=range] { flex:1; min-width:140px; }
+  .clock { font-variant-numeric:tabular-nums; font-weight:600; min-width:104px; text-align:right; }
+  .status { display:flex; flex-wrap:wrap; gap:6px; align-items:center; font-size:12.5px; margin-bottom:10px; }
+  .pill { border-radius:999px; padding:1px 9px; font-size:11.5px; background:#f1f3f7; color:var(--mute); }
+  .pill.on { color:#fff; font-weight:600; }
+  .pill.wait.on { background:var(--miss); } .pill.indexer.on { background:var(--idx); } .pill.attention.on { background:var(--kv); } .pill.moe.on { background:var(--moe); }
+  .tier { border:1px solid var(--line); border-radius:10px; padding:10px 12px; }
+  .tier.t1 { background:#f8f9ff; border-color:#c7d2fe; } .tier.t2 { background:#f7f8fa; }
+  .tier h3 { margin:0 0 6px; font-size:13.5px; display:flex; flex-wrap:wrap; gap:8px; align-items:baseline; }
+  .tier h3 span { color:var(--mute); font-size:12px; font-weight:400; }
+  .capbar { display:flex; height:16px; border-radius:5px; overflow:hidden; background:#fff; box-shadow:inset 0 0 0 1px #d1d5db; margin-bottom:4px; }
+  .capbar i { display:block; height:100%; transition:width .15s; }
+  .caplegend { display:flex; flex-wrap:wrap; gap:4px 12px; font-size:11.5px; color:var(--mute); margin-bottom:8px; }
+  .caplegend i { display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:4px; vertical-align:-1px; }
+  .row { display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin:4px 0; }
+  .rowlabel { width:70px; font-size:11.5px; color:var(--mute); flex:none; }
+  .bundle { position:relative; overflow:hidden; min-width:150px; border-radius:7px; padding:3px 9px; font-size:12px; border:1.5px solid var(--w); background:#fff7ed; }
+  .bundle.current { background:var(--w); color:#fff; font-weight:600; }
+  .bundle.loading { border-style:dashed; background:#fff; }
+  .bundle .fill, .cell .fill { position:absolute; left:0; top:0; bottom:0; background:var(--w); opacity:.25; }
+  .bundle span { position:relative; }
+  .cell { position:relative; overflow:hidden; width:38px; height:24px; border-radius:5px; font-size:11.5px; display:flex; align-items:center; justify-content:center;
+          border:1.5px solid var(--kv); background:#eef2ff; color:#1e3a8a; }
+  .cell.pinned { background:var(--kv); color:#fff; font-weight:600; }
+  .cell.loading { border-style:dashed; background:#fff; color:#991b1b; border-color:var(--miss); }
+  .cell.loading .fill { background:var(--miss); }
+  .cell.dirty { border-color:var(--wb); background:#ecfdf5; color:#065f46; box-shadow:inset 0 0 0 1.5px var(--wb); }
+  .cell span { position:relative; }
+  .empty { font-size:11.5px; color:#b6bcc8; }
+  .link { display:grid; gap:5px; margin:8px 0; }
+  .lane { position:relative; min-height:26px; border-radius:6px; background:#f4f5f8; display:flex; align-items:center; padding:2px 10px; font-size:12px; color:var(--mute); overflow:hidden; }
+  .lane .bar { position:absolute; left:0; top:0; bottom:0; opacity:.28; }
+  .lane .txt { position:relative; }
+  .lane.busy { color:var(--ink); font-weight:600; }
+  .queue { display:flex; flex-wrap:wrap; gap:5px; font-size:11.5px; color:var(--mute); align-items:center; min-height:20px; }
+  .q { border-radius:4px; padding:0 6px; color:#fff; font-size:11px; }
+  .k-demand_weights { background:var(--w); } .k-prefetch { background:var(--pre); color:#5b3a00; } .k-demand_kv { background:var(--miss); } .k-writeback { background:var(--wb); }
+  .t2layer { border-radius:6px; padding:2px 8px; font-size:12px; border:1.5px solid #cbd5e1; background:#fff; }
+  .t2layer.reading { border-color:var(--w); box-shadow:0 0 0 2px #fed7aa; font-weight:600; }
+  .notes { margin:0; padding:0; list-style:none; }
+  .notes li { padding:5px 0; border-bottom:1px solid var(--line); font-size:12.5px; }
+  .notes li:last-child { border-bottom:none; }
+  .op { display:inline-block; font-size:10px; padding:0 5px; border-radius:3px; background:#eef2ff; color:#3949ab; margin-right:5px; font-family:ui-monospace,monospace; }
+  .op.capacity_error, .op.prefetch_late, .op.weights_miss, .op.prefetch_skipped { background:#fee2e2; color:#991b1b; }
+  .tl { display:grid; grid-template-columns:52px minmax(0,1fr); gap:4px 8px; align-items:center; font-size:12px; }
+  .tl .name { color:var(--mute); text-align:right; }
+  .gantt { position:relative; height:24px; background:#f7f8fa; border-radius:4px; }
+  .gantt .seg { position:absolute; top:3px; bottom:3px; border-radius:2px; overflow:hidden; font-size:10px; color:#fff; text-align:center; line-height:18px; white-space:nowrap; }
+  .p-indexer { background:var(--idx); } .p-attention { background:var(--kv); } .p-moe { background:var(--moe); }
+  .p-wait_weights { background:repeating-linear-gradient(45deg,#fca5a5 0 4px,#fee2e2 4px 8px); color:#7f1d1d !important; }
+  .p-wait_kv { background:repeating-linear-gradient(-45deg,#f87171 0 4px,#fee2e2 4px 8px); color:#7f1d1d !important; }
+  .stepmark { position:absolute; top:-3px; bottom:-3px; border-left:1.5px dashed #9ca3af; }
+  .cursor { position:absolute; top:-3px; bottom:-3px; width:2px; background:#e11d48; z-index:3; }
+  .axis { position:relative; height:30px; font-size:10.5px; color:var(--mute); }
+  .axis .tick { position:absolute; top:0; transform:translateX(-50%); white-space:nowrap; }
+  .axis .steplbl { position:absolute; top:14px; white-space:nowrap; color:#374151; }
+  .legend { display:flex; flex-wrap:wrap; gap:4px 12px; font-size:11.5px; color:var(--mute); margin-top:8px; }
+  .legend i { display:inline-block; width:14px; height:10px; border-radius:2px; vertical-align:-1px; margin-right:4px; }
+  .warn { font-size:11.5px; color:#92400e; background:#fffbeb; border:1px solid #fde68a; border-radius:6px; padding:6px 10px; margin-top:8px; }
+  table { border-collapse:collapse; width:100%; font-size:11.5px; }
+  td, th { border-bottom:1px solid var(--line); padding:2px 6px; text-align:left; vertical-align:top; }
+  th { color:var(--mute); font-weight:600; }
+  tr.past td { color:#9ca3af; } tr.now td { background:#fff8db; }
+  details summary { cursor:pointer; color:var(--mute); font-size:12.5px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>两级 DRAM decode 行为回放（一级 3D-stacked DRAM ⇄ 二级 LPDDR）</h1>
+  <div class="sub">数据来自 src/two-tier-dram 的离散事件模型；虚拟时间（ms）。玩具规模，用于看清机制，不代表实测性能。</div>
+  <div class="pick" id="tabs"></div>
+  <div class="scn" id="scn"></div>
+  <div class="grid">
+    <section class="card">
+      <div class="controls">
+        <button id="prev" title="上一个事件">⏮</button>
+        <button id="play">▶ 播放</button>
+        <button id="next" title="下一个事件">⏭</button>
+        <input type="range" id="slider" min="0" max="1000" step="any" value="0" aria-label="时间">
+        <select id="speed" aria-label="速度"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option></select>
+        <span class="clock" id="clock">t = 0 ms</span>
+      </div>
+      <div class="status" id="status"></div>
+      <div class="tier t1">
+        <h3>一级 DRAM · 3D-stacked<span id="t1cap"></span></h3>
+        <div class="capbar" id="capbar"></div>
+        <div class="caplegend" id="caplegend"></div>
+        <div class="row"><div class="rowlabel">权重+idx KV</div><div class="row" id="bundles" style="margin:0"></div></div>
+        <div id="kvgrid"></div>
+      </div>
+      <div class="link">
+        <div class="lane" id="lane"><div class="bar"></div><span class="txt"></span></div>
+        <div class="queue" id="queue"></div>
+      </div>
+      <div class="tier t2">
+        <h3>二级 DRAM · LPDDR<span id="t2cap"></span></h3>
+        <div class="row"><div class="rowlabel">全部权重</div><div class="row" id="t2layers" style="margin:0"></div></div>
+        <div class="row"><div class="rowlabel">完整 KV</div><div id="t2kv" style="font-size:12px"></div></div>
+      </div>
+    </section>
+    <section class="card">
+      <h2>当前时刻发生了什么</h2>
+      <ul class="notes" id="notes"></ul>
+    </section>
+    <section class="card full">
+      <h2>时间线：上面一行是计算，下面一行是共享链路；虚线是 decode step 边界，竖线是当前时刻</h2>
+      <div class="tl">
+        <div class="name">计算</div><div class="gantt" id="g-compute"></div>
+        <div class="name">链路</div><div class="gantt" id="g-link"></div>
+        <div></div><div class="axis" id="axis"></div>
+      </div>
+      <div class="legend">
+        <span><i class="p-indexer"></i>indexer</span><span><i class="p-attention"></i>attention</span><span><i class="p-moe"></i>MoE</span>
+        <span><i class="p-wait_weights"></i>等权重</span><span><i class="p-wait_kv"></i>等缺失 KV</span>
+        <span><i class="k-prefetch"></i>预取下一层</span><span><i class="k-demand_weights"></i>按需取权重</span><span><i class="k-demand_kv"></i>按需取 KV</span><span><i class="k-writeback"></i>写回</span>
+      </div>
+      <div class="warn">模型范围：单请求、batch 1、固定的每层计算时间；一层的权重与 indexer KV 作为一个整体搬运，不区分专家；top-k 由合成的重合度参数生成，只从初始上下文中选。所有状态由模型直接给出，一级占用和“数据到达前不计算”在运行时断言。</div>
+    </section>
+    <section class="card full">
+      <details><summary>事件日志</summary>
+        <table id="raw"><thead><tr><th>t (ms)</th><th>step</th><th>层</th><th>事件</th><th>说明</th></tr></thead><tbody></tbody></table>
+      </details>
+    </section>
+  </div>
+</div>
+<script>
+const DATA = /*__DATA__*/null;
+const params = new URLSearchParams(location.search);
+if (window.top !== window.self || params.has('embed')) document.body.classList.add('embedded');
+let S = null, T = 1, playing = false, last = 0, speed = 1, exactT = null;
+const $ = id => document.getElementById(id);
+const fmt = t => (Math.abs(t - Math.round(t)) < 1e-6 ? String(Math.round(t)) : (+t.toFixed(2)).toString());
+const pct = t => (t / T * 100) + '%';
+const PHASE = { wait_weights: '等权重', indexer: 'indexer', wait_kv: '等缺失 KV', attention: 'attention', moe: 'MoE', idle: '空闲', failed: '容量不足，已停止' };
+const KIND = { demand_weights: '按需取权重', prefetch: '预取', demand_kv: '按需取 KV', writeback: '写回' };
+const KCOLOR = { demand_weights: 'var(--w)', prefetch: 'var(--pre)', demand_kv: 'var(--miss)', writeback: 'var(--wb)' };
+const CAP = [['current_bundle', '当前层权重+idx KV', 'var(--w)'], ['prefetch_bundle', '预取缓冲', 'var(--pre)'], ['hot_kv', '热 KV', 'var(--kv)'], ['scratch', 'scratch', '#9ca3af']];
+const LABELS = { layers: '层数', steps: 'decode step', context_tokens: '上下文 token', topk: 'top-k', overlap: '跨步重合度', tier1_mb: '一级容量 MB', tier2_mb: '二级容量 MB',
+  link_mb_per_ms: '链路 MB/ms', link_setup_ms: '每次传输开销 ms', link_policy: '链路策略', prefetch: '逐层预取', hot_kv_entries: '热 KV 软上限(条)', weight_mb: '每层权重 MB', kv_entry_mb: '每条 KV MB' };
+const show = v => v === true ? '开' : v === false ? '关' : v;
+
+// fraction of a link job already moved at time t
+function jobProgress(id, t) {
+  let f = 0;
+  for (const s of S.link_segments) {
+    if (s.job !== id || s.t0 > t) continue;
+    if (t >= s.t1) { f = s.f1; continue; }
+    const data0 = s.t0 + s.setup;
+    return t <= data0 ? s.f0 : s.f0 + (s.f1 - s.f0) * (t - data0) / (s.t1 - data0);
+  }
+  return f;
+}
+function snapAt(t) { let k = 0; S.snapshots.forEach((s, i) => { if (s.t <= t + 1e-9) k = i; }); return S.snapshots[k]; }
+
+function render() {
+  const t = exactT ?? T * $('slider').value / 1000, c = S.config, snap = snapAt(t);
+  $('clock').textContent = `t = ${fmt(t)} ms`;
+  // compute status
+  const cp = snap.compute, ph = cp.phase;
+  const where = cp.step == null ? (ph === 'failed' ? '已停止' : (t > 0 ? 'decode 完成，链路收尾' : '未开始')) : `decode step ${cp.step + 1}/${c.steps} · 第 ${cp.layer} 层`;
+  $('status').innerHTML = `<b>计算</b><span>${where}</span>` + ['wait_weights', 'indexer', 'wait_kv', 'attention', 'moe'].map(p =>
+    `<span class="pill ${p.startsWith('wait') ? 'wait' : p}${ph === p ? ' on' : ''}">${PHASE[p]}</span>`).join('') + (ph === 'failed' ? '<span class="chip bad">容量不足</span>' : '');
+  // tier 1
+  const used = Object.values(snap.tier1).reduce((a, b) => a + b, 0);
+  $('t1cap').textContent = `已用 ${fmt(used)} / ${c.tier1_mb} MB`;
+  $('capbar').innerHTML = CAP.map(([k, , col]) => `<i style="width:${snap.tier1[k] / c.tier1_mb * 100}%;background:${col}"></i>`).join('');
+  $('caplegend').innerHTML = CAP.map(([k, name, col]) => `<span><i style="background:${col}"></i>${name} ${fmt(snap.tier1[k])}</span>`).join('') + `<span>空闲 ${fmt(c.tier1_mb - used)}</span>`;
+  $('bundles').innerHTML = snap.bundles.length ? snap.bundles.map(b => {
+    const p = b.state === 'loading' ? jobProgress(b.job, t) : null;
+    const role = b.role === 'current' ? (b.state === 'loading' ? '当前层·取入中' : '当前层') : (b.state === 'loading' ? '预取中' : '已预取');
+    return `<div class="bundle ${b.state === 'loading' ? 'loading' : b.role}">${p != null ? `<div class="fill" style="width:${p * 100}%"></div>` : ''}<span>L${b.layer} 权重+idx KV · ${role}${p != null ? ` ${Math.round(p * 100)}%` : ''}</span></div>`;
+  }).join('') : '<span class="empty">空</span>';
+  const cap = c.hot_kv_entries > 0 ? `软上限 ${c.hot_kv_entries} 条` : '缓存关闭，用完即丢';
+  let grid = `<div class="row"><div class="rowlabel">热 KV</div><div class="empty" style="color:var(--mute)">${snap.kv.length} 条 · ${cap}</div></div>`;
+  for (let L = 0; L < c.layers; L++) {
+    const cells = snap.kv.filter(e => e.layer === L).map(e => {
+      const cls = e.state === 'loading' ? 'loading' : e.dirty ? 'dirty' : e.pinned ? 'pinned' : '';
+      const job = e.state === 'loading' ? S.jobs.find(j => j.kind === 'demand_kv' && j.queued <= snap.t + 1e-9 && (j.end == null || j.end > t - 1e-9) && j.label.startsWith(`按需取 L${L} `)) : null;
+      const fill = job ? `<div class="fill" style="width:${jobProgress(job.id, t) * 100}%"></div>` : '';
+      const tip = e.state === 'loading' ? '取入中' : e.dirty ? '新 token，脏，待写回' : e.pinned ? '本层正在使用' : '缓存，可淘汰';
+      return `<div class="cell ${cls}" title="L${L}·t${e.token} · ${tip}">${fill}<span>t${e.token}</span></div>`;
+    }).join('');
+    grid += `<div class="row"><div class="rowlabel" style="text-align:right;padding-right:6px">L${L}</div>${cells || '<span class="empty">—</span>'}</div>`;
+  }
+  $('kvgrid').innerHTML = grid;
+  // link
+  const act = snap.link.active != null && S.jobs[snap.link.active], lane = $('lane');
+  const live = act && (act.end == null || t < act.end - 1e-9);
+  lane.classList.toggle('busy', !!live);
+  if (live) {
+    const p = jobProgress(act.id, t);
+    lane.querySelector('.bar').style.cssText = `width:${p * 100}%;background:${KCOLOR[act.kind]}`;
+    lane.querySelector('.txt').textContent = `共享链路：${act.label} · ${fmt(act.mb)} MB（${Math.round(p * 100)}%）`;
+  } else { lane.querySelector('.bar').style.width = '0'; lane.querySelector('.txt').textContent = '共享链路：空闲'; }
+  $('queue').innerHTML = snap.link.queue.length ? '排队：' + snap.link.queue.map(id => `<span class="q k-${S.jobs[id].kind}">${S.jobs[id].label}</span>`).join('') : `<span>${c.link_policy === 'fifo' ? '队列为空（FIFO，不抢占）' : '队列为空（按需读取优先，可抢占预取与写回）'}</span>`;
+  // tier 2
+  $('t2cap').textContent = `完整数据 ${fmt(S.metrics.tier2_full_mb)} / ${c.tier2_mb} MB`;
+  const reading = live && act.kind !== 'writeback' && act.kind !== 'demand_kv' ? +act.label.match(/L(\d+)/)[1] : -1;
+  $('t2layers').innerHTML = Array.from({ length: c.layers }, (_, L) => `<span class="t2layer${L === reading ? ' reading' : ''}">L${L}${L === reading ? ' → 一级' : ''}</span>`).join('');
+  $('t2kv').innerHTML = `${c.context_tokens} 个上下文 token × ${c.layers} 层；新 token 的 KV 已写回 <b>${snap.tier2.synced_new_kv}</b> 条，一级中还有 <b style="color:${snap.tier2.dirty_pending ? 'var(--wb)' : 'inherit'}">${snap.tier2.dirty_pending}</b> 条脏数据未写回`;
+  // notes
+  $('notes').innerHTML = snap.notes.length ? `<li style="color:var(--mute)">t = ${fmt(snap.t)} ms：</li>` + snap.notes.map(n => `<li><span class="op ${n.kind}">${n.kind}</span>${n.text}</li>`).join('')
+    : `<li style="color:var(--mute)">t = ${fmt(snap.t)} ms 没有新事件。点 ⏭ 逐个事件前进，或 ▶ 播放。</li>`;
+  document.querySelectorAll('.cursor').forEach(el => el.style.left = pct(t));
+  document.querySelectorAll('#raw tbody tr').forEach(tr => { const rt = +tr.dataset.t; tr.className = rt < snap.t - 1e-9 ? 'past' : Math.abs(rt - snap.t) < 1e-9 ? 'now' : ''; });
+}
+
+function loadScenario(i) {
+  S = DATA[i];
+  document.querySelectorAll('.tab').forEach((b, j) => b.classList.toggle('on', i === j));
+  T = Math.max(S.metrics.total_ms, S.snapshots[S.snapshots.length - 1].t, 1) * 1.02;
+  const c = S.config, m = S.metrics, changed = Object.fromEntries(S.changes.map(x => [x.param, x]));
+  const keys = ['prefetch', 'hot_kv_entries', 'overlap', 'tier1_mb', 'link_mb_per_ms', 'link_policy', 'topk', 'layers', 'steps'];
+  const extra = S.changes.filter(x => !keys.includes(x.param)).map(x => x.param);
+  const chips = [...keys, ...extra].map(k => changed[k]
+    ? `<span class="chip changed" title="Config.${k}：基线 ${show(changed[k].base)} → 本场景 ${show(changed[k].value)}">${LABELS[k] || k} <s>${show(changed[k].base)}</s> → ${show(changed[k].value)}</span>`
+    : `<span class="chip" title="Config.${k}">${LABELS[k] || k} ${show(c[k])}</span>`).join('');
+  const metrics = S.error ? `<span class="chip bad">运行中止：${S.error}</span>` : [
+    `每 token ${m.token_ms.map(fmt).join(' / ')} ms`, `纯计算 ${fmt(m.compute_only_token_ms)} ms`, `KV 命中 ${m.kv_hits}/${m.kv_lookups}`,
+    `等权重 ${fmt(m.wait_weights_ms)} ms`, `等 KV ${fmt(m.wait_kv_ms)} ms`, `预取迟到 ${m.prefetch_late}/${m.prefetches}`,
+    `链路 MB：预取 ${fmt(m.link_mb.prefetch)} · 按需权重 ${fmt(m.link_mb.demand_weights)} · 按需 KV ${fmt(m.link_mb.demand_kv)} · 写回 ${fmt(m.link_mb.writeback)}`,
+    `一级峰值 ${fmt(m.peak_tier1_mb)} MB`].map(x => `<span class="chip metric">${x}</span>`).join('');
+  $('scn').innerHTML = `<b>${S.title}</b>${S.summary}<div class="find">观察：${S.finding}</div>
+    <div class="chips">${chips}<span class="chip-note">${S.changes.length ? '黄色 = 相对基线改动的参数' : '基线参数'}</span></div><div class="chips">${metrics}</div>`;
+  $('g-compute').innerHTML = S.compute_segments.map(s => `<div class="seg p-${s.phase}" style="left:${pct(s.t0)};width:${(s.t1 - s.t0) / T * 100}%" title="step ${s.step + 1} · L${s.layer} · ${PHASE[s.phase]} · ${fmt(s.t0)}→${fmt(s.t1)} ms">${s.phase === 'moe' ? 'L' + s.layer : ''}</div>`).join('') + '<div class="cursor"></div>';
+  $('g-link').innerHTML = S.link_segments.map(s => `<div class="seg k-${s.kind}" style="left:${pct(s.t0)};width:${(s.t1 - s.t0) / T * 100}%" title="${s.label} · ${fmt(s.t0)}→${fmt(s.t1)} ms"></div>`).join('') + '<div class="cursor"></div>';
+  let acc = 0, marks = '', lbls = '';
+  m.token_ms.forEach((d, k) => { lbls += `<span class="steplbl" style="left:calc(${pct(acc)} + 4px)">step ${k + 1} · ${fmt(d)} ms</span>`; acc += d; marks += `<div class="stepmark" style="left:${pct(acc)}"></div>`; });
+  $('g-compute').insertAdjacentHTML('beforeend', marks); $('g-link').insertAdjacentHTML('beforeend', marks);
+  const step = T > 120 ? 20 : T > 60 ? 10 : 5;
+  let ticks = ''; for (let x = 0; x <= T; x += step) ticks += `<span class="tick" style="left:${pct(x)}">${x}</span>`;
+  $('axis').innerHTML = ticks + lbls + '<div class="cursor"></div>';
+  $('raw').querySelector('tbody').innerHTML = S.events.map(e => `<tr data-t="${e.t}"><td>${fmt(e.t)}</td><td>${e.step == null ? '' : e.step + 1}</td><td>${e.layer ?? ''}</td><td>${e.kind}</td><td>${e.text}</td></tr>`).join('');
+  exactT = null; $('slider').value = 0; render(); postHeight();
+}
+function step(dir) {
+  const t = exactT ?? T * $('slider').value / 1000, ts = S.snapshots.map(s => s.t);
+  const target = dir > 0 ? ts.find(x => x > t + 1e-6) : [...ts].reverse().find(x => x < t - 1e-6);
+  if (target != null) { exactT = target; $('slider').value = target / T * 1000; render(); }
+}
+function tick(now) {
+  if (!playing) return;
+  const dt = (now - last) / 1000; last = now;
+  let v = +$('slider').value + dt * speed * 1000 / T * 4;  // 4 simulated ms per second at 1×
+  if (v >= 1000) { v = 1000; playing = false; $('play').textContent = '▶ 播放'; }
+  exactT = null; $('slider').value = v; render();
+  if (playing) requestAnimationFrame(tick);
+}
+function postHeight() { if (window.parent !== window) window.parent.postMessage({ kvReplayHeight: document.documentElement.scrollHeight }, '*'); }
+new ResizeObserver(postHeight).observe(document.body);
+$('play').onclick = () => { playing = !playing; $('play').textContent = playing ? '⏸ 暂停' : '▶ 播放'; if (playing) { if (+$('slider').value >= 1000) { $('slider').value = 0; exactT = null; } last = performance.now(); requestAnimationFrame(tick); } };
+$('prev').onclick = () => step(-1); $('next').onclick = () => step(1);
+$('slider').oninput = () => { exactT = null; render(); }; $('speed').onchange = e => speed = +e.target.value;
+document.addEventListener('keydown', e => { if (e.key === 'ArrowRight') step(1); else if (e.key === 'ArrowLeft') step(-1); else if (e.key === ' ') { e.preventDefault(); $('play').click(); } });
+$('tabs').innerHTML = DATA.map((s, i) => `<button class="tab${s.title.startsWith('极端') ? ' edge' : ''}" data-i="${i}">${s.title.replace(/^(极端|对照|基线)：/, '')}</button>`).join('');
+document.querySelectorAll('.tab').forEach(b => b.onclick = () => loadScenario(+b.dataset.i));
+loadScenario(Math.max(0, DATA.findIndex(s => s.slug === params.get('scenario'))));
+</script>
+</body>
+</html>
