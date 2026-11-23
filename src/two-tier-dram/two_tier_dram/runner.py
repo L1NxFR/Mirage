@@ -40,6 +40,17 @@ class _ArtifactRuntime:
         return json.dumps(output["report"], allow_nan=False, separators=(",", ":"))
 
 
+def compute_basis(cfg: TwoTierConfig, profile, hardware: str) -> dict:
+    """Whether AISim priced compute with the same tier-1 bandwidth the two-tier memory assumes."""
+    priced, assumed = profile.compute_bandwidth, cfg.hardware.tier1_bandwidth
+    consistent = priced is not None and abs(priced - assumed) <= 0.01 * assumed
+    label = (f"一致：AISim 按 {hardware} 规格（一级读带宽 {priced / 1e12:g} TB/s）定价计算，与两级内存假设相同" if consistent else
+             f"混合实验：计算时间来自 AISim 的 {hardware}（读带宽 {priced / 1e12:g} TB/s），"
+             f"两级内存按 {cfg.hardware.preset}（一级 {assumed / 1e12:g} TB/s）假设；不是该硬件的预测")
+    return {"consistent": consistent, "aisim_hardware": hardware, "priced_bandwidth": priced,
+            "assumed_tier1_bandwidth": assumed, "label": label}
+
+
 def retime(config: dict, artifacts: dict) -> dict:
     """Re-time every completed request's decode steps. Returns the trace document."""
     cfg, aisim = TwoTierConfig.from_mapping(config["two_tier"]), config["aisim"]
@@ -62,15 +73,16 @@ def retime(config: dict, artifacts: dict) -> dict:
                  "native_itl_ms": [round(b - a, 6) for a, b in zip(times, times[1:])], "retimed_steps": max(steps, 0)}
         if steps >= 1:
             profile = build_profile(aisim["model"], aisim["hardware"], aisim["backend"], req["input_length"],
-                                    aisim["database_mode"])
+                                    aisim["database_mode"], aisim.get("systems_paths"), aisim.get("backend_version"))
             entry["profile"] = profile.to_json()
+            entry["compute_basis"] = compute_basis(cfg, profile, aisim["hardware"])
             entry["decode_start_ms"] = times[0]
             # The profile and the replay must be priced by the same AISim perf model.
             native = entry["native_itl_ms"][0]
             entry["native_itl_matches_profile"] = abs(profile.native_step_ms - native) <= 1e-3 * max(native, 1e-9)
             entry.update(simulate(cfg, profile, steps))
         requests.append(entry)
-    return {"schema": 1, "aisim": aisim, "config": cfg.to_json(), "requests": requests}
+    return {"schema": 2, "aisim": aisim, "config": cfg.to_json(), "requests": requests}
 
 
 @dataclass(frozen=True)
@@ -101,9 +113,12 @@ class TwoTierRunner:
             all_tokens = [t for m in done for t in m["token_ms"]]
             metrics["two_tier_mean_itl_ms"] = sum(all_tokens) / len(all_tokens)
             metrics["two_tier_native_itl_ms"] = sum(m["native_token_ms"] for m in done) / len(done)
-            summary["per_request"] = [{k: m[k] for k in ("token_ms", "native_token_ms", "expert_hit_rate", "kv_hit_rate",
-                                                         "wait_experts_ms", "wait_kv_ms", "wait_base_ms", "peak_tier1_gb")}
+            summary["per_request"] = [{k: m[k] for k in ("token_ms", "native_token_ms", "steady", "expert_hit_rate",
+                                                         "kv_hit_rate", "wait_experts_ms", "wait_kv_ms", "wait_base_ms",
+                                                         "peak_tier1_bytes", "link_utilization")}
                                       for m in done]
+            summary["feasible"] = all(r["feasible"] for r in retimed)
+            summary["compute_basis"] = [r["compute_basis"]["label"] for r in retimed]
         if errors:
             summary["errors"] = errors
             sys.stderr.write("two_tier_dram: " + "; ".join(errors) + "\n")
@@ -113,17 +128,22 @@ class TwoTierRunner:
                              "the engine timing model is not the op-level perf model the profile uses\n")
         for r in retimed:
             m = r["metrics"]
-            took = " / ".join(f"{t:.3f}" for t in m["token_ms"]) or "none"
-            print(f"two_tier_dram: {r['input_tokens']} context tokens: per-token {took} ms on two tiers, "
+            steady = m["steady"]
+            took = (f"steady {steady['token_ms']:.3f} ms from step {steady['from_step']}" if steady["reached"]
+                    else f"no steady state ({steady['reason']}); mean {m['mean_token_ms'] or 0:.3f} ms")
+            print(f"two_tier_dram: {r['input_tokens']} context tokens, {len(m['token_ms'])} steps: {took}; "
                   f"AISim native {m['native_token_ms']:.3f} ms; expert hits {m['expert_hits']}/{m['expert_lookups']}, "
                   f"top-k KV hits {m['kv_hits']}/{m['kv_lookups']}")
+            print(f"two_tier_dram: {r['compute_basis']['label']}")
+            for reason in r["infeasible"]:
+                print(f"two_tier_dram: INFEASIBLE (counterfactual run): {reason}")
         trace_dir = trace["config"].get("trace_dir")
         if trace_dir:
             from .render import write_replay
 
             folder = Path(trace_dir)
             folder.mkdir(parents=True, exist_ok=True)
-            (folder / "trace.json").write_text(json.dumps(trace, ensure_ascii=False))
+            (folder / "trace.json").write_text(json.dumps(trace, ensure_ascii=False, separators=(",", ":")))
             (folder / "summary.json").write_text(json.dumps(summary, ensure_ascii=False, indent=1))
             write_replay([{"title": "two_tier_dram", "trace": trace}], folder / "replay.html")
             summary["trace_dir"] = str(folder)

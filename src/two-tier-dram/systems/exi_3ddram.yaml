@@ -1,0 +1,27 @@
+# EXI-3DDRAM (Island Series) device spec for AISim's analytical SOL roofline.
+# Source: EXI-3DDRAM internal architecture table supplied by the project owner (2026-11).
+# Only fields the table states are filled from it; everything else is an explicit assumption.
+# Units follow AISim: bytes, bytes/s, FLOP/s, seconds. 1 TB = 1e12 bytes, 1 GB = 1e9 bytes.
+data_dir: data/exi_3ddram  # empty: SOL needs no measured tables
+gpu:
+  mem_bw: 18000000000000          # TABLE: tier-1 zHBM / 3D DRAM 18 TB/s (compute reads tier 1)
+  mem_capacity: 36000000000       # TABLE: tier-1 36 GB in the figure (decimal GB)
+  fp8_tc_flops: 2950000000000000  # TABLE: Matrix Dense FP8 2.95 PF (labelled 675 W)
+  fp4_tc_flops: 6130000000000000  # TABLE: Matrix Dense FP4 6.13 PF (labelled 675 W)
+  int8_tc_flops: 2950000000000000 # ASSUMPTION: equal to FP8 (table has no INT8 figure)
+  bfloat16_tc_flops: 1475000000000000  # ASSUMPTION: half of FP8 (table has no BF16 figure)
+  fp32_flops: 92000000000000      # ASSUMPTION: BF16 / 16 (table has no FP32 figure)
+  mem_bw_empirical_scaling_factor: 1.0  # ASSUMPTION: no correction (no EXI measurements)
+  mem_empirical_constant_latency: 0.0   # ASSUMPTION: none
+  power: 675                      # TABLE: 675 W, as labelled on the Matrix Dense figures
+  sm_version: 100                 # ASSUMPTION: needed by AISim kernel selection; not an EXI property
+node:
+  num_gpus_per_node: 8            # ASSUMPTION: matches the design note's 8-card system
+  intra_node_bw: 800000000000     # TABLE (Ask): UALink 2.0 1.6 TB/s bidirectional -> 0.8 TB/s per direction
+  inter_node_bw: 50000000000      # ASSUMPTION: unused at TP1
+  pcie_bw: 128000000000           # ASSUMPTION: unused here
+  p2p_latency: 0.00001            # ASSUMPTION: unused at TP1
+misc:
+  nccl_mem: {1: 0, 2: 0, 4: 0, 8: 0}
+  other_mem: 0
+  nccl_version: '2.27.3'

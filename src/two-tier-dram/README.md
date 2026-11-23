@@ -6,152 +6,170 @@
 aisim predict --stack two_tier_dram --config CONFIG.yaml --output-dir OUT
 ```
 
-## AISim 负责什么，扩展负责什么
+**结果的资格。** 所有结果都是模型输出，不是 EXI-3DDRAM 的性能预测，原因有四：
 
-| 来自 AISim | 扩展新增 |
+1. 官方 DeepSeek-V4-Pro 权重为 806.6 GB，超过 EXI 图示单卡 LPDDR 的最大 512 GB，单卡不可行。对照实验以“反事实”方式运行，并在结果中标为不可行。
+2. 路由专家与 top-k 的跨步重合度是合成参数。
+3. 复制效率与每次传输的固定开销是假设值。
+4. EXI 的计算时间来自 AISim 的解析 roofline，未经校准。
+
+## 硬件输入与来源
+
+硬件量在配置中写成带单位的字符串（`"36 GB"`、`"2.2 TB/s"`、`"10 us"`），在 `config.py` 入口统一换算为字节、字节/秒和秒，模型内部不再出现无单位的带宽或容量。GB 与 GiB、TB/s 与 Tb/s 分开解析：GB = 1e9 B，GiB = 2^30 B，Tb/s = 1.25e11 B/s。每个硬件字段都记录来源，页面上按来源着色。
+
+| 参数 | EXI 图示（`exi_figure`） | 来源 |
+| --- | --- | --- |
+| 一级容量 `tier1_capacity` | 36 GB | EXI-3DDRAM 架构表 |
+| 一级读带宽 `tier1_bandwidth`（计算读一级） | 18 TB/s | 架构表（zHBM / 3D DRAM） |
+| 二级容量 `tier2_capacity` | 128 GB | 架构表默认值；范围 64–512 GB |
+| 二级标称带宽 `tier2_bandwidth` | 2.2 TB/s | 架构表 LPDDR6 1.1–2.2 TB/s 的上端 |
+| 复制效率 `copy_efficiency` | 1.0 | **假设**：理想复制 |
+| 每次传输固定开销 `transfer_overhead` | 0 s | **假设**：表中未给出 |
+| 卡间带宽 `interconnect_bandwidth` | 1.6 TB/s（双向合计） | 架构表，**Ask**，未确定；TP1 下未使用 |
+| scratch | 4 GB | **假设**：激活与临时空间 |
+
+四种带宽各自独立：
+
+- **一级读带宽**：决定计算时间。只用于 AISim 系统规格 `systems/exi_3ddram.yaml` 的 `mem_bw` 以及争用上界的计算，不参与搬运。
+- **二级标称带宽**：LPDDR6 的标称值。
+- **有效复制带宽** = 二级标称带宽 × 复制效率：二级到一级的搬运速率，所有传输共用这一条链路。
+- **卡间带宽**：只记录，单卡模型不使用。
+
+其他预设：
+
+- `exi_96gb_explore`：同 EXI 图示，只把一级改为 96 GB。96 GB 来自原设计文档，**不是** EXI 图示配置，页面和结果中分开标注。
+- `legacy_64gbps`：上一版（提交 e86bfad）的假设，**已撤回**，只用于历史对照。具体为：一级 96 GB、二级 2048 GB（为装下 1579 GB 模型而虚构）、64 GB/s、10 µs，计算用 B200。
+
+图中未确定或未给出的项：
+
+- 有效复制带宽与内部互连限制；
+- 每次传输的固定开销；
+- `>24 TB/s` 与 `150 GB+ per Compute Tile`，属于 Ask，未使用；
+- BF16、INT8、FP32 算力，以及计算是否能直接读二级。
+
+FP4 6.13 PF、FP8 2.95 PF 已写入 EXI 系统规格，但在 batch 1 decode 下不起作用（见下）。
+
+## 计算时间的来源
+
+| 计算基线 | 含义 |
 | --- | --- |
-| 读取 trace、调度请求、每个 token 的输出时刻（engine replay 及其原生 artifacts） | 把每个 decode step 拆成逐层时间线 |
-| 模型几何：层数、每层是 CSA 还是 HCA、每层专家数、每 token 路由的专家数、`index_topk` | 一级容量账本：scratch、非专家权重、常驻 KV、专家缓存、热 top-k KV、脏 KV |
-| 字节数：每个算子的权重、KV 条目、indexer 条目、每序列 KV | 一条共享链路：按需读取、预取和写回争用带宽 |
-| 计算时间：`EngineHandle.decode_step_per_op` 的逐算子时延 | 专家 LRU 缓存、top-k KV LRU 缓存、可选的逐层权重换入与专家预取 |
+| **EXI-SOL** | AISim 的解析 roofline，使用 `systems/exi_3ddram.yaml`：一级 18 TB/s、FP8 2.95 PF、FP4 6.13 PF，其余字段为标注的假设。每个算子取 max(计算 / 峰值, 字节 / 带宽)。batch 1 decode 的所有算子都受内存带宽限制，所以 EXI-SOL 相对 B200 正好快 18 / 7.7 = 2.34 倍。这是 roofline 的结果，不是按峰值 FLOPS 缩放。未经实测校准。 |
+| **B200（混合）** | AISim 的 `b200_sxm` 计算时间配合 EXI 两级内存假设。runner 会检测并标为“混合实验，不是该硬件的预测”。 |
 
-AISim 的 replay 结果原样返回，两级结果并列给出。扩展不改 AISim 的 pass 时长，所以等待不会反馈给调度。这对不重叠的请求是准确的；发现多个请求同时 decode 时，runner 直接报错。
+`runner.compute_basis` 比较 AISim 定价所用的 `mem_bw` 与两级配置的 `tier1_bandwidth`，相差 1% 以上即判为混合实验。
 
-## 每层发生什么
+## 模型与工作负载
 
-```text
-[非专家权重在一级？] → 选 top-k（仅 CSA 层）→ 取入缺失的 KV → attention
-    → 路由 → 取入缺失的专家 → MoE
-```
+| 模型 | 专家量化 | 总权重 | 路由专家 | 非专家 |
+| --- | --- | --- | --- | --- |
+| `deepseek-ai/DeepSeek-V4-Pro`（官方，本版主工作负载） | w4a8 mxfp4 | 806.6 GB | 774 GB | 32 GB |
+| `nvidia/DeepSeek-V4-Pro-NVFP4` | nvfp4 | 902 GB | 870 GB | 32 GB |
+| `sgl-project/DeepSeek-V4-Pro-FP8`（上一版使用） | fp8_block | 1579 GB | 1547 GB | 32 GB |
 
-- **一级**：scratch；模型的全局权重；非专家权重（全部常驻，或只保留当前层并预取下一层）；每步都要完整读取的 KV（滑动窗口，以及 HCA 层的压缩 KV）；路由专家的 LRU 缓存；top-k KV 的 LRU 缓存。
-- **二级**：全部权重和完整 KV。
-- 每个 step 结束时，新 token 的 KV 以脏数据写入一级，再排队写回二级。
+研究记录容量表中的 732 GB 与“路由专家 720 GB”对应 4 bit 专家。按 mxfp4 每 32 个值加一个缩放字节（4.25 bit），720 GB 约为 765 GB，与 AISim 的 774 GB 接近（推断）。上一版用 FP8 模型，专家体积翻倍。
 
-## 安装
+即使用官方模型，806.6 GB 也超过 EXI 单卡二级的 128 GB（最大 512 GB）。未实现多卡分片前不能直接除以 GPU 数量：`tier2_capacity_check: enforce`（默认）报“单卡不可行”并停止；`counterfactual` 继续运行，但每个结果都带不可行标记。
 
-需要已构建的 AISim 开发环境（见 `src/aisim/DEVELOPMENT.md`）。把本包以 editable 方式装进 AISim 的 venv：
+36 GB 的一级在扣除 4 GB scratch 后放不下 32 GB 非专家权重，所以 EXI 图示配置必须逐层轮换非专家权重（`base_weights: layer_rotation`）。96 GB 时可以常驻。
+
+## 策略
+
+| 字段 | 取值 |
+| --- | --- |
+| `base_weights` | `resident`：全部常驻；`layer_rotation`：只保留当前层，并预取下一层 |
+| `expert_cache` | `lru`：跨 step 的 LRU 缓存；`per_layer`：层结束即释放，无跨步复用 |
+| `expert_prefetch` | `none`；`last_step`：预取下一层上一步用过、但已不在缓存的专家 |
+| `hot_kv_entries` | 热 top-k KV 的 LRU 条数上限；0 表示用完即丢 |
+| `expert_overlap` / `topk_overlap` | 合成的跨步重合度 |
+| `link_policy` | `demand_first`：按需读取抢占预取和写回；`fifo` |
+
+专家缓存的规则（`tests/test_model.py` 覆盖）：
+
+- 未满时只积累不淘汰，每个（层, 专家）只占一个位置。
+- 满后按 LRU 淘汰，占用不超过上限。
+- 正在传输的专家和当前层使用中的专家不可淘汰；已到达但还没用到的预取专家可以淘汰。
+- 缓存满后占用保持不变，内容仍在替换。页面同时显示占用、上限、累计淘汰数和本 step 命中率，以便区分这两件事。
+
+## 输出
+
+- `trace.json`：硬件与来源、计算基线、可行性、指标，以及逐 step 统计。逐 step 统计包括计算、各类等待、按类型的搬运字节、链路利用率、专家和 KV 命中率、淘汰数、缓存占用和一级占用。`trace_detail: full` 时另含事件与逐事件快照。
+- 阶段判定：
+  - step 1 为冷启动；
+  - 在出现第一次淘汰之前为“缓存填充”；
+  - 之后为“淘汰中”；
+  - 只有最后 6 个 step 都已过填充阶段、且波动不超过 5% 时，才报告稳态值，否则明确写“未达到稳态”。
+- 没有建模复制写入一级与计算读一级的争用，`tier1_contention_bound_ms` 给出上界：重叠时间 × 有效复制带宽 / 一级带宽。
+
+## 运行
+
+安装（需已构建的 AISim 开发环境）：
 
 ```sh
 cd src/aisim
 uv pip install --python python/aisim/.venv/bin/python -e ../two-tier-dram
 ```
 
-之后 `aisim` 能发现 stack `two_tier_dram` 和配置段 `two_tier_dram`。在 `src/aisim` 里重新 `uv sync` 会移除它，需要再装一次。
-
-## 配置
-
-在一份普通的 AISim prediction 配置上加顶层段 `two_tier_dram`。引擎必须是 aggregated；`ais_perf_model` 用 `op_level`，这样 replay 的时延和扩展用的逐算子时延是同一套定价。
-
-```yaml
-engine:
-  mode: aggregated
-  model: sgl-project/DeepSeek-V4-Pro-FP8
-  hardware: b200_sxm
-  backend: vllm
-  context_length: 262144
-  ais_perf_model: {estimation_mode: op_level, database_mode: SOL}
-  workers:
-    aggregated:
-      parallelism: {replicas: 1, tensor: 1, attention_data: 1}
-      kv_cache: {capacity: {type: fixed, blocks: 40000}}
-traffic: { ... }                 # 单个请求，或互不重叠的请求
-two_tier_dram:
-  tier1_gb: 96
-  link_gbps: 64
-  trace_dir: ./two-tier-out      # 写入 trace.json、summary.json、replay.html
-```
-
-模型的 1579 GB 权重放不进一张卡，这正是两级设计的前提。`kv_cache.capacity: fixed` 用来绕开 AISim 的单层显存检查。
-
-| 字段 | 默认 | 含义 |
-| --- | --- | --- |
-| `tier1_gb` / `scratch_gb` | 96 / 4 | 一级容量；其中留给激活等的 scratch |
-| `tier2_gb` | 2048 | 二级容量，必须放得下全部权重和完整 KV |
-| `link_gbps` / `link_overhead_ms` | 64 / 0.01 | 共享链路的带宽；每次传输的固定开销 |
-| `link_policy` | `demand_first` | `demand_first`：按需读取抢占预取和写回；`fifo`：不抢占 |
-| `base_weights` | `resident` | `resident`：非专家权重全部常驻一级；`layer_prefetch`：只留当前层并预取下一层（方案 A） |
-| `expert_cache_gb` | 自动 | 专家缓存上限；不填则用一级剩余的空间 |
-| `expert_overlap` | 0.5 | 一层在相邻 step 路由到同一专家的概率（合成） |
-| `expert_prefetch` | `none` | `last_step`：预取下一层上一步用过、但已不在缓存里的专家 |
-| `hot_kv_entries` | 65536 | 热 top-k KV 缓存的条数上限；0 表示用完即丢 |
-| `topk_overlap` | 0.75 | 一层在相邻 step 保留每条 top-k 的概率（合成） |
-| `max_decode_steps` | 3 | 每个请求最多重计时的 decode step 数 |
-| `seed` | 0 | 合成选择的随机种子 |
-| `trace_dir` | 不写 | 输出目录 |
-
-运行时 runner 打印一行对比（两级每 token 时延与 AISim 原生时延）。`prediction.json` 仍是 AISim 的原生报告，两级结果在 `trace_dir` 里。
-
-## 场景与回放
+完整实验与回放页面（约 3 分钟，每次都是一次 AISim 预测）：
 
 ```sh
-python3 src/two-tier-dram/scenarios.py            # 9 个场景，输出到 src/two-tier-dram/output/
-python3 src/two-tier-dram/scenarios.py --only baseline --show
+python3 src/two-tier-dram/scenarios.py
 ```
 
-每个场景都是一次真实的 `aisim predict --stack two_tier_dram`。脚本把结果与场景的 `expect` 和跨场景关系逐项比较，不符则打印 `MISMATCH` 并以退出码 1 结束，然后生成 `output/two-tier-dram-replay.html`。页面是单个离线文件，可以放进 iframe。
+结果写入 `output/sweep.md`、`output/sweep.json` 和 `output/two-tier-dram-replay.html`。脚本只检查与结论无关的逻辑关系（带宽越高不会越慢、开销越大不会越快、链路极快时回到 AISim 原生时延、旧配置复现旧数值、不可行配置被报告），不预设结论。
 
-查看页面（在远端运行时）：
-
-```sh
-cd src/two-tier-dram/output && python3 -m http.server 8765     # 远端
-ssh -L 8765:localhost:8765 i163v                               # 本地，打开 http://localhost:8765/two-tier-dram-replay.html
-```
-
-场景使用 DeepSeek-V4-Pro-FP8、b200_sxm、vLLM、SOL，一个 200K 上下文的请求，重计时 3 个 decode step。AISim 原生每 token 6.54 ms。
-
-| 场景 | 改动 | 两级每 token (ms) | 观察 |
-| --- | --- | --- | --- |
-| `baseline` | 无 | 385 / 203 / 184 | 专家搬运决定时延；等专家 751 ms，等 KV 1.3 ms |
-| `reconcile` | 链路 1e6 GB/s，开销 0 | 6.56 / 6.55 / 6.55 | 搬运代价趋零时回到 AISim 原生时延 |
-| `sticky-experts` | 专家重合度 0.9 | 385 / 45 / 46 | 时延对路由稳定性很敏感 |
-| `small-tier1` | 一级 48 GB | 385 / 385 / 385 | 缓存 179 位，一个 step 要用 366 个专家，命中 0 |
-| `small-tier1-prefetch` | 一级 48 GB，专家预取 | 385 / 574 / 551 | 预取不准，占用关键路径上的链路，反而更慢 |
-| `no-hot-kv` | 热 KV 关闭 | 385 / 203 / 184 | 每 token 只多 0.18 ms，KV 不是瓶颈 |
-| `link-overhead` | 每次传输开销 0.5 ms | 430 / 247 / 229 | 等 KV 从 1.3 涨到 45 ms，小而频繁的读取看开销 |
-| `layer-prefetch` | 非专家权重逐层换入 | 823 / 640 / 621 | 182 次预取全部迟到；一层 0.46 GB 要 7.2 ms，一层计算 0.1 ms |
-| `tier1-too-small` | 一级 36 GB | 运行中止 | 常驻项之后放不下一层的 6 个专家 |
-
-这些数字依赖两个合成参数（专家与 top-k 的跨步重合度）和假设的链路参数，用来说明机制和量级，不是性能结论。
-
-## 测试
+测试：
 
 ```sh
 cd src/two-tier-dram
 ../aisim/python/aisim/.venv/bin/python -m unittest discover -s tests -v
 ```
 
-- `tests/test_model.py`（14 个）：用小的合成 profile 检查模型行为，不依赖 AISim。包括一级不超容量、数据到达前不计算、链路不超带宽、冷启动 step 的时延等于原生时延加搬运字节除以带宽、缓存小于一个 step 的工作集时零命中。
-- `tests/test_aisim.py`（4 个）：需要 AISim。检查 stack 与配置段已注册、profile 的 step 时延等于 AISim 的逐算子之和、profile 的权重字节加总等于 AISim 的权重清单、链路极快时回到 AISim 原生时延。
+共 35 个测试：28 个模型测试，不依赖 AISim，覆盖单位、链路计时、容量不足、缓存积累与淘汰、保护规则、稳态判定；7 个 AISim 集成测试。
+
+## 结果（2026-11-23，i163v）
+
+工作负载：官方 DeepSeek-V4-Pro，200K 上下文，单请求，32 个 decode step；默认专家重合度 0.5，top-k 重合度 0.75。全部为反事实运行（单卡二级放不下模型）。
+
+| 配置 | 冷启动 ms | 缓存满后 ms/token | 计算 | 等非专家权重 | 等专家 | 搬运 GB/token | 链路利用率 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 36 GB · 2.2 TB/s 理想 | 18.5 | 15.6（稳态） | 2.13 | 10.8 | 2.7 | 34.3 | 100% |
+| 36 GB · 1.1 TB/s 理想 | 36.9 | 31.2（稳态） | 2.13 | 23.7 | 5.4 | 34.3 | 100% |
+| 36 GB · 2.2 TB/s × 0.7（假设） | 26.4 | 22.3（稳态） | 2.13 | 16.3 | 3.8 | 34.3 | 100% |
+| 96 GB · 2.2 TB/s 理想 | 7.6 | 4.7（未稳态，波动 13%） | 2.13 | 0 | 2.5 | 5.6 | 54% |
+| 96 GB · 1.1 TB/s 理想 | 13.1 | 7.2（未稳态，波动 16%） | 2.13 | 0 | 5.1 | 5.6 | 70% |
+| 旧假设 64 GB/s（已撤回） | 385.5 | 183.3 | 6.54 | 0 | 176.4 | 11.3 | 96% |
+
+完整对照（固定开销、预取、缓存策略、热 KV、重合度、计算基线）见 `output/sweep.md`。
+
+主要观察：
+
+1. **36 GB 受链路带宽限制。** 每 token 时间 ≈ 搬运字节 ÷ 有效带宽（15.57 vs 15.59 ms），带宽减半时间正好翻倍。其中 82%（28.1 GB）是非专家权重的逐层轮换，路由专家只占 6.3 GB。
+2. **96 GB 下非专家权重常驻。** 搬运只剩专家（5.6 GB/token），每 token ≈ 计算 2.13 + 专家字节 ÷ 带宽 2.54：专家要在路由之后才能取，取入与计算串行，链路只忙 54%。
+3. **跨步专家 LRU 缓存有效。** 改成逐层释放后，36 GB 从 15.6 升到 18.4 ms，96 GB 从 4.7 升到 7.6 ms。
+4. **热 top-k KV 的影响可以忽略。** 关闭前后每 token 差 ≤ 0.01 ms，KV 每 token 只有几 MB。KV 传输次数多（每 CSA 层一次），在固定开销为 10 µs 时贡献 0.3 ms。
+5. **“按上一步路由预取专家”没有收益。**
+   - 有 LRU 缓存时，上一步的专家总在缓存里，预取器 0 次触发。
+   - 无缓存时反而更慢（36 GB：18.4 → 21.0 ms）。预测准确率约 50%，专家流量增加 44%；且一层计算只有 0.035 ms，6 个专家要 0.09 ms，绝大多数预取在使用时仍未到达。
+6. **固定开销**：每 token 约 153 次（36 GB）或 92 次（96 GB）传输。10 µs 加约 1.5 / 0.9 ms，100 µs 加约 15 / 9 ms。
+7. **计算基线**：36 GB 受链路限制，B200 与 EXI-SOL 只差 0.1 ms；96 GB 差 2.9 ms（7.56 vs 4.67）。
+8. **争用上界**：36 GB 下复制与计算重叠造成的额外计算时间不超过约 0.26 ms/token，按有效带宽 / 一级带宽 = 12% 计算。这一项没有计入结果。
 
 ## 文件
 
 | 文件 | 作用 |
 | --- | --- |
-| `pyproject.toml` | 包定义与两个 entry point |
-| `two_tier_dram/adapter.py` | 配置段适配器（config-adapter ABI v3），只支持 `predict` |
-| `two_tier_dram/runner.py` | stack 的 runner：包装 AISim 的 engine runner，取 artifacts，重计时，写出 trace |
-| `two_tier_dram/profile.py` | 从 AISim 读取模型几何、字节数和逐算子时延；另有测试用的合成 profile |
-| `two_tier_dram/model.py` | 两级模型：账本、链路、逐层状态机、事件与快照 |
-| `two_tier_dram/config.py` | 配置与 profile 的数据结构 |
+| `two_tier_dram/config.py` | 单位解析、硬件预设与来源、策略、模型 profile |
+| `two_tier_dram/model.py` | 两级模型：账本、链路、逐层状态机、逐 step 统计、稳态判定 |
+| `two_tier_dram/profile.py` | 从 AISim 读取模型几何、字节数和逐算子时延，以及计算所用的一级带宽 |
+| `two_tier_dram/runner.py`、`adapter.py` | AISim stack 与配置段 |
 | `two_tier_dram/render.py`、`template.html` | 回放页面 |
-| `scenarios.py` | 场景目录与回归检查 |
+| `systems/exi_3ddram.yaml` | EXI-3DDRAM 的 AISim 系统规格，逐字段标注来源 |
+| `scenarios.py` | 实验目录、逻辑检查、对照表与页面 |
 
-## 口径与限制
+## 限制
 
-- 只支持 DeepSeek-V4 一类的模型（压缩稀疏注意力加 MoE）；其他模型会报错。
-- AISim 对一个算子只给所有层的合计时延，逐层时间是按层数均摊的，没有 CSA 与 HCA 层之间的差异。
-- top-k 条目和路由专家是合成的：每层以给定概率保留上一步的每个选择，其余均匀抽取。AISim 不产生选中集合，真实的重合度需要 indexer 和 router 的统计数据。
-- 开环：两级等待不改变 AISim 的调度。只支持互不重叠的请求（batch 1），每个请求单独从冷缓存开始。
-- 单个 aggregated worker、TP1、EP1；没有多 GPU 分片。
-- 链路只有带宽和每次传输的固定开销；没有建模小块分散读取的有效带宽下降，也没有往一级写入对计算读带宽的挤占。
-- 被抢占的传输恢复时不重复计入固定开销。HCA 层的压缩 KV 和 indexer cache 在 `resident` 模式下视为常驻一级。
-- AISim 给出的 DeepSeek-V4-Pro-FP8 权重是 1579 GB，研究记录的容量表按 732 GB 计算，量化口径待核对。
-
-## 实验记录
-
-- 时间：2026-11-23（北京时间），在 i163v 上运行。
-- 代码：分支 `two-tier-dram-replay`；`src/aisim` 为 submodule `c85b086`，aisim 0.15.0，未修改。
-- 环境：Linux，Python 3.12，AISim venv 由 uv 管理。
-- 随机性：合成选择由 `seed` 决定，结果可复现。
-- 检查：18 个测试、9 个场景的预期值和 5 条跨场景关系全部通过；回放页面在浏览器中核对过。
+- 开环：两级等待不反馈给 AISim 调度；只支持互不重叠的请求，每个请求从冷缓存开始。
+- 单卡、TP1、EP1；没有多卡分片，所以 EXI 图示配置单卡不可行。
+- 逐层计算时间按层数均摊 AISim 的算子合计时延。
+- 链路只有带宽与固定开销，没有随访问粒度变化的有效带宽；复制与计算的一级带宽争用只给上界。
+- 被抢占的传输恢复时不重复计入固定开销。

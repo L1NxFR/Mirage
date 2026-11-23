@@ -27,8 +27,24 @@ class UnsupportedModelError(ValueError):
     pass
 
 
+def system_memory_bandwidth(hardware: str, systems_paths: list[str] | None) -> float:
+    """Tier-1 read bandwidth (bytes/s) of the AISim system spec the compute times are priced with."""
+    from pathlib import Path
+
+    import aisim_core
+    import yaml
+
+    roots = [r for r in (systems_paths or []) if r != "default"] + [str(Path(aisim_core.__file__).parent / "systems")]
+    for root in roots:
+        spec = Path(root) / f"{hardware}.yaml"
+        if spec.is_file():
+            return float(yaml.safe_load(spec.read_text())["gpu"]["mem_bw"])
+    raise UnsupportedModelError(f"AISim system spec {hardware!r} not found in {roots}")
+
+
 def build_profile(model_path: str, hardware: str, backend: str, context_tokens: int,
-                  database_mode: str = "SOL") -> ModelProfile:
+                  database_mode: str = "SOL", systems_paths: list[str] | None = None,
+                  backend_version: str | None = None) -> ModelProfile:
     from aisim_core.sdk import common, config
     from aisim_core.sdk.engine import EngineHandle
     from aisim_core.sdk.models import get_model
@@ -41,7 +57,13 @@ def build_profile(model_path: str, hardware: str, backend: str, context_tokens: 
             f"two_tier_dram supports DeepSeek-V4 style models (compressed sparse attention + MoE); got {model_path}")
     n = len(ratios)
 
-    handle = EngineHandle.compile(model_path, hardware, backend, database_mode=database_mode)
+    compile_kwargs: dict = {"database_mode": database_mode}
+    custom = [r for r in (systems_paths or []) if r != "default"]
+    if custom:
+        compile_kwargs["systems_path"] = custom[0]
+    if backend_version:
+        compile_kwargs["backend_version"] = backend_version
+    handle = EngineHandle.compile(model_path, hardware, backend, **compile_kwargs)
     per_op = {name: latency for name, latency, *_ in handle.decode_step_per_op(1, context_tokens, 2)}
     attention_ms = sum(per_op.get(name, 0.0) for name in ATTENTION_OPS) / n
     moe_ms = sum(per_op.get(name, 0.0) for name in MOE_OPS) / n
@@ -76,8 +98,10 @@ def build_profile(model_path: str, hardware: str, backend: str, context_tokens: 
         kv_entry_bytes=entry,
         new_token_kv_bytes=float(model.get_kvcache_bytes_per_sequence(context_tokens + 128) - full_kv) / 128,
         full_weights_bytes=full_weights, full_kv_bytes=full_kv,
+        compute_bandwidth=system_memory_bandwidth(hardware, systems_paths),
         source={"provider": "aisim", "model": model_path, "hardware": hardware, "backend": backend,
                 "database_mode": database_mode, "context_tokens": context_tokens,
+                "moe_quant_mode": str(model.config.moe_quant_mode), "gemm_quant_mode": str(model.config.gemm_quant_mode),
                 "per_op_ms": {k: round(v, 9) for k, v in per_op.items()},
                 "weights_gb": {k: round(v / 1e9, 6) for k, v in sorted(weights.items(), key=lambda kv: -kv[1])},
                 "note": "per-layer time = operator latency / layer count"})

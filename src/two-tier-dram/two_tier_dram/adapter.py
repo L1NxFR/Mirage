@@ -12,13 +12,13 @@ from .config import ConfigError, TwoTierConfig
 NAME = "two_tier_dram.two_tier_dram"
 
 
-def _database_mode(engine: Mapping[str, Any]) -> str:
+def _perf_model(engine: Mapping[str, Any]) -> dict:
     perf = engine.get("ais_perf_model")
     entries = perf if isinstance(perf, list) else [perf] if isinstance(perf, Mapping) else []
     for entry in entries:
-        if entry.get("worker_type") in (None, "aggregated") and entry.get("database_mode"):
-            return str(entry["database_mode"])
-    return "SOL"
+        if entry.get("worker_type") in (None, "aggregated"):
+            return dict(entry)
+    return {}
 
 
 class TwoTierConfigAdapter:
@@ -34,10 +34,13 @@ class TwoTierConfigAdapter:
         missing = [key for key in ("model", "hardware", "backend") if not isinstance(engine.get(key), str)]
         if missing:
             raise ConfigError(f"two_tier_dram needs concrete engine.{'/'.join(missing)}")
+        # AISim normalizes `ais_perf_model` into top-level engine fields before adapters see it.
+        perf = {**_perf_model(engine), **{k: engine[k] for k in ("database_mode", "systems_paths") if engine.get(k)}}
         return AdapterReplaySpec(config={
-            "two_tier": cfg.to_json(),
+            "two_tier": cfg.to_mapping(),
             "aisim": {"model": engine["model"], "hardware": engine["hardware"], "backend": engine["backend"],
-                      "database_mode": _database_mode(engine)},
+                      "database_mode": perf.get("database_mode", "SOL"), "systems_paths": perf.get("systems_paths"),
+                      "backend_version": engine.get("backend_version")},
         })
 
     def compile_recommendation(self, config, context):
