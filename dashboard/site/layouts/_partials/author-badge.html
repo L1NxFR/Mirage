@@ -1,0 +1,27 @@
+{{- $page := . -}}
+{{- $author := partial "document-author.html" $page -}}
+{{- $authors := slice -}}
+{{- with $author -}}{{- if reflect.IsSlice . -}}{{- $authors = . -}}{{- else -}}{{- $authors = slice . -}}{{- end -}}{{- end -}}
+{{- $coauthors := $page.Params.coauthors | default slice -}}
+{{- if not (reflect.IsSlice $coauthors) -}}{{- $coauthors = slice $coauthors -}}{{- end -}}
+{{- $authors = $authors | append $coauthors -}}
+{{- $seen := slice -}}
+{{- range $authors -}}
+  {{- $key := lower (printf "%v" .) -}}
+  {{- if not (in $seen $key) -}}
+  {{- $seen = $seen | append $key -}}
+  {{- $profile := index ($page.Site.Params.author_profiles | default dict) (lower (printf "%v" .)) | default dict -}}
+  {{- $name := $profile.name | default . -}}
+  {{- $avatar := $profile.avatar -}}
+  {{- if eq (len $authors) 1 -}}{{- $avatar = $page.Params.author_avatar | default $avatar -}}{{- end -}}
+  <span class="author-badge">
+    {{- if $avatar -}}
+    <img class="author-avatar" src="{{ $avatar | relURL }}" alt="" width="24" height="24" loading="lazy">
+    {{- else -}}
+    <span class="author-avatar author-avatar-fallback" aria-hidden="true">{{ partial "tool-icon.html" "author" }}</span>
+    {{- end -}}
+    <span class="author">{{ $name }}</span>
+  </span>
+{{- end -}}
+
+{{- end -}}

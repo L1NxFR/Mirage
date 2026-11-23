@@ -1,0 +1,35 @@
+{{- /*
+  Embed a self-contained HTML file from Attachments/ as an interactive iframe.
+  Usage: {{< embed-html src="../Attachments/page.html" title="说明" height="900" query="scenario=x" >}}
+  `src` uses the same note-relative path as Markdown links, so Obsidian-style
+  paths keep working; the published URL goes through relURL, which keeps it
+  correct under a GitHub Pages sub-path. Pages that post
+  {kvReplayHeight: <px>} to the parent resize the frame to fit.
+*/ -}}
+{{- $src := .Get "src" -}}
+{{- if not $src -}}{{- errorf "embed-html: missing src in %s" .Position -}}{{- end -}}
+{{- $vault := path.Clean (path.Join .Page.File.Dir $src) -}}
+{{- if strings.HasPrefix $src "Attachments/" -}}{{- $vault = $src -}}{{- end -}}
+{{- if not (strings.HasPrefix $vault "Attachments/") -}}
+  {{- errorf "embed-html: %q must point into Attachments/ (%s)" $src .Position -}}
+{{- end -}}
+{{- $url := (replace (urls.PathEscape (printf "attachments/%s" (strings.TrimPrefix "Attachments/" $vault))) "%2F" "/") | relURL -}}
+{{- $frame := $url -}}
+{{- with .Get "query" -}}{{- $frame = printf "%s?embed&%s" $url . -}}{{- else -}}{{- $frame = printf "%s?embed" $url -}}{{- end -}}
+{{- $title := .Get "title" | default "嵌入页面" -}}
+{{- $id := printf "embed-%d" .Ordinal -}}
+<figure class="embed-html">
+  <iframe id="{{ $id }}" src="{{ $frame | safeURL }}" title="{{ $title }}" loading="lazy"
+          style="width:100%;height:{{ .Get "height" | default "900" }}px;border:1px solid var(--border-color, #e5e7eb);border-radius:10px;background:#fafafa"></iframe>
+  <figcaption>{{ $title }} · <a href="{{ $url | safeURL }}" target="_blank" rel="noopener">新窗口打开</a></figcaption>
+</figure>
+<script>
+  (function () {
+    var frame = document.getElementById({{ $id }});
+    window.addEventListener("message", function (event) {
+      if (event.source === frame.contentWindow && event.data && event.data.kvReplayHeight) {
+        frame.style.height = Math.ceil(event.data.kvReplayHeight) + 8 + "px";
+      }
+    });
+  })();
+</script>

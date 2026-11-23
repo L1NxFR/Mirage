@@ -1,0 +1,8 @@
+{{- if eq .Type "alert" -}}
+<blockquote class="research-callout">
+  {{- with .AlertTitle }}<p class="research-callout-title">{{ . }}</p>{{ end -}}
+  {{ .Text }}
+</blockquote>
+{{- else -}}
+<blockquote>{{ .Text }}</blockquote>
+{{- end -}}

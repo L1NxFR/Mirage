@@ -2,5 +2,8 @@
 {{- if strings.HasSuffix (lower (urls.Parse .Destination).Path) ".pdf" -}}
 <a class="pdf-attachment" href="{{ $destination | safeURL }}">{{ .PlainText }} (PDF)</a>
 {{- else -}}
+{{- $caption := strings.TrimSpace .PlainText -}}
+{{- with $caption }}<span class="markdown-figure" role="figure">{{ end -}}
 <img src="{{ $destination | safeURL }}" alt="{{ .PlainText }}" loading="lazy"{{ with .Title }} title="{{ . }}"{{ end }}>
+{{- with $caption }}<span class="image-caption">{{ . }}</span></span>{{ end -}}
 {{- end -}}

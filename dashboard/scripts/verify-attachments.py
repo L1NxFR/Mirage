@@ -1,5 +1,6 @@
 """Verify that Obsidian attachment links resolve to files in Hugo's output."""
 from html.parser import HTMLParser
+from bs4 import BeautifulSoup
 from pathlib import Path
 import shutil
 import subprocess
@@ -52,6 +53,8 @@ draft: false
 ![remote](https://cdn.example.org/Excalidraw/remote.svg?raw=1#part)
 ![cdn](//cdn.example.org/Excalidraw/remote.svg)
 ![legacy](/media/legacy.png)
+![](/media/no-caption.png)
+![中文图注](/media/caption.png "悬停提示")
 [external PDF](https://example.org/paper.pdf#page=4)
 ''')
 
@@ -65,6 +68,13 @@ draft: false
 
     for filename in ("root/index.html", "blog/nested/note/index.html"):
         elements = Page((output / filename).read_text()).elements
+        soup = BeautifulSoup((output / filename).read_text(), 'html.parser')
+        captioned = soup.select_one('img[alt="中文图注"]').parent
+        assert captioned.select_one('.image-caption').get_text() == '中文图注'
+        assert captioned.img['title'] == '悬停提示'
+        assert 'markdown-figure' not in soup.select_one('img[alt=""]').parent.get('class', [])
+        assert not soup.select_one('a.pdf-attachment .image-caption')
+        assert len(soup.select('.image-caption')) == 7
         images = {attrs.get("alt"): attrs.get("src") for tag, attrs in elements if tag == "img"}
         links = [attrs.get("href") for tag, attrs in elements if tag == "a"]
         for alt, path in (("screenshot", "attachments/" + image),

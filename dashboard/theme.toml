@@ -1,7 +1,7 @@
-name = "Research Dashboard"
+name = "科研项目 Dashboard（中文版）"
 license = "MIT"
 licenselink = "https://github.com/yihui/hugo-paged/blob/main/LICENSE.md"
-description = "Research project documentation and local authoring tools based on Hugo Paged"
+description = "基于 Hugo Paged 的中文科研记录与本地写作工具"
 homepage = "https://github.com/Languisher/Research-Project-Template"
 tags = ["minimal", "research", "project", "journal", "docs"]
 features = ["docs", "journal"]

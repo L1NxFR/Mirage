@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { parseDocument } from 'yaml';
 
-const sections = ['related-work','research-journey','system-implementation','meetings'];
+const sections = ['related-work','research-journey','system-implementation','meetings','other'];
 export const validWeight = value => Number.isSafeInteger(value);
 
 function records(directory) {
@@ -19,7 +19,7 @@ function records(directory) {
     const data = metadata?.toJS({ maxAliasCount: 20 }) || {};
     if (typeof data !== 'object' || Array.isArray(data)) throw new Error(`Invalid YAML metadata: ${file}`);
     if (Object.hasOwn(data, 'weight') && !validWeight(data.weight)) throw new Error(`weight must be a safe integer: ${file}`);
-    return { file, source, title: String(data.title || entry.name), weight: data.weight, hasMetadata: Boolean(match) };
+    return { file, source, title: String(data.title || entry.name), weight: data.weight, hasMetadata: Boolean(match), blank: !source.slice(match?.[0].length || 0).trim() && Object.keys(data).every(key => key === 'weight') && (!match || /^---\r?\n(?:weight: *-?\d+\r?\n)?---\s*$/.test(source)) };
   });
 }
 
@@ -37,9 +37,13 @@ export function firstDocumentWeight(directory) {
   return first;
 }
 
-// Add only the missing field. Preserve body bytes, comments and recorded dates.
+// Initialize blank notes; otherwise add only weight and preserve existing content.
 function assign(record, weight) {
   const newline = record.source.includes('\r\n') ? '\r\n' : '\n';
+  if (record.blank) {
+    const now = new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString().replace('Z', '+08:00');
+    return ['---', `title: ${JSON.stringify(path.basename(record.file, '.md'))}`, 'description: ""', 'subtitle: ""', 'tldr: ""', 'author: ""', `date: ${now}`, `lastmod: ${now}`, 'draft: true', 'content_lang: zh-CN', 'tags: []', 'show_toc: true', `weight: ${weight}`, '---', '', ''].join(newline);
+  }
   if (!record.hasMetadata) return `---${newline}weight: ${weight}${newline}---${newline}${record.source}`;
   const offset = record.source.indexOf('\n') + 1;
   return record.source.slice(0, offset) + `weight: ${weight}${newline}` + record.source.slice(offset);
@@ -51,9 +55,10 @@ export function syncDocumentWeights(root, { check = false } = {}) {
     const notes = records(directory);
     const assigned = notes.map(record => record.weight).filter(validWeight);
     let next = assigned.length ? Math.max(...assigned) + 1 : 1;
-    for (const record of notes.filter(record => record.weight === undefined).sort((a,b) => a.title.localeCompare(b.title))) {
-      if (!validWeight(next)) throw new Error(`No integer weight remains: ${directory}`);
-      changes.push({ ...record, updated: assign(record, next++), weight: next - 1 });
+    for (const record of notes.filter(record => (record.weight === undefined || record.blank)).sort((a,b) => a.title.localeCompare(b.title))) {
+      const weight = record.weight ?? next++;
+      if (!validWeight(weight)) throw new Error(`No integer weight remains: ${directory}`);
+      changes.push({ ...record, updated: assign(record, weight), weight });
     }
     for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
       if (entry.isDirectory() && !entry.name.startsWith('.') && !['Templates','Attachments'].includes(entry.name)) walk(path.join(directory, entry.name));

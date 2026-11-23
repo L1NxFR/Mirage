@@ -24,7 +24,13 @@
     {{ with index hugo.Data.journal_navigation (strings.TrimSuffix "/" (strings.TrimPrefix (printf "%s/" $current.Section) $path)) }}{{ $label = . }}{{ end }}
     <li class="journal-folder">
       <details open>
-        <summary><span>{{ $label }}</span></summary>
+        <summary>
+          {{ with $current.Site.GetPage (strings.TrimSuffix "/" $path) }}
+            <a class="group-title" href="{{ .RelPermalink }}">{{ $label }}</a>
+            <span class="journal-leader" aria-hidden="true"></span>
+            {{ partial "journal-updated.html" . }}
+          {{ else }}<span>{{ $label }}</span>{{ end }}
+        </summary>
         {{ partial "journal-tree.html" (dict "pages" $pages "directory" $path "current" $current) }}
       </details>
     </li>
@@ -34,12 +40,7 @@
       <li class="journal-entry">
         <a href="{{ .RelPermalink }}">{{ .Title }}{{ if .Draft }} <small class="draft-badge">草稿</small>{{ end }}</a>
         <span class="journal-leader" aria-hidden="true"></span>
-        {{ if not .Lastmod.IsZero }}
-          {{ $modified := .Lastmod | time.In "Asia/Shanghai" }}
-          <time datetime="{{ $modified.Format "2006-01-02T15:04:05Z07:00" }}" title="最后更新：{{ $modified.Format "2006-01-02 15:04:05 UTCZ07:00" }}">{{ $modified.Format "2006-01-02 15:04:05" }}</time>
-        {{ else }}
-          <span class="journal-date-missing" aria-label="未记录最后更新日期">—</span>
-        {{ end }}
+        {{ partial "journal-updated.html" . }}
       </li>
     {{ end }}
   {{ end }}

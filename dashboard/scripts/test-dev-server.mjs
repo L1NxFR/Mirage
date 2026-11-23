@@ -81,7 +81,10 @@ async function verifyWorkspace(port, oldPort) {
   assert.ok(page.includes(`href="http://localhost:${port}/"`), 'Hugo uses the listening port');
   const status = await fetch(`${base}/api/workspace/status`);
   assert.equal(status.status, 200);
-  const { token } = await status.json();
+  const { token, projectRoot, contentRoot } = await status.json();
+  assert.equal(path.dirname(path.dirname(path.dirname(contentRoot))), projectRoot);
+  assert.equal(fs.realpathSync(contentRoot), contentRoot);
+  assert.ok(fs.existsSync(path.join(contentRoot, '_index.md')));
   const headers = { 'X-Workspace-Token': token, Origin: base, 'Content-Type': 'application/json' };
   const doc = await fetch(`${base}/api/workspace/document?path=_index.md`, { headers }).then(r => r.json());
   const saved = await fetch(`${base}/api/workspace/save`, {
@@ -106,6 +109,8 @@ async function verifyWorkspace(port, oldPort) {
 test('default startup uses the portable five-digit port range', { timeout: 20000 }, async t => {
   const run = fixture(t).launch();
   const port = await ready(run);
+  assert.match(run.output(), /Research workspace: http:/);
+  assert.doesNotMatch(run.output(), /\p{Script=Han}/u);
   assert.ok(port >= 23130 && port <= 65535, `Unexpected default port ${port}`);
   await verifyWorkspace(port);
 });
@@ -136,6 +141,8 @@ test('occupied ports are skipped sequentially and runtime configuration follows 
       const run = fixture(t).launch(['--port', String(start)]);
       const port = await ready(run);
       assert.equal(port, start + 12);
+      assert.match(run.output(), /Port \d+ is in use; trying \d+\./);
+      assert.doesNotMatch(run.output(), /\p{Script=Han}/u);
       assert.ok(!run.output().includes('MaxListenersExceededWarning'));
       await verifyWorkspace(port, start);
       return;
@@ -151,6 +158,7 @@ test('invalid requested ports fail instead of silently changing configuration', 
     const run = fixture(t).launch(['--port', port]);
     const [code] = await run.exited;
     assert.notEqual(code, 0);
+    assert.match(run.output(), /Choose a port between 1024 and 65535\./);
     assert.ok(!run.output().includes('http://localhost:'));
   }
 });
@@ -169,4 +177,29 @@ test('external Markdown gets a persisted weight on the next watched rebuild', { 
   }
   assert.match(fs.readFileSync(file, 'utf8'), /^weight: 9$/m);
   assert.ok(fs.readFileSync(file, 'utf8').endsWith('External body.\n'));
+});
+
+test('live reload versions advance after successful external saves but not failed builds', { timeout: 20000 }, async t => {
+  const site = fixture(t);
+  const run = site.launch();
+  const port = await ready(run);
+  const base = `http://127.0.0.1:${port}`;
+  const status = () => fetch(`${base}/api/workspace/status`).then(r => r.json());
+  const initial = (await status()).version;
+  const html = await fetch(base).then(r => r.text());
+  assert.ok(html.includes(`data-version="${initial}"`));
+  assert.ok(html.includes('/js/workspace-live-reload.js'));
+  const content = path.join(site.root, 'site/content/_index.md');
+  fs.appendFileSync(content, '\nAutomatically updated.\n');
+  const deadline = Date.now() + 10000;
+  while ((await status()).version === initial && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 50));
+  const updated = (await status()).version;
+  assert.notEqual(updated, initial);
+  assert.match(await fetch(base).then(r => r.text()), /Automatically updated/);
+  fs.writeFileSync(path.join(site.root, 'site/layouts/home.html'), '{{ invalidFunction }}');
+  const failureDeadline = Date.now() + 5000;
+  while (!run.output().includes('Site build failed') && Date.now() < failureDeadline) await new Promise(resolve => setTimeout(resolve, 50));
+  assert.match(run.output(), /Site build failed/);
+  assert.equal((await status()).version, updated);
+  assert.match(await fetch(base).then(r => r.text()), /Automatically updated/);
 });

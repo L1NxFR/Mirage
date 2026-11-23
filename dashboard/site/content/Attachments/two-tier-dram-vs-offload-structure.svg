@@ -1,0 +1,74 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="600" viewBox="0 0 1120 600" font-family="PingFang SC, Noto Sans CJK SC, Microsoft YaHei, sans-serif" font-size="14" fill="#1d2330">
+  <rect width="1120" height="600" fill="#ffffff"/>
+  <defs>
+    <marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#21a179"/></marker>
+  </defs>
+
+  <!-- column titles -->
+  <text x="280" y="34" text-anchor="middle" font-size="18" font-weight="700">现有 KV 卸载（AISim G1/G2）</text>
+  <text x="280" y="54" text-anchor="middle" font-size="12.5" fill="#6b7280">慢层 = 请求之间的前缀存储</text>
+  <text x="840" y="34" text-anchor="middle" font-size="18" font-weight="700">两级 DRAM 设计</text>
+  <text x="840" y="54" text-anchor="middle" font-size="12.5" fill="#6b7280">慢层 = 每层、每步都参与的工作内存</text>
+  <line x1="560" y1="20" x2="560" y2="560" stroke="#e5e7eb" stroke-dasharray="4 4"/>
+
+  <!-- LEFT: G1 -->
+  <rect x="30" y="72" width="500" height="182" rx="12" fill="#f5f7ff" stroke="#c7d2fe"/>
+  <text x="50" y="100" font-size="16" font-weight="700">GPU HBM（G1）</text>
+  <circle cx="56" cy="125" r="5" fill="#f08a24"/><text x="70" y="130">全部模型权重：常驻，不卸载</text>
+  <circle cx="56" cy="151" r="5" fill="#4f7cff"/><text x="70" y="156">运行中请求的完整 KV：必须整段驻留</text>
+  <circle cx="56" cy="177" r="5" fill="#4f7cff"/><text x="70" y="182">已结束请求的前缀块：可命中，LRU 可驱逐</text>
+  <circle cx="56" cy="203" r="5" fill="#9ca3af"/><text x="70" y="208">容量账本只有 KV block 数（num_gpu_blocks）</text>
+  <rect x="50" y="222" width="104" height="22" rx="11" fill="#e0e7ff"/><text x="102" y="238" text-anchor="middle" font-size="12.5" fill="#3730a3">计算直接读取</text>
+
+  <!-- LEFT: link -->
+  <line x1="120" y1="262" x2="120" y2="338" stroke="#21a179" stroke-width="2.5" marker-end="url(#ah)"/>
+  <line x1="150" y1="338" x2="150" y2="262" stroke="#21a179" stroke-width="2.5" marker-end="url(#ah)"/>
+  <text x="76" y="296" font-size="12.5" fill="#21a179" font-weight="700">D2H</text>
+  <text x="160" y="296" font-size="12.5" fill="#21a179" font-weight="700">H2D</text>
+  <text x="204" y="282" font-size="13">H2D：请求被接纳前，把命中的前缀整段搬回（所有层一起）</text>
+  <text x="204" y="302" font-size="13">D2H：pass 结束后在后台存完整 prompt block</text>
+  <text x="204" y="322" font-size="13" fill="#6b7280">私有 FIFO 或共享池；G2、G3、KVCR 各自独立预算</text>
+
+  <!-- LEFT: G2 -->
+  <rect x="30" y="346" width="500" height="136" rx="12" fill="#f7f8fa" stroke="#d1d5db"/>
+  <text x="50" y="374" font-size="16" font-weight="700">Host DRAM（G2）</text>
+  <circle cx="56" cy="399" r="5" fill="#4f7cff"/><text x="70" y="404">可复用前缀的 KV 副本（只有完整 block）</text>
+  <circle cx="56" cy="425" r="5" fill="#9ca3af"/><text x="70" y="430">不存权重，也不存运行中请求的 KV</text>
+  <rect x="50" y="446" width="196" height="22" rx="11" fill="#fee2e2"/><text x="148" y="462" text-anchor="middle" font-size="12.5" fill="#991b1b">计算不能直接读，先搬回 G1</text>
+  <text x="50" y="510" font-size="12.5" fill="#6b7280">可选 G3 共享存储：先暂存到 G2，再走 H2D 回 G1</text>
+
+  <!-- RIGHT: tier 1 -->
+  <rect x="590" y="72" width="500" height="208" rx="12" fill="#f5f7ff" stroke="#c7d2fe"/>
+  <text x="610" y="100" font-size="16" font-weight="700">一级 DRAM（3D-stacked，小而快）</text>
+  <circle cx="616" cy="125" r="5" fill="#f08a24"/><text x="630" y="130">当前层权重工作集</text>
+  <circle cx="616" cy="151" r="5" fill="#f08a24"/><text x="630" y="156">下一层预取缓冲（方案 A）或热专家（方案 B）</text>
+  <circle cx="616" cy="177" r="5" fill="#4f7cff"/><text x="630" y="182">驻留的 indexer KV ＋ 热 attention KV 缓存（跨步复用）</text>
+  <circle cx="616" cy="203" r="5" fill="#9ca3af"/><text x="630" y="208">激活与 scratch</text>
+  <circle cx="616" cy="229" r="5" fill="#9ca3af"/><text x="630" y="234">容量预算：以上各项同一时刻之和的峰值</text>
+  <rect x="610" y="248" width="104" height="22" rx="11" fill="#e0e7ff"/><text x="662" y="264" text-anchor="middle" font-size="12.5" fill="#3730a3">计算直接读取</text>
+
+  <!-- RIGHT: shared link -->
+  <line x1="660" y1="288" x2="660" y2="372" stroke="#21a179" stroke-width="2.5" marker-start="url(#ah)"/>
+  <line x1="690" y1="372" x2="690" y2="288" stroke="#21a179" stroke-width="2.5" marker-start="url(#ah)"/>
+  <rect x="712" y="288" width="378" height="84" rx="8" fill="#ecfdf5" stroke="#a7f3d0"/>
+  <text x="724" y="308" font-size="13" font-weight="700" fill="#047857">一条共享 LPDDR / DMA 链路，三类传输争用</text>
+  <text x="724" y="327" font-size="13">↑ 下一层权重 ＋ indexer KV 预取（与计算重叠）</text>
+  <text x="724" y="345" font-size="13">↑ top-k 未命中的 KV 按需取入（attention 等它）</text>
+  <text x="724" y="363" font-size="13">↓ 新增 KV 的脏数据写回</text>
+
+  <!-- RIGHT: tier 2 -->
+  <rect x="590" y="380" width="500" height="136" rx="12" fill="#f7f8fa" stroke="#d1d5db"/>
+  <text x="610" y="408" font-size="16" font-weight="700">二级 DRAM（LPDDR，大而慢）</text>
+  <circle cx="616" cy="433" r="5" fill="#f08a24"/><text x="630" y="438">全部权重的常驻副本，含所有专家</text>
+  <circle cx="616" cy="459" r="5" fill="#4f7cff"/><text x="630" y="464">运行中请求的完整 KV ＋ 各层 indexer KV</text>
+  <rect x="610" y="480" width="220" height="22" rx="11" fill="#fee2e2"/><text x="720" y="496" text-anchor="middle" font-size="12.5" fill="#991b1b">当前设计中计算不直接读取</text>
+
+  <!-- legend -->
+  <g font-size="12.5" fill="#6b7280">
+    <circle cx="40" cy="576" r="5" fill="#f08a24"/><text x="52" y="580">权重</text>
+    <circle cx="100" cy="576" r="5" fill="#4f7cff"/><text x="112" y="580">KV</text>
+    <circle cx="150" cy="576" r="5" fill="#9ca3af"/><text x="162" y="580">其他 / 容量规则</text>
+    <line x1="268" y1="576" x2="296" y2="576" stroke="#21a179" stroke-width="2.5"/><text x="304" y="580">数据搬运</text>
+    <text x="1090" y="580" text-anchor="end">两侧介质都是 DRAM；区别在数据的角色与搬运时机</text>
+  </g>
+</svg>

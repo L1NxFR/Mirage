@@ -57,7 +57,7 @@ async function renderTimeline(app, model, target, component, sourcePath) {
   if (model.collapse) {
     const history = element(root, 'details', 'timeline__history');
     const summary = element(history, 'summary', 'timeline__trigger');
-    element(summary, 'span', 'timeline__text', `${model.collapse} earlier ${model.collapse === 1 ? 'step' : 'steps'}`);
+    element(summary, 'span', 'timeline__text', `前 ${model.collapse} 个步骤`);
     icon(summary, 'chevron', 'timeline__chevron');
     steps(history, model.steps.slice(0, model.collapse));
   }

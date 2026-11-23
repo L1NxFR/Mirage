@@ -27,8 +27,11 @@
   {{ with index hugo.Data.journal_navigation (strings.TrimSuffix "/" (strings.TrimPrefix (printf "%s/" $current.Section) $path)) }}{{ $label = . }}{{ end }}
   <li>
     <details class="blog-tree-group"{{ if $active }} open{{ end }}>
-      <summary{{ if $active }} class="contains-current"{{ end }}><span>{{ $label }}</span></summary>
-      {{ with $current.Site.GetPage (strings.TrimSuffix "/" $path) }}{{ if .IsSection }}<a class="blog-group-home" href="{{ .RelPermalink }}"{{ if eq .RelPermalink $current.RelPermalink }} aria-current="page"{{ end }}>打开分组</a>{{ end }}{{ end }}
+      <summary{{ if $active }} class="contains-current"{{ end }}>
+        {{ with $current.Site.GetPage (strings.TrimSuffix "/" $path) }}
+          <a class="group-title" href="{{ .RelPermalink }}"{{ if eq .RelPermalink $current.RelPermalink }} aria-current="page"{{ end }}>{{ $label }}</a>
+        {{ else }}<span>{{ $label }}</span>{{ end }}
+      </summary>
       {{ partial "blog-tree.html" (dict "pages" $pages "directory" $path "current" $current) }}
     </details>
   </li>

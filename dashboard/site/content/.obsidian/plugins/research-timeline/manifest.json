@@ -1,9 +1,9 @@
 {
   "id": "research-timeline",
-  "name": "Timeline",
+  "name": "研究时间线",
   "version": "1.0.0",
   "minAppVersion": "1.5.0",
-  "description": "Write and visually edit progress timelines with a live preview; publish the same Markdown with Hugo.",
+  "description": "用实时预览创建和编辑研究进度时间线，并在 Hugo 中发布同一份 Markdown。",
   "author": "Nan Lin",
   "isDesktopOnly": false
 }

@@ -1,18 +1,13 @@
 /* Only Blog receives reading rails; other sections keep a single column. */
-/* Chinese articles keep sans-serif prose; English long-form articles use
-   Latin Modern Roman regular/italic faces; bold emphasis and headings use sans. */
+/* All journal pages and the Overview share sans-serif typography. */
 .document-page.blog {
-  --blog-sans-font: 'Optimistic Text', 'Blog Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --blog-sans-font: var(--site-font);
   --document-font: var(--blog-sans-font);
   --heading-font: 'Optimistic Display', 'Blog Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
 }
-.document-page.blog:lang(en) {
-  --document-font: 'Paper Roman', 'Blog Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', serif;
-}
 @media screen {
-  /* Only sans-serif prose needs the looser leading. Serif articles retain
-     document.css's original line-height and paragraph spacing. */
-  .document-page.blog:not(:lang(en)) :is(.article-body,.blog-tldr) { line-height: 1.5; }
+  /* Keep reading line-height consistent across document languages. */
+  .document-page.blog :is(.article-body,.blog-tldr) { line-height: 1.5; }
 }
 .document-page.blog .article-body :is(table,figcaption) { font-family: var(--document-font); }
 /* Components with their own legacy font declarations need explicit overrides. */
@@ -117,3 +112,5 @@
   .blog .sidenotes-ready > .footnotes > ol > li > :first-child { margin-top: 0; }
   .blog .sidenotes-ready > .footnotes > ol > li > :last-child { margin-bottom: 0; }
 }
+
+.blog-tree-group > summary > .group-title { padding: 0; min-width: 0; flex: 1; background: transparent; }

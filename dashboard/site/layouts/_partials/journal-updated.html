@@ -1,0 +1,5 @@
+{{- if not .Lastmod.IsZero -}}
+<time datetime="{{ .Lastmod.Format "2006-01-02T15:04:05Z07:00" }}" title="最后更新：{{ .Lastmod.Format "2006-01-02 15:04 MST" }}">{{ partial "display-date.html" (dict "date" .Lastmod) }}</time>
+{{- else -}}
+<span class="journal-date-missing" aria-label="未记录最后更新日期">—</span>
+{{- end -}}

@@ -4,9 +4,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { parseDocument } from 'yaml';
 import { syncDocumentWeights, nextDocumentWeight, firstDocumentWeight, validWeight } from './document-weights.mjs';
 
-export const sections = ['related-work', 'research-journey', 'system-implementation', 'meetings'];
-// Beijing uses UTC+8 year-round; preserve the instant and milliseconds in metadata.
-const beijingTimestamp = () => new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString().replace('Z', '+08:00');
+export const sections = ['related-work', 'research-journey', 'system-implementation', 'meetings', 'other'];
 export class WorkspaceError extends Error {
   constructor(status, message) { super(message); this.status = status; }
 }
@@ -70,7 +68,7 @@ export function createStore(contentRoot, rebuild = async () => {}) {
     }
     if (!parsed.metadata.has('content_lang')) parsed.metadata.set('content_lang', 'zh-CN');
     if (!parsed.metadata.has('draft')) parsed.metadata.set('draft', true);
-    parsed.metadata.set('lastmod', beijingTimestamp());
+    parsed.metadata.set('lastmod', new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString().replace('Z', '+08:00'));
     const updated = `---\n${String(parsed.metadata)}---\n${parsed.body}`;
     const file = resolve(relative);
     atomic(file, updated);
@@ -111,8 +109,8 @@ export function createStore(contentRoot, rebuild = async () => {}) {
     if (fs.existsSync(stem) || fs.existsSync(`${stem}.md`)) fail(409, '此位置已存在同名文档或分组。');
     const relative = `${parent}/${name}${kind === 'group' ? '/_index.md' : '.md'}`;
     syncDocumentWeights(root);
-    const now = beijingTimestamp();
-    const source = `---\ntitle: ${JSON.stringify(title.trim())}\ndate: ${now}\nlastmod: ${now}\ndraft: true\ncontent_lang: zh-CN\n${kind === 'document' ? `show_toc: true\nweight: ${nextDocumentWeight(directory)}\n` : ''}---\n\n`;
+    const now = new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString().replace('Z', '+08:00');
+    const source = `---\ntitle: ${JSON.stringify(title.trim())}\ndate: ${now}\nlastmod: ${now}\ndraft: true\ncontent_lang: zh-CN\n${kind === 'document' ? `description: ""\nsubtitle: ""\ntldr: ""\nauthor: ""\ntags: []\nshow_toc: true\nweight: ${nextDocumentWeight(directory)}\n` : ''}---\n\n`;
     if (kind === 'group') fs.mkdirSync(stem);
     const file = resolve(relative);
     fs.writeFileSync(file, source, { flag: 'wx' });

@@ -49,6 +49,11 @@ Paragraph.
 
 Paragraph.
 ''')
+    for slug, authors in [('mixed', '[林楠, claude]'), ('agents', '[claude, codex]')]:
+        (content / f'other/authors-{slug}.md').write_text(f'---\ntitle: Multiple authors\nauthor: {authors}\ndraft: false\n---\n\n## Content\n')
+    (content / 'other/authors-coauthors.md').write_text('---\ntitle: Coauthors\nauthor: 林楠\ncoauthors: [Claude, Codex, claude]\ndraft: false\n---\n')
+    for author in ['Codex', 'Claude', 'Grok']:
+        (content / f'other/author-{author.lower()}.md').write_text(f'---\ntitle: Author check\nauthor: {author}\ndraft: false\n---\n\n## Content\n')
     (content / 'system-implementation/numbering-regression.md').write_text('''---
 title: Numbering regression
 draft: false
@@ -150,7 +155,7 @@ show_toc: true
     assert fixture.select_one('.document-meta-created time')['datetime'].startswith('2026-10-01T')
     assert datetime.fromisoformat(fixture.select_one('.document-meta-modified time')['datetime']) == datetime.fromisoformat('2026-11-14T18:25:00+01:00')
     assert not fixture.select('.document-meta-created .document-meta-modified'), 'Creation and modification are separate fields'
-    assert len(fixture.select('.document-meta > .document-meta-item > svg[aria-hidden="true"]')) == 3
+    assert len(fixture.select('.document-meta > .document-meta-item > svg[aria-hidden="true"]')) == 2
     assert {'创建时间', '最后修改'} <= {node.get_text() for node in fixture.select('.article-info dt')}
     search_link = fixture.select_one('.site-header a[data-search-open]')
     assert search_link['aria-label'] == '搜索' and search_link.select_one('svg[aria-hidden="true"]')
@@ -189,8 +194,27 @@ show_toc: true
     disabled = BeautifulSoup((output / 'system-implementation/numbering-disabled/index.html').read_text(), 'html.parser')
     assert not disabled.select('.section-number'), 'Per-page opt-out applies to both heading and TOC'
     overview = BeautifulSoup((output / 'index.html').read_text(), 'html.parser')
-    assert overview.select_one('.document-meta-author .author').get_text() == 'Nan Lin'
-    assert overview.select_one('.site-header .site-byline').get_text() == '作者：Nan Lin'
+    assert overview.select_one('.document-meta-author .author').get_text() == '林楠'
+    for slug, names, images in [('mixed', ['林楠', 'Claude'], ['linnan.jpg', 'claude.png']), ('agents', ['Claude', 'Codex'], ['claude.png', 'codex.png'])]:
+        page = BeautifulSoup((output / f'other/authors-{slug}/index.html').read_text(), 'html.parser')
+        assert [node.get_text() for node in page.select('.document-meta-author .author')] == names
+        assert [node['src'].split('/')[-1] for node in page.select('.document-meta-author img')] == images
+    coauthor_page = BeautifulSoup((output / 'other/authors-coauthors/index.html').read_text(), 'html.parser')
+    assert [node.get_text() for node in coauthor_page.select('.document-meta-author .author')] == ['林楠', 'Claude', 'Codex']
+    assert not coauthor_page.select('.author-separator')
+    assert '，' not in coauthor_page.select_one('.document-meta-author').get_text()
+    assert overview.select_one('.author-avatar')['src'].endswith('/images/authors/linnan.jpg')
+    assert fixture.select_one('.author-avatar-fallback svg') is not None
+    for author in ['Codex', 'Claude', 'Grok']:
+        author_page = BeautifulSoup((output / f'other/author-{author.lower()}/index.html').read_text(), 'html.parser')
+        assert author_page.select_one('.document-meta-author .author').get_text() == author
+        avatar = author_page.select_one('.author-avatar')
+        extension = 'svg' if author == 'Grok' else 'png'
+        assert avatar['src'].endswith(f'/images/authors/{author.lower()}.{extension}')
+        assert (output / avatar['src'].lstrip('/')).is_file()
+        assert avatar['alt'] == ''
+
+    assert overview.select_one('.site-header .site-byline').get_text() == '林楠'
     assert overview.select_one('main.article-layout.blog-layout > .blog-page-heading > header.blog-cover > h1.title').get_text() == '项目概览'
     assert not overview.select('header.page-title, .blog-sidebar'), 'Overview uses the document cover without a journal tree'
     assert {'document-page', 'reading-page', 'blog'} <= set(overview.body['class'])

@@ -10,9 +10,8 @@
 .document-page {
   --body-width: 979.2px;
   --text-width: 748.8px;
-  /* Latin first: CJK fallback fonts also contain Latin glyphs. Keep English
-     and numbers identical in both languages; Yihui CN is Unicode-scoped. */
-  --document-font: 'Paper Roman', 'Yihui CN', 'Source Han Serif SC', 'Noto Serif CJK SC', 'Songti SC', SimSun, serif;
+  /* Use the same Latin and CJK sans-serif stack throughout the site. */
+  --document-font: var(--site-font);
   --heading-font: 'Paper Heading', 'Helvetica Neue', Arial, 'PingFang SC', sans-serif;
   --document-muted: #555;
   --document-rule: #c5c7cb;
@@ -59,23 +58,23 @@
 .document-page a:focus-visible, .document-page summary:focus-visible { outline: 2px solid #2b5a92; outline-offset: 3px; }
 .document-page nav a { color: inherit; }
 .document-page #TableOfContents { columns: 1; margin: 0 0 2rem; padding: .75rem 0; border-block: 1px solid var(--document-rule); background: transparent; font-size: .875rem; line-height: 1.5; }
-.document-page #TableOfContents::before { content: 'Contents'; display: block; font-weight: 700; margin-bottom: .5rem; }
-.document-page:lang(zh) #TableOfContents::before { content: 'Contents'; }
+.document-page #TableOfContents::before { content: '目录'; display: block; font-weight: 700; margin-bottom: .5rem; }
+.document-page:lang(zh) #TableOfContents::before { content: '目录'; }
 .document-page #TableOfContents ul { padding-left: 1.25rem; }
 .document-page #TableOfContents > ul > li > ul { display: block; }
 .document-page #TableOfContents li { margin-block: .2em; }
 .document-page .paper-cover { max-width: var(--text-width); margin-bottom: 36px; padding: 32px 31.75px 25px; border-radius: 18.144px; background: #eef0f3; }
 .document-page .paper-name { color: #ff3d7f; }
 .document-page .paper-authors { margin: 12px 0 9px; font: 700 12.6248px/18.9px var(--heading-font); }
-.document-page .paper-authors sup, .document-page .paper-affiliations sup { position: relative; top: -.35em; vertical-align: baseline; font-family: 'Paper Roman',serif; font-size: .75em; font-weight: 400; line-height: 0; }
-.document-page .paper-affiliations, .document-page .paper-equal { margin: 0; font: 14.34624px/18.9px 'Paper Small',serif; }
+.document-page .paper-authors sup, .document-page .paper-affiliations sup { position: relative; top: -.35em; vertical-align: baseline; font-family: var(--document-font); font-size: .75em; font-weight: 400; line-height: 0; }
+.document-page .paper-affiliations, .document-page .paper-equal { margin: 0; font: 14.34624px/18.9px var(--document-font); }
 .document-page .paper-equal { margin-top: 4px; }
 .document-page .blog-tldr { margin: 24px 0 18px; font: 15.94016px/20.6592px var(--document-font); }
 .document-page .blog-tldr p { margin: 0 0 9.6px; text-align: left; hyphens: manual; }
 .document-page .article-body code { font-family: 'SFMono-Regular',Consolas,monospace; font-size: .85em; background: var(--bg-block); padding: .1em .2em; }
 .document-page .article-body pre { width: 100%; margin: 1.25em 0; font-size: .8125rem; line-height: 1.5; text-align: left; }
 .document-page .article-body pre code { font-size: inherit; padding: 1rem; box-shadow: none; border: 1px solid var(--border-color); }
-.document-page .article-body table { display: table; width: 100%; min-width: 0; margin: 1.25em 0; border-collapse: collapse; border-block: 1px solid; font: 14.34624px/1.35 'Paper Small',serif; font-variant-numeric: tabular-nums; }
+.document-page .article-body table { display: table; width: 100%; min-width: 0; margin: 1.25em 0; border-collapse: collapse; border-block: 1px solid; font: 14.34624px/1.35 var(--document-font); font-variant-numeric: tabular-nums; }
 .document-page .article-body :is(th,td) { padding: .35em .5em; vertical-align: top; }
 .document-page .article-body th { font-weight: 400; }
 .document-page .article-body :is(th,td):first-child { text-align: left; }
@@ -84,7 +83,7 @@
 .document-page .article-body caption { text-align: left; margin-bottom: .75em; }
 .document-page .article-body figure { margin: 1.5em 0; }
 .document-page .article-body figure img { display: block; margin-inline: auto; }
-.document-page .article-body figcaption { margin-top: .5em; font: 14.34624px/1.35 'Paper Small',serif; }
+.document-page .article-body figcaption { margin-top: .5em; font: 14.34624px/1.35 var(--document-font); }
 .document-page .article-body .katex { font-size: 1em; }
 .document-page .article-body .katex-display { margin: 1em 0; padding: .5em 0; }
 .document-page .article-body .footnotes { margin-top: 2rem; font-size: .85em; }
@@ -108,7 +107,7 @@
 
 /* Ordinary documents use the same heading family and rules as the CV. */
 .reading-page {
-  --heading-font: 'Yihui CN', Palatino, 'Palatino Linotype', 'Palatino LT STD', 'Latin Modern Roman', serif;
+  --heading-font: var(--site-font);
 }
 .reading-page .article-body > :is(h1,h2) {
   font-size: 18.4px; line-height: 1.25; margin: 2em 0 1em;

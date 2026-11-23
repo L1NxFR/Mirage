@@ -4,10 +4,10 @@
 {{ end }}
 {{ $date := "" }}
 {{ if .Params.date }}
-{{ $date = (.Date | time.In "Asia/Shanghai").Format "2006-01-02" }}
+{{ $date = .Date.Format "2006-01-02" }}
 {{ else }}
 {{ with .Lastmod }}
-{{ $date = (. | time.In "Asia/Shanghai").Format "2006-01-02" }}
+{{ $date = .Format "2006-01-02" }}
 {{ end }}
 {{ end }}
 {{ with $date }}

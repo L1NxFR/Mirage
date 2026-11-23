@@ -1,0 +1,25 @@
+{
+  "retrieved": "2026-11-21",
+  "assets": [
+    {
+      "file": "codex.png",
+      "source": "/Applications/ChatGPT.app/Contents/Resources/icon-codex-light.png",
+      "sha256": "de7d43f3386105ab20952958c2c25beb0d903e2aeb6e1aef57c49a648c0d1c07"
+    },
+    {
+      "file": "claude.png",
+      "source": "/Applications/Claude.app/Contents/Resources/electron.icns (converted to PNG with sips)",
+      "sha256": "8d8d51ac7dff1060c5f787d5aab984950650ba4f29d73a24d5de642778345a35"
+    },
+    {
+      "file": "grok.svg",
+      "source": "https://grok.com/images/favicon.svg",
+      "sha256": "c3db0dfaf760b702b8490c6cbefe07fd8bfe00db43cae6a0acccf768f44d6179"
+    },
+    {
+      "file": "linnan.jpg",
+      "source": "https://github.com/Languisher.png",
+      "sha256": "63644edab72de71b08b3964eeb1ed5d47b5622397e101b570956a88584aa702e"
+    }
+  ]
+}

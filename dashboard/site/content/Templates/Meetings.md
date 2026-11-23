@@ -6,7 +6,8 @@ draft: true
 show_toc: true
 <% await tp.user.document_weight(tp) %>
 ---
-## 讨论
+
+## 讨论内容
 
 ## 决策
 

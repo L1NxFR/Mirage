@@ -37,7 +37,6 @@ h1.title::before { content: "➶"; }
 .archive-entry time { color: #666; font-size: .9em; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .archive a { border-bottom: none; }
 .archive-pinned { border-bottom: 1px dashed var(--border-color); padding-bottom: .5em; }
-.archive-stats { color: #666; font-size: .9em; text-align: right; margin-top: 2em; }
 .terms { padding: 0; list-style: none; gap: .5em 1.5em; }
 .terms li { margin: 0; }
 .term-count { color: #666; font-size: .9em; }

@@ -95,3 +95,31 @@ test('Templater assigns a sibling weight from live files, backfills peers and le
   target.basename = '_index';
   assert.equal(await documentWeight(tp), '');
 });
+
+
+test('initializes empty external notes and weight-only placeholders without replacing authored metadata', t => {
+  const { root } = fixture(t);
+  const dir = path.join(root, 'related-work');
+  const empty = path.join(dir, '标题 "示例".md');
+  const weighted = path.join(dir, 'placeholder.md');
+  const custom = path.join(dir, 'custom.md');
+  fs.writeFileSync(empty, '');
+  fs.writeFileSync(weighted, '---\nweight: 4\n---\n');
+  fs.writeFileSync(custom, '---\ntitle: Custom\nweight: 9\n---\n');
+  assert.equal(syncDocumentWeights(root, { check: true }).length, 2);
+  assert.equal(fs.readFileSync(empty, 'utf8'), '');
+  syncDocumentWeights(root);
+  const data = parseSource(fs.readFileSync(empty, 'utf8')).data;
+  assert.equal(data.title, '标题 "示例"');
+  assert.equal(data.weight, 10);
+  assert.equal(data.description, '');
+  assert.equal(data.tldr, '');
+  assert.equal(data.author, '');
+  assert.equal(data.draft, true);
+  assert.equal(data.content_lang, 'zh-CN');
+  assert.ok(Number.isFinite(Date.parse(data.date)));
+  assert.equal(data.lastmod, data.date);
+  assert.equal(parseSource(fs.readFileSync(weighted, 'utf8')).data.weight, 4);
+  assert.equal(fs.readFileSync(custom, 'utf8'), '---\ntitle: Custom\nweight: 9\n---\n');
+  assert.equal(syncDocumentWeights(root).length, 0);
+});

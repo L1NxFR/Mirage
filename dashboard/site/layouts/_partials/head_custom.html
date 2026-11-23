@@ -1,3 +1,4 @@
+<link rel="stylesheet" href="{{ "css/blog-fonts.css" | relURL }}?v={{ readFile "static/css/blog-fonts.css" | sha256 }}">
 <link rel="stylesheet" href="{{ "vendor/katex/katex.min.css" | relURL }}">
 <link rel="stylesheet" href="{{ "vendor/katex/hugo-compat.css" | relURL }}">
 <link rel="icon" type="image/svg+xml" href="{{ "icons/favicon.svg" | relURL }}">
@@ -13,7 +14,6 @@
 <link rel="stylesheet" href="{{ "css/document.css" | relURL }}?v={{ readFile "static/css/document.css" | sha256 }}">
 {{ end }}
 {{ if or .IsHome (partial "is-journal.html" .) }}
-<link rel="stylesheet" href="{{ "css/blog-fonts.css" | relURL }}?v={{ readFile "static/css/blog-fonts.css" | sha256 }}">
 <link rel="stylesheet" href="{{ "css/blog-layout.css" | relURL }}?v={{ readFile "static/css/blog-layout.css" | sha256 }}">
 {{ if .IsSection }}
 <link rel="stylesheet" href="{{ "css/journal-index.css" | relURL }}?v={{ readFile "static/css/journal-index.css" | sha256 }}">
@@ -29,3 +29,7 @@
 <link rel="stylesheet" media="print" href="{{ "css/print.css" | relURL }}?v={{ readFile "static/css/print.css" | sha256 }}">
 <script src="{{ "js/print.js" | relURL }}?v={{ readFile "static/js/print.js" | sha256 }}" defer></script>
 {{ end }}
+
+<link rel="stylesheet" href="{{ "css/callouts.css" | relURL }}?v={{ readFile "static/css/callouts.css" | sha256 }}">
+
+<link rel="stylesheet" href="{{ "css/image-captions.css" | relURL }}?v={{ readFile "static/css/image-captions.css" | sha256 }}">

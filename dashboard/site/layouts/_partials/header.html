@@ -48,7 +48,7 @@
       {{ if .img }}
       <img src="{{ relURL .img }}" alt="{{ .alt }}" />
       {{ else }}
-      <span class="site-title">{{ $.Site.Title }}</span> {{ with $.Site.Params.author.default }}<span class="site-byline">作者：{{ . }}</span>{{ end }}
+      <span class="site-title">{{ $.Site.Title }}</span> {{ with $.Site.Params.author.default }}<span class="site-byline">{{ . }}</span>{{ end }}
       {{ end }}
       </a>
     {{ end }}

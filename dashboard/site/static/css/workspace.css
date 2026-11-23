@@ -13,7 +13,6 @@
 .sidebar-status:empty { display: none; }
 .blog-sidebar [hidden] { display: none !important; }
 .blog-sidebar :is(input,button):focus-visible { outline: 2px solid #2b5a92; outline-offset: 2px; }
-.blog-sidebar .blog-group-home { margin-left: .75rem; font-size: .85em; color: #667078; }
 .workspace-editor, .workspace-create { box-sizing: border-box; color: #272b30; background: #fff; font: 16px/1.5 var(--site-font); border: 1px solid #d9dde1; border-radius: 8px; padding: 0; text-align: left; }
 .workspace-editor *, .workspace-create * { box-sizing: border-box; }
 .workspace-editor [hidden], .workspace-create [hidden] { display: none !important; }

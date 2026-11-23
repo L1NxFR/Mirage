@@ -1,4 +1,4 @@
-import { Marked } from 'marked';
+import { Marked, Renderer } from 'marked';
 
 const highlightColors = { '🔴':'red', '🟠':'orange', '🟡':'yellow', '🟢':'green', '🔵':'blue', '🟣':'purple' };
 
@@ -77,6 +77,19 @@ export function parseMarkdown(source) {
         renderer: token => placeholder(token.text, token.displayMode, false) }
     ],
     renderer: {
+      image(token) {
+        // Reuse Marked's URL handling and escaping for both alt and caption.
+        const image = Renderer.prototype.image.call(this, token);
+        const caption = image.match(/ alt="([^"]*)"/)?.[1].trim();
+        if (!caption || /\.pdf(?:[?#]|$)/i.test(token.href)) return image;
+        return `<span class="markdown-figure" role="figure">${image}<span class="image-caption">${caption}</span></span>`;
+      },
+      blockquote(token) {
+        const match = token.text.match(/^\[!([a-z]+)\](?:[+-])?(?:[ \t]+([^\n]*))?(?:\n|$)/i);
+        if (!match) return false;
+        const title = match[2]?.trim();
+        return `<blockquote class="research-callout">${title ? `<p class="research-callout-title">${parser.parseInline(title)}</p>` : ''}${parser.parse(token.text.slice(match[0].length))}</blockquote>\n`;
+      },
       code(token) {
         if (token.lang?.trim() === 'math') return placeholder(token.text, true, true);
         return false;

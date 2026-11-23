@@ -1,7 +1,5 @@
 {{- with .File -}}
 {{- $page := $ -}}
-{{- $created := $page.Date | time.In "Asia/Shanghai" -}}
-{{- $modified := $page.Lastmod | time.In "Asia/Shanghai" -}}
 {{- $source := resources.FromString (printf "sources/%s" .Path) (readFile .Filename) -}}
 <div class="article-tools" aria-label="文档工具">
   <details class="article-info">
@@ -14,8 +12,8 @@
         <dt>源文件</dt><dd>{{ .Path }}</dd>
         {{ $author := partial "document-author.html" $page }}
         {{ with $author }}<dt>作者</dt><dd>{{ . }}</dd>{{ end }}
-        {{ if and (isset $page.Params "date") (not $page.Date.IsZero) }}<dt>创建时间</dt><dd>{{ $created.Format "2006-01-02" }}{{ if ne ($created.Format "15:04:05") "00:00:00" }} {{ $created.Format "15:04:05 UTCZ07:00" }}{{ end }}</dd>{{ end }}
-        {{ if not $page.Lastmod.IsZero }}<dt>最后修改</dt><dd>{{ $modified.Format "2006-01-02 15:04:05 UTCZ07:00" }}</dd>{{ end }}
+        {{ if and (isset $page.Params "date") (not $page.Date.IsZero) }}<dt>创建时间</dt><dd>{{ partial "display-date.html" (dict "date" $page.Date "format" "2006-01-02") }}{{ if ne (($page.Date | time.In "Asia/Shanghai").Format "15:04:05") "00:00:00" }} {{ ($page.Date | time.In "Asia/Shanghai").Format "15:04 MST" }}{{ end }}</dd>{{ end }}
+        {{ if not $page.Lastmod.IsZero }}<dt>最后修改</dt><dd>{{ partial "display-date.html" (dict "date" $page.Lastmod "format" "2006-01-02 15:04 MST") }}</dd>{{ end }}
         {{ with $page.Params.license }}<dt>许可协议</dt><dd>{{ . }}</dd>{{ end }}
       </dl>
     </div>

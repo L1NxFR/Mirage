@@ -18,23 +18,22 @@
   border-bottom: 1.5px solid currentColor; transform: rotate(-45deg);
 }
 .journal-folder > details[open] > summary::before { transform: rotate(45deg); }
-.journal-folder > details > summary > span { min-width: 0; overflow-wrap: anywhere; }
+.journal-folder > details > summary > :is(span, a) { min-width: 0; overflow-wrap: anywhere; }
 .journal-index .journal-entry { display: flex; align-items: baseline; gap: 1rem; padding: .25rem 0; }
-.journal-entry a { flex: 0 1 auto; min-width: 0; color: inherit; overflow-wrap: anywhere; border: 0; text-decoration: none; }
-.journal-entry a:hover { position: static; text-decoration: underline; }
+.journal-entry a, .journal-folder .group-title { flex: 0 1 auto; min-width: 0; color: inherit; overflow-wrap: anywhere; border: 0; text-decoration: none; }
+.journal-entry a:hover, .journal-folder .group-title:hover { position: static; text-decoration: underline; }
 .journal-leader { flex: 1 0 1rem; border-bottom: 1px dashed #d9dde1; align-self: center; }
-.journal-entry time, .journal-date-missing { flex: 0 0 auto; color: #667078; font-size: .875rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.journal-index time, .journal-date-missing { flex: 0 0 auto; color: #667078; font-size: .875rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .journal-index :is(a,summary):focus-visible { outline: 2px solid #2b5a92; outline-offset: 4px; }
 @media (max-width: 600px) {
   .journal-index { font-size: .875rem; }
   .journal-index .journal-tree .journal-tree { padding-left: .75rem; }
   .journal-index .journal-entry { gap: .5rem; }
-  .journal-entry time, .journal-date-missing { font-size: .75rem; }
+  .journal-index time, .journal-date-missing { font-size: .75rem; }
 }
 @media print { .journal-index { break-inside: auto; } }
 
 .blog-index > p { margin-block: .5rem; }
-.blog-index .archive-stats { margin-top: 1rem; }
 /* Keep the index at the top instead of stretching grid rows to fill the page. */
 .blog .main.archive.blog-layout { align-content: start; row-gap: .75rem; }
 .blog .archive .blog-page-heading > .page-title { margin-bottom: .5rem; }

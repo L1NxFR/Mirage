@@ -1,3 +1,5 @@
+from datetime import datetime
+from zoneinfo import ZoneInfo
 """Check actual Hugo output: section scoping, publication and search anchors."""
 import json
 import re
@@ -54,7 +56,8 @@ with tempfile.TemporaryDirectory(prefix='.navigation-search-', dir=repo / 'site'
         styles = [link['href'] for link in page.select('link[rel="stylesheet"]')]
         assert any('/css/blog-layout.css' in href for href in styles) == (route in blog_routes or route == 'index.html'), route
         assert not page.select_one('.site-header a[href="/docs/"]'), route
-        assert [a.get_text(strip=True) for a in page.select('.site-header .menu a')] == ['项目概览', '相关工作', '研究', '文档', '会议记录', '搜索']
+        assert [a.get_text(strip=True) for a in page.select('.site-header .menu a')] == ['项目概览', '相关工作', '研究', '实验', '会议记录', '其他', '搜索']
+        assert not page.select('.archive-stats')
         assert len(page.select('.site-header .menu [aria-current="page"]')) == 1
         assert page.select_one('.site-header [data-search-open]'), route
         assert len(page.select('#site-search')) == 1, route
@@ -90,6 +93,9 @@ with tempfile.TemporaryDirectory(prefix='.navigation-search-', dir=repo / 'site'
                     assert page.select_one('.journal-index'), 'Populated journals show their entries'
                 continue
             assert group and group.select_one('summary').get_text(strip=True) == 'Communication'
+            assert group.select_one('summary > a.group-title')
+            assert not page.select('.blog-group-home, .archive-stats')
+            assert '打开分组' not in page.get_text()
             assert group.has_attr('open') == ('/group/' in route), route
             assert page.select_one('main.blog-layout > .blog-page-heading > header'), 'Navigation must start alongside the title'
             if '/group/' in route:
@@ -160,14 +166,15 @@ with tempfile.TemporaryDirectory(prefix='.navigation-search-', dir=repo / 'site'
         prefix = f'/project/{section}/nested/'
         assert not archive.select('.archive-month, .archive-pinned')
         folder = next(node for node in archive.select('.journal-folder > details')
-                      if node.find('summary', recursive=False).get_text(strip=True) == 'Experiments')
+                      if node.find('summary', recursive=False).select_one('.group-title').get_text(strip=True) == 'Experiments')
         direct = folder.find('ul', recursive=False).select(':scope > .journal-entry')
         assert [node.a['href'] for node in direct] == [prefix + 'pinned/', prefix + 'newer/', prefix + 'older/']
         assert folder.select_one('.journal-folder .journal-entry a')['href'] == prefix + 'deeper/result/'
         older = direct[-1].select_one('time')
-        assert older['datetime'] == '2026-11-13T23:45:00+08:00'
-        assert older.get_text(strip=True) == '2026-11-13 23:45:00'
-        assert '2026-11-14 00:00:00' == direct[1].select_one('time').get_text(strip=True)
+        assert older['datetime'] == '2026-11-13T16:45:00+01:00'
+        assert older.get_text(strip=True) == ('11-13 16:45' if datetime.now(ZoneInfo('Europe/Paris')).year == 2026 else '2026-11-13 16:45')
+        assert folder.find('summary', recursive=False).select_one('time[datetime]')
+        assert ('11-14 00:00' if datetime.now(ZoneInfo('Europe/Paris')).year == 2026 else '2026-11-14 00:00') == direct[1].select_one('time').get_text(strip=True)
         assert not any('/hidden/' in href or '/private/' in href or '/default-draft/' in href for href in entries)
         assert all(node.has_attr('open') for node in archive.select('.journal-folder > details'))
         assert all(node.select_one('.journal-leader[aria-hidden="true"]') for node in archive.select('.journal-entry'))

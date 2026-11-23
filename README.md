@@ -30,3 +30,9 @@ npm run test:workspace
 ```
 
 以上命令检查 Dashboard。模拟器的运行与测试命令随实现补充。
+
+## 模板与 skills
+
+已同步中文模板的 Dashboard、Obsidian 文档模板和共同署名规范。使用 `npm run add -- "标题" --target-root /absolute/path/to/project` 新建文档；将目标替换为已确认的项目根目录，命令在 `dashboard/` 中执行。交付目录与页面检查见 [Dashboard 使用说明](dashboard/README.md#交付目录检查)。
+
+`.claude/skills/` 安装了 67 个 pstack skills（`.agents/skills` 为供 Codex 使用的符号链接），从项目根目录启动 Claude Code 或 Codex 即可发现，入口与版本校验见 [src 使用说明](src/README.md)，中文指南见 [pstack 指南](dashboard/site/content/other/project-guide/agent-pstack-guide.md)。

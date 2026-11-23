@@ -1,4 +1,7 @@
 {{- $author := .Params.author -}}
+{{- if and (not $author) (or (hasPrefix .Title "[Agent]") (and .File (hasPrefix .File.BaseFileName "agent-"))) -}}
+  {{- $author = "待确认代理" -}}
+{{- end -}}
 {{- if not $author -}}
   {{- $authors := .Site.Params.author | default dict -}}
   {{- $author = index $authors (or (.Scratch.Get "lang") .Section "default") | default $authors.default -}}

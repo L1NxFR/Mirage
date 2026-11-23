@@ -1,0 +1,41 @@
+/* Shared by the rendered document and the Markdown editor preview. */
+.document-page .article-body blockquote.research-callout,
+.blog-tldr-content blockquote.research-callout,
+.workspace-preview blockquote.research-callout {
+  box-sizing: border-box;
+  margin: 1.25rem 0;
+  padding: 1rem 1.4rem 1rem 1.6rem;
+  border: 0;
+  border-left: 4px solid #ffa500;
+  border-radius: 0;
+  box-shadow: inset 4px 0 #e8dfce;
+  background: #fff5e5;
+  color: #383838;
+  font-family: var(--blog-sans-font, 'Blog Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif);
+  font-size: 1em;
+  font-style: normal;
+  line-height: 1.9;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+blockquote.research-callout::before,
+blockquote.research-callout::after { content: none; }
+.document-page .article-body .research-callout p,
+.blog-tldr-content .research-callout p,
+.workspace-preview .research-callout p { margin: 0 0 .7em; }
+.research-callout > :last-child { margin-bottom: 0 !important; }
+.document-page :is(.article-body,.blog-tldr-content) :is(strong,b),
+.document-page:lang(en) :is(.article-body,.blog-tldr-content) :is(strong,b),
+.workspace-preview :is(strong,b),
+.research-callout .research-callout-title {
+  color: #c64a00;
+  font-family: var(--blog-sans-font, 'Optimistic Text', 'Blog Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif);
+  font-weight: 700;
+}
+@media (max-width: 600px) {
+  .document-page .article-body blockquote.research-callout,
+  .workspace-preview blockquote.research-callout { padding: .85rem 1rem; }
+}
+@media print {
+  blockquote.research-callout { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+}

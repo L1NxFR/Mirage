@@ -13,7 +13,7 @@ body.site-page { padding-top: 1rem; margin-top: 0; }
   padding: 0;
   color: #000;
   border-bottom: 1px solid currentColor;
-  font: 400 .9rem/1.5 'Yihui CN', Palatino, 'Palatino Linotype', 'Palatino LT STD', 'Latin Modern Roman', serif;
+  font: 400 .9rem/1.5 var(--site-font);
 }
 .site-header a { color: inherit; border-bottom: 0; text-decoration: none; }
 .site-header .logo { font-size: 1.25rem; line-height: 1.3; }

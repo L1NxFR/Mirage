@@ -1,7 +1,7 @@
 /** Assign the next sibling weight when Templater creates a journal document. */
 module.exports = async function documentWeight(tp) {
   const target = tp.config.target_file;
-  if (target.basename === '_index' || target.basename.endsWith('.excalidraw') || !['related-work','research-journey','system-implementation','meetings'].includes(target.path.split('/')[0])) return '';
+  if (target.basename === '_index' || target.basename.endsWith('.excalidraw') || !['related-work','research-journey','system-implementation','meetings','other'].includes(target.path.split('/')[0])) return '';
   const peers = [];
   for (const file of target.parent.children) {
     if (file === target || file.extension !== 'md' || file.basename === '_index' || file.basename.endsWith('.excalidraw')) continue;

@@ -1,4 +1,4 @@
-name: Deploy website
+name: 部署网站
 
 on:
   push:
@@ -25,7 +25,7 @@ jobs:
         with:
           path: website
 
-      - name: Install Hugo
+      - name: 安装 Hugo
         run: |
           curl -fsSL -o "$RUNNER_TEMP/hugo.tar.gz" \
             https://github.com/gohugoio/hugo/releases/download/v0.168.0/hugo_0.168.0_linux-amd64.tar.gz
@@ -35,11 +35,11 @@ jobs:
       - uses: actions/configure-pages@v6
         id: pages
 
-      - name: Build editor
+      - name: 构建编辑器
         working-directory: website
         run: npm ci --ignore-scripts && npm run build:editor
 
-      - name: Build website
+      - name: 构建网站
         working-directory: website
         run: |
           hugo --source site \
@@ -54,6 +54,6 @@ jobs:
         with:
           path: ${{ runner.temp }}/public
 
-      - name: Publish website
+      - name: 发布网站
         id: deployment
         uses: actions/deploy-pages@v5

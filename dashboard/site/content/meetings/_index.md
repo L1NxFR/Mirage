@@ -1,9 +1,12 @@
 ---
-lastmod: 2026-11-19T10:26:49+08:00
+lastmod: 2026-11-22T23:57:06.908+08:00
 content_lang: zh-CN
-title: 会议记录
-description: 会议讨论、决策与行动项。
+title: 归档
+description: 历史记录与阶段性材料。
 draft: true
+author:
+  - Nan Lin
+  - Codex
 ---
 
-会议讨论、决策与行动项。
+历史记录与阶段性材料。

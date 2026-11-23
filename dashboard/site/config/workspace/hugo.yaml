@@ -1,3 +1,3 @@
-# Local previews follow edits made in any editor, including unchanged lastmod fields.
+# 本地预览跟随文档文件的修改时间，兼容任意编辑器及未更新的 lastmod 字段。
 frontmatter:
   lastmod: [":fileModTime", lastmod, ":default"]

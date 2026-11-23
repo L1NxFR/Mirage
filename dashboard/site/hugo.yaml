@@ -1,11 +1,17 @@
-baseurl: "/"
-locale: "zh-CN"
-timeZone: "Asia/Shanghai"
-title: "Mirage"
-theme: "Research-Project-Homepage"
-ignoreFiles: ["(^|/)\\.workspace-trash/", "\\.Rmd$", "\\.Rmarkdown$", "_cache$", "\\.excalidraw\\.md$", "(^|/)Templates/", "(^|/)Attachments/"]
-footnotereturnlinkcontents: "↩"
-defaultContentLanguage: "zh-cn"
+baseurl: /
+locale: zh-CN
+title: Mirage
+theme: Research-Project-Homepage
+ignoreFiles:
+  - (^|/)\.workspace-trash/
+  - \.Rmd$
+  - \.Rmarkdown$
+  - _cache$
+  - \.excalidraw\.md$
+  - (^|/)Templates/
+  - (^|/)Attachments/
+footnotereturnlinkcontents: ↩
+defaultContentLanguage: zh-cn
 hasCJKLanguage: true
 buildFuture: true
 buildDrafts: false
@@ -13,26 +19,34 @@ cascade:
   - draft: true
     content_lang: zh-CN
 enableRobotsTXT: true
-disableKinds: [taxonomy, term]
-
+disableKinds:
+  - taxonomy
+  - term
 frontmatter:
-  date: [date]
-  lastmod: [lastmod, ":fileModTime", ":default"]
-
+  date:
+    - date
+  lastmod:
+    - lastmod
+    - :fileModTime
+    - :default
 module:
   mounts:
     - source: static
       target: static
     - source: content/Attachments
       target: static/attachments
-      files: ["! **.md", "! **.markdown"]
+      files:
+        - "! **.md"
+        - "! **.markdown"
     - source: content/Excalidraw
       target: static/excalidraw
-      files: ["**.svg"]
-
+      files:
+        - "**.svg"
 outputs:
-  home: [html, rss, json]
-
+  home:
+    - html
+    - rss
+    - json
 menu:
   main:
     - name: 项目概览
@@ -47,28 +61,50 @@ menu:
     - name: 文档
       pageRef: /system-implementation
       weight: 40
-    - name: 会议记录
+    - name: 归档
       pageRef: /meetings
       weight: 50
-
+    - name: 其他
+      pageRef: /other
+      weight: 60
 params:
-  source_repository: "https://github.com/L1NxFR/Mirage"
-  journal_sections: [related-work, research-journey, system-implementation, meetings]
-  description: "Mirage — 大语言模型推理服务模拟器。"
+  source_repository: https://github.com/L1NxFR/Mirage
+  journal_sections:
+    - related-work
+    - research-journey
+    - system-implementation
+    - meetings
+    - other
+  description: Mirage — 大语言模型推理服务模拟器。
   toc_threshold: 3
   author:
-    default: "Nan Lin"
+    default: Nan Lin
     cn: ""
+  author_profiles:
+    林楠:
+      name: 林楠
+      avatar: /images/authors/linnan.jpg
+    codex:
+      name: Codex
+      avatar: /images/authors/codex.png
+    claude:
+      name: Claude
+      avatar: /images/authors/claude.png
+    grok:
+      name: Grok
+      avatar: /images/authors/grok.svg
+    Nan Lin:
+      name: Nan Lin
+      avatar: /images/authors/linnan.jpg
   logo:
     en:
       alt: Mirage
       url: /
-      img: # a path to the logo
-  footer: "Mirage · {Year}"
-
+      img: null
+  footer: Mirage · {Year}
 security:
-  allowContent: ['.*']
-
+  allowContent:
+    - .*
 markup:
   highlight:
     codeFences: true
@@ -82,10 +118,19 @@ markup:
       passthrough:
         enable: true
         delimiters:
-          block: [['$$', '$$'], ['\[', '\]']]
-          inline: [['$', '$'], ['\(', '\)']]
+          block:
+            - - $$
+              - $$
+            - - \[
+              - \]
+          inline:
+            - - $
+              - $
+            - - \(
+              - \)
     renderer:
       unsafe: true
   tableOfContents:
     startLevel: 2
     endLevel: 3
+timeZone: Asia/Shanghai

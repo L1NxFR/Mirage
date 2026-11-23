@@ -1,0 +1,5 @@
+{{- $date := .date | time.In "Asia/Shanghai" -}}
+{{- $format := .format | default "2006-01-02 15:04" -}}
+{{- $currentYear := (time.Now | time.In "Asia/Shanghai").Year -}}
+{{- if eq $date.Year $currentYear -}}{{- $format = strings.TrimPrefix "2006-" $format -}}{{- end -}}
+{{- return ($date.Format $format) -}}

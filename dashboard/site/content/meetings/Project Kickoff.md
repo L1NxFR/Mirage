@@ -1,7 +1,7 @@
 ---
-weight: 3
+weight: 1
 content_lang: en
-title: Project Kickoff Meeting
+title: Project Kickoff
 date: 2026-11-12
 draft: false
 show_toc: true

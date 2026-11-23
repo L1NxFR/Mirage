@@ -4,27 +4,18 @@
 {{- $pinned := where $pages "Weight" "lt" 0 -}}
 {{ with $pinned }}
 <section class="archive-pinned" aria-label="置顶记录">
-<h2>置顶记录</h2>
+<h2>Pinned</h2>
 <ul>
 {{ range . }}{{ partial "archive-entry.html" . }}{{ end }}
 </ul>
 </section>
 {{ end }}
-{{ $year := "" }}
-{{ $month := "" }}
-{{ range (where $pages "Weight" "ge" 0).ByDate.Reverse }}
-{{ $date := .Date | time.In "Asia/Shanghai" }}
-{{ $nextYear := $date.Format "2006" }}
-{{ $nextMonth := $date.Format "2006-01" }}
-{{ if ne $month $nextMonth }}
-{{ if $month }}</ul>{{ end }}
-{{ if ne $year $nextYear }}<h2>{{ $nextYear }}</h2>{{ end }}
-<ul class="archive-month" aria-label="{{ $date.Format "January 2006" }}">
-{{ $year = $nextYear }}
-{{ $month = $nextMonth }}
+{{ range (where $pages "Weight" "ge" 0).ByDate.Reverse.GroupByDate "2006" }}
+<h2>{{ .Key }}</h2>
+{{ range .Pages.GroupByDate "01" }}
+<ul class="archive-month" aria-label="{{ (index .Pages 0).Date.Format "January 2006" }}">
+{{ range .Pages }}{{ partial "archive-entry.html" . }}{{ end }}
+</ul>
 {{ end }}
-{{ partial "archive-entry.html" . }}
 {{ end }}
-{{ if $month }}</ul>{{ end }}
-{{ with $pages }}<p class="archive-stats">{{ len . }} 篇记录</p>{{ end }}
 {{ if not $pages }}<p class="archive-empty">暂无已发布记录。</p>{{ end }}

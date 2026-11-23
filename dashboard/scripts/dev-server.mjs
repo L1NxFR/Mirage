@@ -15,10 +15,12 @@ process.chdir(repo);
 const args = process.argv.slice(2);
 const option = name => { const i = args.indexOf(name); return i < 0 ? undefined : args[i + 1]; };
 let port = Number(option('--port') || 23130);
-if (!Number.isInteger(port) || port < 1024 || port > 65535) throw new Error('请选择 1024 至 65535 之间的端口。');
+if (!Number.isInteger(port) || port < 1024 || port > 65535) throw new Error('Choose a port between 1024 and 65535.');
 const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'research-workspace-'));
 let output, generation = 0, queue = Promise.resolve();
 const token = randomBytes(32).toString('hex');
+const instance = randomBytes(8).toString('hex');
+let version;
 async function rebuild() {
   syncDocumentWeights(path.join(repo, 'site/content'));
   const destination = path.join(temp, `public-${++generation}`);
@@ -27,11 +29,12 @@ async function rebuild() {
       '--theme', path.basename(repo), '--environment', 'workspace', '--buildDrafts', '--baseURL', `http://localhost:${port}/`, '--destination', destination],
       { cwd: repo, timeout: 30000, maxBuffer: 2_000_000 });
     const previous = output; output = destination;
+    version = `${instance}-${generation}`;
     if (previous) fs.rmSync(previous, { recursive: true, force: true });
   } catch (error) {
     fs.rmSync(destination, { recursive: true, force: true });
     const message = (error.stderr || error.stdout || '').split('\n').find(line => /error/i.test(line));
-    throw new WorkspaceError(422, `网站构建失败。${message?.slice(0, 350) || '请检查 Markdown 和 shortcode。'}`);
+    throw new WorkspaceError(422, `Site build failed. ${message?.slice(0, 350) || 'Check Markdown and shortcodes.'}`);
   }
 }
 const serial = task => { const next = queue.then(task); queue = next.catch(() => {}); return next; };
@@ -55,7 +58,7 @@ const server = http.createServer(async (request, response) => {
     const url = new URL(request.url, `http://${host}`);
     if (url.pathname.startsWith('/api/workspace/')) {
       if (request.headers['sec-fetch-site'] === 'cross-site' || (request.headers.origin && request.headers.origin !== `http://${host}`)) throw new WorkspaceError(403, '不允许跨来源访问。');
-      if (url.pathname === '/api/workspace/status' && request.method === 'GET') return json(response, 200, { editable: true, token });
+      if (url.pathname === '/api/workspace/status' && request.method === 'GET') return json(response, 200, { editable: true, token, version, projectRoot: fs.realpathSync(path.dirname(repo)), contentRoot: fs.realpathSync(path.join(repo, 'site/content')) });
       if (request.headers['x-workspace-token'] !== token) throw new WorkspaceError(403, '请刷新页面以重新连接工作区。');
       const route = url.pathname.slice('/api/workspace/'.length);
       if (request.method === 'GET' && route === 'document') return json(response, 200, store.read(url.searchParams.get('path')));
@@ -73,7 +76,13 @@ const server = http.createServer(async (request, response) => {
     let file = path.join(output, relative);
     if (fs.existsSync(file) && fs.statSync(file).isDirectory()) file = path.join(file, 'index.html');
     if (!fs.existsSync(file) || !fs.statSync(file).isFile()) throw new WorkspaceError(404, '未找到内容。');
-    const bytes = fs.readFileSync(file);
+    let bytes = fs.readFileSync(file);
+    // Only local preview responses receive the reload client; published HTML stays static.
+    if (path.extname(file) === '.html') {
+      const script = `<script src="/js/workspace-live-reload.js" data-version="${version}" defer></script>`;
+      const html = bytes.toString('utf8');
+      bytes = Buffer.from(html.includes('</body>') ? html.replace('</body>', `${script}</body>`) : html + script);
+    }
     response.writeHead(200, { 'Content-Type': types[path.extname(file)] || 'application/octet-stream', 'Cache-Control': 'no-store', 'X-Content-Type-Options':'nosniff', 'X-Frame-Options':'SAMEORIGIN' });
     response.end(request.method === 'HEAD' ? undefined : bytes);
   } catch (error) { json(response, error.status || 500, { error: error.status ? error.message : '无法完成操作。' }); }
@@ -93,7 +102,7 @@ try {
       break;
     } catch (error) {
       if (error.code !== 'EADDRINUSE' || port === 65535) throw error;
-      console.warn(`端口 ${port} 已被占用，尝试 ${port + 1}。`);
+      console.warn(`Port ${port} is in use; trying ${port + 1}.`);
       port++;
     }
   }
@@ -109,4 +118,4 @@ for (const directory of ['site/content', 'site/layouts', 'site/static', 'site/da
   }));
 }
 watchers.push(fs.watch(path.join(repo,'site/hugo.yaml'), () => { clearTimeout(timer); timer=setTimeout(()=>serial(rebuild).catch(error=>console.error(error.message)),300); }));
-console.log(`科研工作区：http://localhost:${port}/（编辑直接保存到本地仓库）`);
+console.log(`Research workspace: http://localhost:${port}/ (edits are saved to the local repository)`);

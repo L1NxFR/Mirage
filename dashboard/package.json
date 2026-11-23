@@ -5,11 +5,13 @@
     "dev": "node scripts/build-editor.mjs && node scripts/dev-server.mjs",
     "build": "node scripts/document-weights.mjs && npm run build:editor && hugo --source site --themesDir ../.. --theme \"$(basename \"$PWD\")\" --cleanDestinationDir",
     "build:editor": "node scripts/build-editor.mjs",
-    "test:workspace": "node --test scripts/test-workspace.mjs scripts/test-document-weights.mjs scripts/test-editor-math.mjs scripts/test-editor-highlights.mjs scripts/test-editor-summary.mjs scripts/test-dev-server.mjs scripts/test-obsidian-templates.mjs"
+    "test:workspace": "node --test scripts/test-delivery.mjs scripts/test-attribution.mjs scripts/test-workspace.mjs scripts/test-document-weights.mjs scripts/test-editor-math.mjs scripts/test-editor-highlights.mjs scripts/test-editor-summary.mjs scripts/test-dev-server.mjs scripts/test-obsidian-templates.mjs scripts/test-add-post.mjs scripts/test-live-reload.cjs scripts/test-callouts.mjs scripts/test-image-captions.mjs",
+    "add": "node scripts/add-post.mjs"
   },
   "dependencies": {
     "@codemirror/commands": "^6.11.1",
     "@codemirror/lang-markdown": "^6.5.2",
+    "@codemirror/state": "^6.7.6",
     "@codemirror/view": "^6.43.15",
     "codemirror": "^6.0.2",
     "dompurify": "^3.4.18",

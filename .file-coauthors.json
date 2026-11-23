@@ -1,0 +1,2343 @@
+{
+  "AGENTS.md": [
+    "Codex",
+    "Claude"
+  ],
+  "dashboard/.github/workflows/deploy.yml": [
+    "Codex"
+  ],
+  "dashboard/DESIGN.md": [
+    "Codex"
+  ],
+  "dashboard/README.md": [
+    "Codex"
+  ],
+  "dashboard/layouts/_partials/footer.html": [
+    "Codex"
+  ],
+  "dashboard/layouts/_partials/meta.html": [
+    "Codex"
+  ],
+  "dashboard/package-lock.json": [
+    "Codex"
+  ],
+  "dashboard/package.json": [
+    "Codex"
+  ],
+  "dashboard/pnpm-lock.yaml": [
+    "Codex"
+  ],
+  "dashboard/scripts/add-post.mjs": [
+    "Codex"
+  ],
+  "dashboard/scripts/attribute-files.mjs": [
+    "Codex"
+  ],
+  "dashboard/scripts/dev-server.mjs": [
+    "Codex"
+  ],
+  "dashboard/scripts/document-weights.mjs": [
+    "Codex"
+  ],
+  "dashboard/scripts/editor/markdown.mjs": [
+    "Codex"
+  ],
+  "dashboard/scripts/test-add-post.mjs": [
+    "Codex"
+  ],
+  "dashboard/scripts/test-attribution.mjs": [
+    "Codex"
+  ],
+  "dashboard/scripts/test-callouts.mjs": [
+    "Codex"
+  ],
+  "dashboard/scripts/test-dev-server.mjs": [
+    "Codex"
+  ],
+  "dashboard/scripts/test-document-weights.mjs": [
+    "Codex"
+  ],
+  "dashboard/scripts/test-image-captions.mjs": [
+    "Codex"
+  ],
+  "dashboard/scripts/test-live-reload.cjs": [
+    "Codex"
+  ],
+  "dashboard/scripts/test-obsidian-templates.mjs": [
+    "Codex"
+  ],
+  "dashboard/scripts/test-workspace.mjs": [
+    "Codex"
+  ],
+  "dashboard/scripts/verify-attachments.py": [
+    "Codex"
+  ],
+  "dashboard/scripts/verify-document-updates.py": [
+    "Codex"
+  ],
+  "dashboard/scripts/verify-navigation-search.py": [
+    "Codex"
+  ],
+  "dashboard/scripts/verify-reading-layout.py": [
+    "Codex"
+  ],
+  "dashboard/scripts/workspace-store.mjs": [
+    "Codex"
+  ],
+  "dashboard/site/config/workspace/hugo.yaml": [
+    "Codex"
+  ],
+  "dashboard/site/content/.obsidian/plugins/research-timeline/main.js": [
+    "Codex"
+  ],
+  "dashboard/site/content/.obsidian/plugins/research-timeline/manifest.json": [
+    "Codex"
+  ],
+  "dashboard/site/content/.obsidian/plugins/research-timeline/plugin.js": [
+    "Codex"
+  ],
+  "dashboard/site/content/Templates/Meetings.md": [
+    "Codex"
+  ],
+  "dashboard/site/content/Templates/New Note.md": [
+    "Codex"
+  ],
+  "dashboard/site/content/Templates/Related Work.md": [
+    "Codex"
+  ],
+  "dashboard/site/content/Templates/Research Journey.md": [
+    "Codex"
+  ],
+  "dashboard/site/content/Templates/Scripts/document_weight.js": [
+    "Codex"
+  ],
+  "dashboard/site/content/Templates/System & Implementation.md": [
+    "Codex"
+  ],
+  "dashboard/site/hugo.yaml": [
+    "Codex"
+  ],
+  "dashboard/site/layouts/_markup/render-blockquote.html": [
+    "Codex"
+  ],
+  "dashboard/site/layouts/_markup/render-image.html": [
+    "Codex"
+  ],
+  "dashboard/site/layouts/_partials/archive-entry.html": [
+    "Codex"
+  ],
+  "dashboard/site/layouts/_partials/archive.html": [
+    "Codex"
+  ],
+  "dashboard/site/layouts/_partials/article-tools.html": [
+    "Codex"
+  ],
+  "dashboard/site/layouts/_partials/author-badge.html": [
+    "Codex"
+  ],
+  "dashboard/site/layouts/_partials/blog-tree.html": [
+    "Codex"
+  ],
+  "dashboard/site/layouts/_partials/display-date.html": [
+    "Codex"
+  ],
+  "dashboard/site/layouts/_partials/document-author.html": [
+    "Codex"
+  ],
+  "dashboard/site/layouts/_partials/head_custom.html": [
+    "Codex"
+  ],
+  "dashboard/site/layouts/_partials/header.html": [
+    "Codex"
+  ],
+  "dashboard/site/layouts/_partials/journal-index.html": [
+    "Codex"
+  ],
+  "dashboard/site/layouts/_partials/journal-tree.html": [
+    "Codex"
+  ],
+  "dashboard/site/layouts/_partials/journal-updated.html": [
+    "Codex"
+  ],
+  "dashboard/site/layouts/_partials/meta.html": [
+    "Codex"
+  ],
+  "dashboard/site/static/css/article-tools.css": [
+    "Codex"
+  ],
+  "dashboard/site/static/css/blog-layout.css": [
+    "Codex"
+  ],
+  "dashboard/site/static/css/callouts.css": [
+    "Codex"
+  ],
+  "dashboard/site/static/css/custom.css": [
+    "Codex"
+  ],
+  "dashboard/site/static/css/document.css": [
+    "Codex"
+  ],
+  "dashboard/site/static/css/fonts.css": [
+    "Codex"
+  ],
+  "dashboard/site/static/css/image-captions.css": [
+    "Codex"
+  ],
+  "dashboard/site/static/css/journal-index.css": [
+    "Codex"
+  ],
+  "dashboard/site/static/css/page-title.css": [
+    "Codex"
+  ],
+  "dashboard/site/static/css/site-header.css": [
+    "Codex"
+  ],
+  "dashboard/site/static/css/workspace.css": [
+    "Codex"
+  ],
+  "dashboard/site/static/fonts/noto-sans-sc/README.md": [
+    "Codex"
+  ],
+  "dashboard/site/static/fonts/optimistic/README.md": [
+    "Codex"
+  ],
+  "dashboard/site/static/images/authors/claude.png": [
+    "Codex"
+  ],
+  "dashboard/site/static/images/authors/codex.png": [
+    "Codex"
+  ],
+  "dashboard/site/static/images/authors/grok.svg": [
+    "Codex"
+  ],
+  "dashboard/site/static/images/authors/linnan.jpg": [
+    "Codex"
+  ],
+  "dashboard/site/static/images/authors/sources.json": [
+    "Codex"
+  ],
+  "dashboard/site/static/js/workspace-live-reload.js": [
+    "Codex"
+  ],
+  "dashboard/theme.toml": [
+    "Codex"
+  ],
+  ".agents/pstack/LICENSE": [
+    "Codex"
+  ],
+  ".agents/pstack/LICENSE-cursor-team-kit": [
+    "Codex"
+  ],
+  ".agents/pstack/LICENSE-thermos": [
+    "Codex"
+  ],
+  ".agents/pstack/NOTICE-skills.md": [
+    "Codex"
+  ],
+  ".agents/pstack/NOTICE.md": [
+    "Codex"
+  ],
+  ".agents/pstack/upstream.json": [
+    "Codex"
+  ],
+  ".claude/skills/architect/SKILL.md": [
+    "Codex"
+  ],
+  ".claude/skills/arena/SKILL.md": [
+    "Codex"
+  ],
+  ".claude/skills/automate-me/SKILL.md": [
+    "Codex"
+  ],
+  ".claude/skills/babysit/SKILL.md": [
+    "Codex"
+  ],
+  ".claude/skills/benchmark-checklist/SKILL.md": [
+    "Codex"
+  ],
+  ".claude/skills/blast-radius/SKILL.md": [
+    "Codex"
+  ],
+  ".claude/skills/bro/SKILL.md": [
+    "Codex"
+  ],
+  ".claude/skills/correct/SKILL.md": [
+    "Codex"
+  ],
+  ".claude/skills/create-formal-verification-skill/SKILL.md": [
+    "Codex"
+  ],
+  ".claude/skills/create-verification-skill/SKILL.md": [
+    "Codex"
+  ],
+  ".claude/skills/create-verification-skill/references/feature-map-example/README.md": [
+    "Codex"
+  ],
+  ".claude/skills/create-verification-skill/references/feature-map-example/create-note.md": [
+    "Codex"
+  ],
+  ".claude/skills/create-verification-skill/references/feature-map-example/search.md": [
+    "Codex"
+  ],
+  ".claude/skills/deslop/SKILL.md": [
+    "Codex"
+  ],
+  ".claude/skills/figure-it-out/SKILL.md": [
+    "Codex"
+  ],
+  ".claude/skills/fix-ci/SKILL.md": [
+    "Codex"
+  ],
+  ".claude/skills/fix-merge-conflicts/SKILL.md": [
+    "Codex"
+  ],
+  ".claude/skills/get-pr-comments/SKILL.md": [
+    "Codex"
+  ],
+  ".claude/skills/how/SKILL.md": [
+    "Codex"
+  ],
+  ".claude/skills/in-your-own-words/SKILL.md": [
+    "Codex"
+  ],
+  ".claude/skills/interrogate/SKILL.md": [
+    "Codex"
+  ],
+  ".claude/skills/ketchup-video/SKILL.md": [
+    "Codex"
+  ],
+  ".claude/skills/ketchup/SKILL.md": [
+    "Codex"
+  ],
+  ".claude/skills/maintain-formal-verification-skill/SKILL.md": [
+    "Codex"
+  ],
+  ".claude/skills/maintain-verification-skill/SKILL.md": [
+    "Codex"
+  ],
+  ".claude/skills/make-pr-easy-to-review/SKILL.md": [
+    "Codex"
+  ],
+  ".claude/skills/no-comments/SKILL.md": [
+    "Codex"
+  ],
+  ".claude/skills/poteto-help/SKILL.md": [
+    "Codex"
+  ],
+  ".claude/skills/poteto-help/references/prompting.md": [
+    "Codex"
+  ],
+  ".claude/skills/poteto-help/references/recipes.md": [
+    "Codex"
+  ],
+  ".claude/skills/poteto-mode/SKILL.md": [
+    "Codex"
+  ],
+  ".claude/skills/poteto-mode/playbooks/authoring-a-skill.md": [
+    "Codex"
+  ],
+  ".claude/skills/poteto-mode/playbooks/autonomous-run.md": [
+    "Codex"
+  ],
+  ".claude/skills/poteto-mode/playbooks/autopilot-full.md": [
+    "Codex"
+  ],
+  ".claude/skills/poteto-mode/playbooks/autopilot-stack.md": [
+    "Codex"
+  ],
+  ".claude/skills/poteto-mode/playbooks/babysit.md": [
+    "Codex"
+  ],
+  ".claude/skills/poteto-mode/playbooks/bug-fix.md": [
+    "Codex"
+  ],
+  ".claude/skills/poteto-mode/playbooks/eval.md": [
+    "Codex"
+  ],
+  ".claude/skills/poteto-mode/playbooks/feature.md": [
+    "Codex"
+  ],
+  ".claude/skills/poteto-mode/playbooks/hillclimb.md": [
+    "Codex"
+  ],
+  ".claude/skills/poteto-mode/playbooks/investigation.md": [
+    "Codex"
+  ],
+  ".claude/skills/poteto-mode/playbooks/multi-phase-plan.md": [
+    "Codex"
+  ],
+  ".claude/skills/poteto-mode/playbooks/opening-a-pr.md": [
+    "Codex"
+  ],
+  ".claude/skills/poteto-mode/playbooks/pause-safely.md": [
+    "Codex"
+  ],
+  ".claude/skills/poteto-mode/playbooks/perf-issue.md": [
+    "Codex"
+  ],
+  ".claude/skills/poteto-mode/playbooks/prototype.md": [
+    "Codex"
+  ],
+  ".claude/skills/poteto-mode/playbooks/refactoring.md": [
+    "Codex"
+  ],
+  ".claude/skills/poteto-mode/playbooks/runtime-forensics.md": [
+    "Codex"
+  ],
+  ".claude/skills/poteto-mode/playbooks/session-pickup.md": [
+    "Codex"
+  ],
+  ".claude/skills/poteto-mode/playbooks/shipping.md": [
+    "Codex"
+  ],
+  ".claude/skills/poteto-mode/playbooks/trace-forensics.md": [
+    "Codex"
+  ],
+  ".claude/skills/poteto-mode/playbooks/visual-parity.md": [
+    "Codex"
+  ],
+  ".claude/skills/poteto-mode/playbooks/worktree-cleanup.md": [
+    "Codex"
+  ],
+  ".claude/skills/poteto-mode/references/agents/comment-sicko.md": [
+    "Codex"
+  ],
+  ".claude/skills/poteto-mode/references/agy-tools.md": [
+    "Codex"
+  ],
+  ".claude/skills/poteto-mode/references/bugbot-triage.md": [
+    "Codex"
+  ],
+  ".claude/skills/poteto-mode/references/codex-tools.md": [
+    "Codex"
+  ],
+  ".claude/skills/poteto-mode/references/copilot-tools.md": [
+    "Codex"
+  ],
+  ".claude/skills/poteto-mode/references/dsh-tools.md": [
+    "Codex"
+  ],
+  ".claude/skills/poteto-mode/references/grok.md": [
+    "Codex"
+  ],
+  ".claude/skills/poteto-mode/references/kimi-tools.md": [
+    "Codex"
+  ],
+  ".claude/skills/poteto-mode/references/licenses/LICENSE": [
+    "Codex"
+  ],
+  ".claude/skills/poteto-mode/references/licenses/LICENSE-cursor-team-kit": [
+    "Codex"
+  ],
+  ".claude/skills/poteto-mode/references/licenses/LICENSE-thermos": [
+    "Codex"
+  ],
+  ".claude/skills/poteto-mode/references/licenses/NOTICE.md": [
+    "Codex"
+  ],
+  ".claude/skills/poteto-mode/references/merge-safety.md": [
+    "Codex"
+  ],
+  ".claude/skills/poteto-mode/references/minimax-tools.md": [
+    "Codex"
+  ],
+  ".claude/skills/poteto-mode/references/muse-tools.md": [
+    "Codex"
+  ],
+  ".claude/skills/poteto-mode/references/omp-tools.md": [
+    "Codex"
+  ],
+  ".claude/skills/poteto-mode/references/opencode-tools.md": [
+    "Codex"
+  ],
+  ".claude/skills/poteto-mode/references/pi-tools.md": [
+    "Codex"
+  ],
+  ".claude/skills/poteto-mode/references/resume-storage.md": [
+    "Codex"
+  ],
+  ".claude/skills/poteto-mode/scripts/.prettierignore": [
+    "Codex"
+  ],
+  ".claude/skills/poteto-mode/scripts/.prettierrc.json": [
+    "Codex"
+  ],
+  ".claude/skills/poteto-mode/scripts/bootstrap.ts": [
+    "Codex"
+  ],
+  ".claude/skills/poteto-mode/scripts/bun.lock": [
+    "Codex"
+  ],
+  ".claude/skills/poteto-mode/scripts/check-playbooks.mjs": [
+    "Codex"
+  ],
+  ".claude/skills/poteto-mode/scripts/codex-session-effort.mjs": [
+    "Codex"
+  ],
+  ".claude/skills/poteto-mode/scripts/package.json": [
+    "Codex"
+  ],
+  ".claude/skills/poteto-mode/scripts/resume.mjs": [
+    "Codex"
+  ],
+  ".claude/skills/poteto-mode/scripts/tsconfig.json": [
+    "Codex"
+  ],
+  ".claude/skills/poteto-mode/scripts/watch-pr/check-suites.ts": [
+    "Codex"
+  ],
+  ".claude/skills/poteto-mode/scripts/watch-pr/cli.port.test.ts": [
+    "Codex"
+  ],
+  ".claude/skills/poteto-mode/scripts/watch-pr/cli.test.ts": [
+    "Codex"
+  ],
+  ".claude/skills/poteto-mode/scripts/watch-pr/cli.ts": [
+    "Codex"
+  ],
+  ".claude/skills/poteto-mode/scripts/watch-pr/deadline.ts": [
+    "Codex"
+  ],
+  ".claude/skills/poteto-mode/scripts/watch-pr/fakes.test-helper.ts": [
+    "Codex"
+  ],
+  ".claude/skills/poteto-mode/scripts/watch-pr/fresh-install.test.ts": [
+    "Codex"
+  ],
+  ".claude/skills/poteto-mode/scripts/watch-pr/github.port.test.ts": [
+    "Codex"
+  ],
+  ".claude/skills/poteto-mode/scripts/watch-pr/github.test.ts": [
+    "Codex"
+  ],
+  ".claude/skills/poteto-mode/scripts/watch-pr/github.ts": [
+    "Codex"
+  ],
+  ".claude/skills/poteto-mode/scripts/watch-pr/head-checks.ts": [
+    "Codex"
+  ],
+  ".claude/skills/poteto-mode/scripts/watch-pr/integrity.test.ts": [
+    "Codex"
+  ],
+  ".claude/skills/poteto-mode/scripts/watch-pr/landing.ts": [
+    "Codex"
+  ],
+  ".claude/skills/poteto-mode/scripts/watch-pr/live-merge-safety.mjs": [
+    "Codex"
+  ],
+  ".claude/skills/poteto-mode/scripts/watch-pr/policy.port.test.ts": [
+    "Codex"
+  ],
+  ".claude/skills/poteto-mode/scripts/watch-pr/policy.test.ts": [
+    "Codex"
+  ],
+  ".claude/skills/poteto-mode/scripts/watch-pr/policy.ts": [
+    "Codex"
+  ],
+  ".claude/skills/poteto-mode/scripts/watch-pr/render.ts": [
+    "Codex"
+  ],
+  ".claude/skills/poteto-mode/scripts/watch-pr/ship-pr": [
+    "Codex"
+  ],
+  ".claude/skills/poteto-mode/scripts/watch-pr/shipping-cli.test.ts": [
+    "Codex"
+  ],
+  ".claude/skills/poteto-mode/scripts/watch-pr/shipping-cli.ts": [
+    "Codex"
+  ],
+  ".claude/skills/poteto-mode/scripts/watch-pr/shipping.test-helper.ts": [
+    "Codex"
+  ],
+  ".claude/skills/poteto-mode/scripts/watch-pr/shipping.test.ts": [
+    "Codex"
+  ],
+  ".claude/skills/poteto-mode/scripts/watch-pr/shipping.ts": [
+    "Codex"
+  ],
+  ".claude/skills/poteto-mode/scripts/watch-pr/transport.test.ts": [
+    "Codex"
+  ],
+  ".claude/skills/poteto-mode/scripts/watch-pr/tsconfig.json": [
+    "Codex"
+  ],
+  ".claude/skills/poteto-mode/scripts/watch-pr/types.compile.ts": [
+    "Codex"
+  ],
+  ".claude/skills/poteto-mode/scripts/watch-pr/types.ts": [
+    "Codex"
+  ],
+  ".claude/skills/poteto-mode/scripts/watch-pr/watch-pr": [
+    "Codex"
+  ],
+  ".claude/skills/poteto-mode/scripts/watch-pr/wrapper.test.ts": [
+    "Codex"
+  ],
+  ".claude/skills/poteto-mode/scripts/worktree-audit.mjs": [
+    "Codex"
+  ],
+  ".claude/skills/poteto-mode/worker.md": [
+    "Codex"
+  ],
+  ".claude/skills/principle-attack-the-premise/SKILL.md": [
+    "Codex"
+  ],
+  ".claude/skills/principle-boundary-discipline/SKILL.md": [
+    "Codex"
+  ],
+  ".claude/skills/principle-build-the-lever/SKILL.md": [
+    "Codex"
+  ],
+  ".claude/skills/principle-encode-lessons-in-structure/SKILL.md": [
+    "Codex"
+  ],
+  ".claude/skills/principle-exhaust-the-design-space/SKILL.md": [
+    "Codex"
+  ],
+  ".claude/skills/principle-experience-first/SKILL.md": [
+    "Codex"
+  ],
+  ".claude/skills/principle-explain-the-number/SKILL.md": [
+    "Codex"
+  ],
+  ".claude/skills/principle-fix-root-causes/SKILL.md": [
+    "Codex"
+  ],
+  ".claude/skills/principle-foundational-thinking/SKILL.md": [
+    "Codex"
+  ],
+  ".claude/skills/principle-guard-the-context-window/SKILL.md": [
+    "Codex"
+  ],
+  ".claude/skills/principle-laziness-protocol/SKILL.md": [
+    "Codex"
+  ],
+  ".claude/skills/principle-make-operations-idempotent/SKILL.md": [
+    "Codex"
+  ],
+  ".claude/skills/principle-migrate-callers-then-delete-legacy-apis/SKILL.md": [
+    "Codex"
+  ],
+  ".claude/skills/principle-minimize-reader-load/SKILL.md": [
+    "Codex"
+  ],
+  ".claude/skills/principle-model-the-domain/SKILL.md": [
+    "Codex"
+  ],
+  ".claude/skills/principle-never-block-on-the-human/SKILL.md": [
+    "Codex"
+  ],
+  ".claude/skills/principle-outcome-oriented-execution/SKILL.md": [
+    "Codex"
+  ],
+  ".claude/skills/principle-prove-it-works/SKILL.md": [
+    "Codex"
+  ],
+  ".claude/skills/principle-redesign-from-first-principles/SKILL.md": [
+    "Codex"
+  ],
+  ".claude/skills/principle-separate-before-serializing-shared-state/SKILL.md": [
+    "Codex"
+  ],
+  ".claude/skills/principle-sequence-verifiable-units/SKILL.md": [
+    "Codex"
+  ],
+  ".claude/skills/principle-subtract-before-you-add/SKILL.md": [
+    "Codex"
+  ],
+  ".claude/skills/principle-test-behavior-not-implementation/SKILL.md": [
+    "Codex"
+  ],
+  ".claude/skills/principle-type-system-discipline/SKILL.md": [
+    "Codex"
+  ],
+  ".claude/skills/recall/SKILL.md": [
+    "Codex"
+  ],
+  ".claude/skills/reflect/SKILL.md": [
+    "Codex"
+  ],
+  ".claude/skills/reflect/scripts/claude-project-dir.mjs": [
+    "Codex"
+  ],
+  ".claude/skills/reflect/scripts/find-transcript.mjs": [
+    "Codex"
+  ],
+  ".claude/skills/setup-pstack/SKILL.md": [
+    "Codex"
+  ],
+  ".claude/skills/setup-pstack/copilot.md": [
+    "Codex"
+  ],
+  ".claude/skills/setup-pstack/references/runtimes.md": [
+    "Codex"
+  ],
+  ".claude/skills/setup-pstack/scripts/check-sheet.awk": [
+    "Codex"
+  ],
+  ".claude/skills/setup-pstack/scripts/check-sheet.sh": [
+    "Codex"
+  ],
+  ".claude/skills/setup-pstack/scripts/read-sheet.sh": [
+    "Codex"
+  ],
+  ".claude/skills/setup-pstack/scripts/sheet.awk": [
+    "Codex"
+  ],
+  ".claude/skills/sharpen/SKILL.md": [
+    "Codex"
+  ],
+  ".claude/skills/show-me-your-work/SKILL.md": [
+    "Codex"
+  ],
+  ".claude/skills/show-me-your-work/references/decision-log-template.tsv": [
+    "Codex"
+  ],
+  ".claude/skills/show-me-your-work/scripts/log.sh": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/SKILL.md": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/references/render.md": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/backends/cfg.ts": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/backends/mermaid.ts": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/backends/plain-text.ts": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/backends/report.ts": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/bun.lock": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/frontends/config.ts": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/frontends/dot.ts": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/frontends/marks.ts": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/frontends/messages.ts": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/frontends/spec.ts": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/frontends/trace.ts": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/frontends/value.ts": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/frontends/verdict.ts": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/frontends/view.ts": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/ir.ts": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/janitor.ts": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/kill.ts": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/package.json": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/passes/annotate.ts": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/passes/label.ts": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/passes/lift.ts": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/passes/loop-check.ts": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/passes/paths.ts": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/passes/reach.ts": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/passes/region-check.ts": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/passes/regions.ts": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/pipeline.ts": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/run.ts": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/statechart": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/statechart.ts": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/ConfigOracle.java": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/chart.test.ts": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/charts/Braces.mmd": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/charts/Escapes.mmd": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/charts/Phases.mmd": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/child-env.test.ts": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/cli.test.ts": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/config-fuzz.test.ts": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus.test.ts": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/Counter/ChartRun.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/Counter/Counter.cfg": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/Counter/Counter.tla": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/Counter/chart.mmd": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/Counter/graph.dot": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/Counter/report.md": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/Counter/sany.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/Counter/verdict-1.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterAction/ChartRun.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterAction/CounterAction.cfg": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterAction/CounterAction.tla": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterAction/chart.mmd": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterAction/graph.dot": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterAction/report.md": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterAction/sany.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterAction/verdict-1.exit": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterAction/verdict-1.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterAction/verdict-2.exit": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterAction/verdict-2.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterAction/verdict-3.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterDeadlock/ChartRun.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterDeadlock/CounterDeadlock.cfg": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterDeadlock/CounterDeadlock.tla": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterDeadlock/chart.mmd": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterDeadlock/graph.dot": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterDeadlock/report.md": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterDeadlock/sany.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterDeadlock/verdict-1.exit": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterDeadlock/verdict-1.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterDeadlock/verdict-2.exit": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterDeadlock/verdict-2.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterFan/ChartRun.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterFan/CounterFan.cfg": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterFan/CounterFan.tla": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterFan/chart.mmd": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterFan/graph.dot": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterFan/report.md": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterFan/sany.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterFan/verdict-1.exit": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterFan/verdict-1.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterFan/verdict-2.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterGuard/ChartRun.exit": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterGuard/ChartRun.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterGuard/CounterGuard.cfg": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterGuard/CounterGuard.tla": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterGuard/chart.mmd": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterGuard/graph.dot": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterGuard/report.md": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterGuard/sany.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterGuard/verdict-1.exit": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterGuard/verdict-1.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterGuard/verdict-2.exit": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterGuard/verdict-2.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterInitPast/ChartRun.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterInitPast/CounterInitPast.cfg": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterInitPast/CounterInitPast.tla": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterInitPast/chart.mmd": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterInitPast/graph.dot": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterInitPast/report.md": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterInitPast/sany.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterInitPast/verdict-1.exit": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterInitPast/verdict-1.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterInitPast/verdict-2.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterInitPastHolds/ChartRun.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterInitPastHolds/CounterInitPastHolds.cfg": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterInitPastHolds/CounterInitPastHolds.tla": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterInitPastHolds/chart.mmd": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterInitPastHolds/graph.dot": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterInitPastHolds/report.md": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterInitPastHolds/sany.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterInitPastHolds/verdict-1.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterInstance/ChartRun.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterInstance/CounterInstance.cfg": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterInstance/CounterInstance.tla": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterInstance/CounterSteps.tla": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterInstance/chart.mmd": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterInstance/graph.dot": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterInstance/report.md": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterInstance/sany.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterInstance/verdict-1.exit": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterInstance/verdict-1.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterJump/ChartRun.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterJump/CounterJump.cfg": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterJump/CounterJump.tla": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterJump/chart.mmd": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterJump/graph.dot": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterJump/report.md": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterJump/sany.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterJump/verdict-1.exit": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterJump/verdict-1.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterJump/verdict-2.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterLoop/ChartRun.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterLoop/CounterLoop.cfg": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterLoop/CounterLoop.tla": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterLoop/chart.mmd": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterLoop/graph.dot": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterLoop/report.md": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterLoop/sany.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterLoop/verdict-1.exit": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterLoop/verdict-1.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterOrder/ChartRun.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterOrder/CounterOrder.cfg": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterOrder/CounterOrder.tla": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterOrder/chart.mmd": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterOrder/graph.dot": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterOrder/report.md": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterOrder/sany.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterOrder/verdict-1.exit": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterOrder/verdict-1.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterOrder/verdict-2.exit": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterOrder/verdict-2.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterRules/ChartRun.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterRules/CounterRules.cfg": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterRules/CounterRules.tla": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterRules/Moves.tla": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterRules/chart.mmd": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterRules/graph.dot": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterRules/report.md": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterRules/sany.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterRules/verdict-1.exit": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterRules/verdict-1.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterRules/verdict-2.exit": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterRules/verdict-2.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterRules/verdict-3.exit": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterRules/verdict-3.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterRules/verdict-4.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterStart/ChartRun.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterStart/CounterStart.cfg": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterStart/CounterStart.tla": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterStart/chart.mmd": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterStart/graph.dot": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterStart/report.md": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterStart/sany.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterStart/verdict-1.exit": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterStart/verdict-1.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterStart/verdict-2.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterStop/ChartRun.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterStop/CounterStop.cfg": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterStop/CounterStop.tla": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterStop/chart.mmd": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterStop/graph.dot": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterStop/report.md": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterStop/sany.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterStop/verdict-1.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterTie/ChartRun.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterTie/CounterTie.cfg": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterTie/CounterTie.tla": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterTie/chart.mmd": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterTie/graph.dot": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterTie/report.md": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterTie/sany.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterTie/verdict-1.exit": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterTie/verdict-1.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterTie/verdict-2.exit": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterTie/verdict-2.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterTie/verdict-3.exit": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterTie/verdict-3.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterTie/verdict-4.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterTieInGraph/ChartRun.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterTieInGraph/CounterTieInGraph.cfg": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterTieInGraph/CounterTieInGraph.tla": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterTieInGraph/chart.mmd": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterTieInGraph/graph.dot": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterTieInGraph/report.md": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterTieInGraph/sany.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterTieInGraph/verdict-1.exit": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterTieInGraph/verdict-1.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterTieInGraph/verdict-2.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterView/ChartRun.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterView/CounterView.cfg": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterView/CounterView.tla": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterView/chart.mmd": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterView/graph.dot": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterView/report.md": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterView/sany.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterView/verdict-1.exit": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterView/verdict-1.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterView/verdict-2.exit": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterView/verdict-2.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterView/verdict-3.exit": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterView/verdict-3.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterView/verdict-4.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/CounterView/view.mjs": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/DieHard/ChartRun.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/DieHard/DieHard.cfg": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/DieHard/DieHard.tla": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/DieHard/chart.mmd": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/DieHard/graph.dot": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/DieHard/report.md": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/DieHard/sany.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/DieHard/verdict-1.exit": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/DieHard/verdict-1.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/DieHard/verdict-2.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/FirstRule/ChartRun.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/FirstRule/FirstRule.cfg": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/FirstRule/FirstRule.tla": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/FirstRule/chart.mmd": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/FirstRule/graph.dot": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/FirstRule/report.md": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/FirstRule/sany.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/FirstRule/verdict-1.exit": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/FirstRule/verdict-1.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/FirstRule/verdict-2.exit": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/FirstRule/verdict-2.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/FirstRule/verdict-3.exit": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/FirstRule/verdict-3.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/FirstRule/verdict-4.exit": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/FirstRule/verdict-4.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/HiddenClock/ChartRun.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/HiddenClock/HiddenClock.cfg": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/HiddenClock/HiddenClock.tla": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/HiddenClock/chart.mmd": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/HiddenClock/graph.dot": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/HiddenClock/report.md": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/HiddenClock/sany.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/HiddenClock/verdict-1.exit": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/HiddenClock/verdict-1.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/Login/ChartRun.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/Login/Login.cfg": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/Login/Login.tla": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/Login/chart.mmd": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/Login/graph.dot": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/Login/report.md": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/Login/sany.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/Login/verdict-1.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/Login/view.mjs": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/LoginGuarded/ChartRun.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/LoginGuarded/LoginGuarded.cfg": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/LoginGuarded/LoginGuarded.tla": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/LoginGuarded/chart.mmd": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/LoginGuarded/graph.dot": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/LoginGuarded/report.md": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/LoginGuarded/sany.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/LoginGuarded/verdict-1.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/LoginGuarded/view.mjs": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/LoginParallel/ChartRun.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/LoginParallel/LoginParallel.cfg": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/LoginParallel/LoginParallel.tla": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/LoginParallel/chart.mmd": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/LoginParallel/graph.dot": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/LoginParallel/report.md": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/LoginParallel/sany.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/LoginParallel/verdict-1.exit": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/LoginParallel/verdict-1.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/LoginParallel/verdict-2.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/LoginParallel/view.mjs": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/MediaPlayer/ChartRun.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/MediaPlayer/MediaPlayer.cfg": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/MediaPlayer/MediaPlayer.tla": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/MediaPlayer/chart.mmd": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/MediaPlayer/graph.dot": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/MediaPlayer/report.md": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/MediaPlayer/sany.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/MediaPlayer/verdict-1.exit": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/MediaPlayer/verdict-1.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/MediaPlayer/verdict-2.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/MediaPlayer/view.mjs": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/MediaPlayerFixed/ChartRun.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/MediaPlayerFixed/MediaPlayerFixed.cfg": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/MediaPlayerFixed/MediaPlayerFixed.tla": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/MediaPlayerFixed/chart.mmd": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/MediaPlayerFixed/graph.dot": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/MediaPlayerFixed/report.md": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/MediaPlayerFixed/sany.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/MediaPlayerFixed/verdict-1.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/MediaPlayerFixed/view.mjs": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/MediaPlayerProps/ChartRun.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/MediaPlayerProps/MediaPlayer.tla": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/MediaPlayerProps/MediaPlayerProps.cfg": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/MediaPlayerProps/MediaPlayerProps.tla": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/MediaPlayerProps/chart.mmd": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/MediaPlayerProps/graph.dot": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/MediaPlayerProps/report.md": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/MediaPlayerProps/sany.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/MediaPlayerProps/verdict-1.exit": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/MediaPlayerProps/verdict-1.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/MediaPlayerProps/verdict-2.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/MediaPlayerProps/verdict-3.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/MediaPlayerProps/verdict-4.exit": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/MediaPlayerProps/verdict-4.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/MediaPlayerProps/verdict-5.exit": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/MediaPlayerProps/verdict-5.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/MediaPlayerProps/verdict-6.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/MediaPlayerProps/view.mjs": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/PickWorker/ChartRun.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/PickWorker/PickWorker.cfg": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/PickWorker/PickWorker.tla": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/PickWorker/chart.mmd": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/PickWorker/graph.dot": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/PickWorker/report.md": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/PickWorker/sany.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/PickWorker/verdict-1.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/Shadow/ChartRun.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/Shadow/Shadow.cfg": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/Shadow/Shadow.tla": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/Shadow/ShadowLib.tla": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/Shadow/ShadowSub.tla": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/Shadow/chart.mmd": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/Shadow/graph.dot": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/Shadow/report.md": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/Shadow/sany.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/Shadow/verdict-1.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/SpacedNames/ChartRun.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/SpacedNames/SpacedNames.cfg": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/SpacedNames/SpacedNames.tla": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/SpacedNames/chart.mmd": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/SpacedNames/graph.dot": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/SpacedNames/report.md": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/SpacedNames/sany.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/SpacedNames/verdict-1.exit": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/SpacedNames/verdict-1.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/SpacedNames/verdict-2.exit": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/SpacedNames/verdict-2.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/TwoPhase/ChartRun.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/TwoPhase/TwoPhase.cfg": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/TwoPhase/TwoPhase.tla": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/TwoPhase/chart.mmd": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/TwoPhase/graph.dot": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/TwoPhase/report.md": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/TwoPhase/sany.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/TwoPhase/verdict-1.exit": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/TwoPhase/verdict-1.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/TwoPhase/verdict-2.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/TwoPhase/view.mjs": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/TwoPhaseFixed/ChartRun.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/TwoPhaseFixed/TwoPhaseFixed.cfg": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/TwoPhaseFixed/TwoPhaseFixed.tla": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/TwoPhaseFixed/chart.mmd": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/TwoPhaseFixed/graph.dot": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/TwoPhaseFixed/report.md": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/TwoPhaseFixed/sany.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/TwoPhaseFixed/verdict-1.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/TwoPhaseFixed/view.mjs": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/TypeGuard/ChartRun.exit": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/TypeGuard/ChartRun.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/TypeGuard/TypeGuard.cfg": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/TypeGuard/TypeGuard.tla": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/TypeGuard/chart.mmd": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/TypeGuard/graph.dot": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/TypeGuard/report.md": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/TypeGuard/sany.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/TypeGuard/verdict-1.exit": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/TypeGuard/verdict-1.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/TypeGuard/verdict-2.exit": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/TypeGuard/verdict-2.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/UserNoDeadlock/ChartRun.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/UserNoDeadlock/UserNoDeadlock.cfg": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/UserNoDeadlock/UserNoDeadlock.tla": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/UserNoDeadlock/chart.mmd": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/UserNoDeadlock/graph.dot": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/UserNoDeadlock/report.md": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/UserNoDeadlock/sany.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/UserNoDeadlock/verdict-1.exit": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/UserNoDeadlock/verdict-1.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/UserNoDeadlock/verdict-2.exit": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/corpus/UserNoDeadlock/verdict-2.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/differential.test.ts": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/drawn.ts": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/grid/Grid.cfg": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/grid/Grid.tla": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/grid/sany.out": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/java.ts": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/labels.ts": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/messages.test.ts": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/pipeline.test.ts": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/plain-tlc.test.ts": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/render.test.ts": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/tlc-out.test.ts": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/test/tlc.ts": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/tsconfig.json": [
+    "Codex"
+  ],
+  ".claude/skills/statechart/scripts/worker.ts": [
+    "Codex"
+  ],
+  ".claude/skills/swarm/SKILL.md": [
+    "Codex"
+  ],
+  ".claude/skills/tdd/SKILL.md": [
+    "Codex"
+  ],
+  ".claude/skills/teach/SKILL.md": [
+    "Codex"
+  ],
+  ".claude/skills/technical-writing/SKILL.md": [
+    "Codex"
+  ],
+  ".claude/skills/thermo-nuclear-code-quality-review/SKILL.md": [
+    "Codex"
+  ],
+  ".claude/skills/thermo-nuclear-review/SKILL.md": [
+    "Codex"
+  ],
+  ".claude/skills/thermos/SKILL.md": [
+    "Codex"
+  ],
+  ".claude/skills/typescript-best-practices/SKILL.md": [
+    "Codex"
+  ],
+  ".claude/skills/typescript-best-practices/references/patterns.md": [
+    "Codex"
+  ],
+  ".claude/skills/unslop/SKILL.md": [
+    "Codex"
+  ],
+  ".claude/skills/what-did-i-get-done/SKILL.md": [
+    "Codex"
+  ],
+  ".claude/skills/why/SKILL.md": [
+    "Codex"
+  ],
+  "src/AGENTS.md": [
+    "Codex",
+    "Claude"
+  ],
+  "src/README.md": [
+    "Codex",
+    "Claude"
+  ],
+  "README.md": [
+    "Codex",
+    "Claude"
+  ],
+  "dashboard/site/content/Attachments/agent-two-tier-dram-overview.png": [
+    "Codex"
+  ],
+  "dashboard/scripts/check-delivery.mjs": [
+    "Codex"
+  ],
+  "dashboard/scripts/test-delivery.mjs": [
+    "Codex"
+  ],
+  "src/kv-trace/capture.py": [
+    "Claude"
+  ],
+  "src/kv-trace/render.py": [
+    "Claude"
+  ],
+  "src/kv-trace/template.html": [
+    "Claude"
+  ],
+  "src/kv-trace/README.md": [
+    "Claude"
+  ],
+  "src/kv-trace/scenarios.py": [
+    "Claude"
+  ],
+  "src/kv-trace/_hook/sitecustomize.py": [
+    "Claude"
+  ],
+  "dashboard/site/layouts/_shortcodes/embed-html.html": [
+    "Claude"
+  ],
+  "dashboard/site/content/Attachments/kv-cache-replay.html": [
+    "Claude"
+  ],
+  ".claude/launch.json": [
+    "Claude"
+  ],
+  "dashboard/site/content/Attachments/agent-two-tier-dram-capacity-source.png": [
+    "Codex"
+  ],
+  "dashboard/site/content/Attachments/agent-two-tier-dram-storage-flow.png": [
+    "Codex"
+  ],
+  "infographic/two-tier-dram/withdrawn/agent-two-tier-dram-overview.png": [
+    "Codex"
+  ],
+  "infographic/two-tier-dram/withdrawn/agent-two-tier-dram-storage-flow.png": [
+    "Codex"
+  ],
+  "infographic/two-tier-dram/withdrawn/agent-two-tier-dram-capacity-source.png": [
+    "Codex"
+  ],
+  ".claude/skills/baoyu-infographic/SKILL.md": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-infographic/references/base-prompt.md": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-infographic/references/codex-imagegen.md": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-infographic/references/structured-content-template.md": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-infographic/references/analysis-framework.md": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-infographic/references/config/first-time-setup.md": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-infographic/references/config/preferences-schema.md": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-infographic/references/styles/morandi-journal.md": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-infographic/references/styles/lego-brick.md": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-infographic/references/styles/corporate-memphis.md": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-infographic/references/styles/hand-drawn-edu.md": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-infographic/references/styles/ikea-manual.md": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-infographic/references/styles/cyberpunk-neon.md": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-infographic/references/styles/craft-handmade.md": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-infographic/references/styles/chalkboard.md": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-infographic/references/styles/subway-map.md": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-infographic/references/styles/aged-academia.md": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-infographic/references/styles/pop-laboratory.md": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-infographic/references/styles/technical-schematic.md": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-infographic/references/styles/storybook-watercolor.md": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-infographic/references/styles/retro-popup-pop.md": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-infographic/references/styles/bold-graphic.md": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-infographic/references/styles/kawaii.md": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-infographic/references/styles/ui-wireframe.md": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-infographic/references/styles/origami.md": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-infographic/references/styles/retro-pop-grid.md": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-infographic/references/styles/claymation.md": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-infographic/references/styles/knolling.md": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-infographic/references/styles/pixel-art.md": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-infographic/references/layouts/jigsaw.md": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-infographic/references/layouts/iceberg.md": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-infographic/references/layouts/tree-branching.md": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-infographic/references/layouts/venn-diagram.md": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-infographic/references/layouts/dashboard.md": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-infographic/references/layouts/binary-comparison.md": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-infographic/references/layouts/periodic-table.md": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-infographic/references/layouts/funnel.md": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-infographic/references/layouts/dense-modules.md": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-infographic/references/layouts/bento-grid.md": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-infographic/references/layouts/story-mountain.md": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-infographic/references/layouts/circular-flow.md": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-infographic/references/layouts/hierarchical-layers.md": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-infographic/references/layouts/isometric-map.md": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-infographic/references/layouts/winding-roadmap.md": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-infographic/references/layouts/comparison-matrix.md": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-infographic/references/layouts/comic-strip.md": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-infographic/references/layouts/bridge.md": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-infographic/references/layouts/structural-breakdown.md": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-infographic/references/layouts/hub-spoke.md": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-infographic/references/layouts/linear-progression.md": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-image-gen/SKILL.md": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-image-gen/references/codex-oauth-vs-openai-api-key.md": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-image-gen/references/usage-examples.md": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-image-gen/references/codex-image2-fallback.md": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-image-gen/scripts/build-batch.ts": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-image-gen/scripts/build-batch.test.ts": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-image-gen/scripts/main.ts": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-image-gen/scripts/types.ts": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-image-gen/scripts/main.test.ts": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-image-gen/references/config/first-time-setup.md": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-image-gen/references/config/preferences-schema.md": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-image-gen/references/providers/agnes.md": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-image-gen/references/providers/codex-cli.md": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-image-gen/references/providers/minimax.md": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-image-gen/references/providers/zai.md": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-image-gen/references/providers/dashscope.md": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-image-gen/references/providers/openrouter.md": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-image-gen/references/providers/replicate.md": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-image-gen/scripts/providers/agnes.ts": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-image-gen/scripts/providers/codex-cli.test.ts": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-image-gen/scripts/providers/jimeng.ts": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-image-gen/scripts/providers/agnes.test.ts": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-image-gen/scripts/providers/codex-cli.ts": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-image-gen/scripts/providers/google.test.ts": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-image-gen/scripts/providers/jimeng.test.ts": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-image-gen/scripts/providers/openai.ts": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-image-gen/scripts/providers/seedream.ts": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-image-gen/scripts/providers/minimax.test.ts": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-image-gen/scripts/providers/zai.ts": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-image-gen/scripts/providers/dashscope.ts": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-image-gen/scripts/providers/replicate.test.ts": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-image-gen/scripts/providers/google.ts": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-image-gen/scripts/providers/openai.test.ts": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-image-gen/scripts/providers/seedream.test.ts": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-image-gen/scripts/providers/azure.ts": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-image-gen/scripts/providers/replicate.ts": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-image-gen/scripts/providers/dashscope.test.ts": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-image-gen/scripts/providers/openrouter.ts": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-image-gen/scripts/providers/zai.test.ts": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-image-gen/scripts/providers/openrouter.test.ts": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-image-gen/scripts/providers/minimax.ts": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-image-gen/scripts/providers/azure.test.ts": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-image-gen/scripts/codex-imagegen/main.ts": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-image-gen/scripts/codex-imagegen/spawn.ts": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-image-gen/scripts/codex-imagegen/parser.ts": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-image-gen/scripts/codex-imagegen/types.ts": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-image-gen/scripts/codex-imagegen/logger.ts": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-image-gen/scripts/codex-imagegen/cache.ts": [
+    "Claude"
+  ],
+  ".claude/skills/baoyu-image-gen/scripts/codex-imagegen/validator.ts": [
+    "Claude"
+  ],
+  "dashboard/site/content/Attachments/two-tier-dram-vs-offload-structure.svg": [
+    "Claude",
+    "Codex"
+  ],
+  "dashboard/site/content/Attachments/two-tier-dram-vs-offload-timeline.svg": [
+    "Claude",
+    "Codex"
+  ],
+  "dashboard/site/content/Attachments/two-tier-dram-replay.html": [
+    "Claude",
+    "Codex"
+  ]
+}
