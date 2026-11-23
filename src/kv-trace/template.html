@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AISim KV Cache 行为回放</title>
+<style>
+  :root { --bg:#fafafa; --card:#fff; --ink:#1d2330; --mute:#6b7280; --line:#e5e7eb; --accent:#4f7cff; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:14px/1.5 -apple-system,BlinkMacSystemFont,"PingFang SC","Segoe UI",sans-serif; background:var(--bg); color:var(--ink); }
+  body.embedded { background:transparent; }
+  .wrap { padding:14px 18px 18px; max-width:1240px; margin:0 auto; }
+  body.embedded .wrap { padding:4px 2px 8px; }
+  h1 { font-size:17px; margin:0 0 2px; }
+  body.embedded h1, body.embedded .sub { display:none; }
+  .sub { color:var(--mute); font-size:12px; }
+  .pick { display:flex; flex-wrap:wrap; gap:6px; margin:10px 0 6px; }
+  .tab { border:1px solid var(--line); background:#fff; padding:4px 10px; border-radius:6px; cursor:pointer; font-size:12.5px; }
+  .tab.on { border-color:var(--accent); color:var(--accent); font-weight:600; }
+  .tab.edge::before { content:"⚠ "; color:#b45309; }
+  .scn { background:#fff; border:1px solid var(--line); border-radius:8px; padding:8px 12px; margin-bottom:10px; font-size:13px; }
+  .scn b { margin-right:6px; }
+  .scn .find { margin-top:4px; color:#374151; }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; }
+  .chip { font-size:11.5px; background:#f1f3f7; border-radius:4px; padding:1px 7px; }
+  .chip.changed { background:#fff1c2; color:#7a4b00; box-shadow:inset 0 0 0 1px #f0b429; font-weight:600; }
+  .chip.changed s { color:#a37b2c; font-weight:400; }
+  .chip-note { font-size:11px; color:var(--mute); align-self:center; }
+  .rel { font-size:10.5px; color:var(--mute); white-space:nowrap; }
+  .grid { display:grid; grid-template-columns:minmax(0,1fr) 320px; gap:12px; }
+  @media (max-width:900px) { .grid { grid-template-columns:minmax(0,1fr); } }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:12px 14px; min-width:0; }
+  .card h2 { font-size:12.5px; margin:0 0 8px; color:var(--mute); font-weight:600; }
+  .full { grid-column:1 / -1; }
+  .controls { display:flex; align-items:center; gap:6px; margin-bottom:10px; flex-wrap:wrap; }
+  .controls button, .controls select { border:1px solid var(--line); background:#fff; border-radius:6px; padding:3px 9px; cursor:pointer; font-size:13px; }
+  .controls input[type=range] { flex:1; min-width:140px; }
+  .clock { font-variant-numeric:tabular-nums; font-weight:600; min-width:96px; text-align:right; }
+  .tier { margin:4px 0 4px; display:flex; flex-wrap:wrap; align-items:baseline; gap:8px; }
+  .tier b { font-size:13px; } .tier span { color:var(--mute); font-size:12px; }
+  .slots { display:flex; flex-wrap:wrap; gap:8px; min-height:66px; }
+  .slot { width:92px; height:64px; border-radius:8px; border:1.5px dashed #d1d5db; position:relative; overflow:hidden;
+          display:flex; flex-direction:column; align-items:center; justify-content:center; gap:1px; font-size:12px; transition:background .2s, border-color .2s; }
+  .slot .lbl { font-weight:600; position:relative; z-index:2; }
+  .slot .st { font-size:10.5px; position:relative; z-index:2; opacity:.9; white-space:nowrap; }
+  .slot .tok { display:flex; gap:2px; position:relative; z-index:2; }
+  .slot .tok i { width:11px; height:6px; border-radius:2px; background:#0002; }
+  .slot .tok i.on { background:currentColor; }
+  .slot .fill { position:absolute; left:0; top:0; bottom:0; z-index:1; opacity:.28; }
+  .slot.writing { border:1.5px solid var(--c); background:repeating-linear-gradient(45deg, color-mix(in srgb,var(--c) 30%,#fff) 0 6px, #fff 6px 12px); }
+  .slot.writing.partial { border-style:dashed; }
+  .slot.recompute { border:2px solid var(--c); background:repeating-linear-gradient(-45deg, color-mix(in srgb,var(--c) 45%,#fff) 0 6px, #fff 6px 12px); }
+  .slot.fenced { box-shadow:inset 0 0 0 2px #b91c1c; }
+  .slot.active { border:2px solid var(--c); background:var(--c); color:#fff; }
+  .slot.cached { border:1.5px solid var(--c); background:color-mix(in srgb,var(--c) 22%,#fff); }
+  .slot.reserved, .slot.pending { border:1.5px dashed var(--c); background:#fff; }
+  .slot.resident { border:1.5px solid var(--c); background:color-mix(in srgb,var(--c) 30%,#fff); }
+  .slot.pinned { border:2px solid var(--c); background:color-mix(in srgb,var(--c) 30%,#fff); }
+  .link { display:grid; gap:6px; margin:8px 0; }
+  .lane { position:relative; height:26px; border-radius:6px; background:#f4f5f8; display:flex; align-items:center; padding:0 10px; font-size:12px; color:var(--mute); overflow:hidden; }
+  .lane .bar { position:absolute; left:0; top:0; bottom:0; opacity:.25; }
+  .lane .txt { position:relative; z-index:2; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .lane.busy { color:var(--ink); font-weight:600; }
+  .lane.wait { color:#92400e; background:#fffbeb; }
+  .notes { margin:0; padding:0; list-style:none; }
+  .notes li { padding:5px 0; border-bottom:1px solid var(--line); font-size:12.5px; }
+  .notes li:last-child { border-bottom:none; }
+  .op { display:inline-block; font-size:10px; padding:0 5px; border-radius:3px; background:#eef2ff; color:#3949ab; margin-right:5px; font-family:ui-monospace,monospace; }
+  .reqs { display:grid; grid-template-columns:86px minmax(0,1fr) 110px; gap:4px 8px; align-items:center; font-size:12px; }
+  .ph { font-size:11px; color:var(--mute); white-space:nowrap; }
+  .gantt { position:relative; height:20px; background:#f7f8fa; border-radius:4px; }
+  .gantt .seg { position:absolute; top:3px; bottom:3px; border-radius:3px; }
+  .gantt .rej { position:absolute; top:0; bottom:0; width:3px; background:#b91c1c; }
+  .cursor { position:absolute; top:-2px; bottom:-2px; width:2px; background:#e11d48; z-index:3; }
+  .axis { position:relative; height:16px; font-size:10px; color:var(--mute); }
+  .axis .tick { position:absolute; transform:translateX(-50%); white-space:nowrap; }
+  .axis .brk { position:absolute; transform:translateX(-50%); color:#bbb; }
+  .legend { display:flex; flex-wrap:wrap; gap:4px 12px; font-size:11.5px; color:var(--mute); margin-top:10px; }
+  .legend i { display:inline-block; width:16px; height:11px; border-radius:3px; vertical-align:-1px; margin-right:4px; }
+  .warn { font-size:11.5px; color:#92400e; background:#fffbeb; border:1px solid #fde68a; border-radius:6px; padding:6px 10px; margin-top:8px; }
+  table { border-collapse:collapse; width:100%; font-size:11.5px; }
+  td, th { border-bottom:1px solid var(--line); padding:2px 6px; text-align:left; vertical-align:top; }
+  th { color:var(--mute); font-weight:600; }
+  tr.past td { color:#9ca3af; } tr.now td { background:#fff8db; }
+  details summary { cursor:pointer; color:var(--mute); font-size:12.5px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>AISim KV Cache 行为回放（G1 HBM ⇄ G2 Host DRAM）</h1>
+  <div class="sub">AISim 原生 replay artifacts + requests.jsonl；虚拟时间（ms），长空闲在时间轴上被压缩。</div>
+  <div class="pick" id="tabs"></div>
+  <div class="scn" id="scn"></div>
+  <div class="grid">
+    <section class="card">
+      <div class="controls">
+        <button id="prev" title="上一个事件">⏮</button>
+        <button id="play">▶ 播放</button>
+        <button id="next" title="下一个事件">⏭</button>
+        <input type="range" id="slider" min="0" max="1000" step="any" value="0" aria-label="时间">
+        <select id="speed" aria-label="速度"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option></select>
+        <span class="clock" id="clock">t = 0 ms</span>
+      </div>
+      <div class="tier"><b>G1 · GPU HBM</b><span id="g1cap"></span></div>
+      <div class="slots" id="g1"></div>
+      <div class="link"><div class="lane" id="d2h"><div class="bar"></div><span class="txt"></span></div>
+                        <div class="lane" id="h2d"><div class="bar"></div><span class="txt"></span></div></div>
+      <div class="tier"><b>G2 · Host DRAM</b><span id="g2cap"></span></div>
+      <div class="slots" id="g2"></div>
+      <div class="legend">
+        <span><i style="background:repeating-linear-gradient(45deg,#bbb 0 4px,#fff 4px 8px);border:1px solid #888"></i>写入中（推断）</span>
+        <span><i style="background:repeating-linear-gradient(-45deg,#999 0 4px,#fff 4px 8px);border:1px solid #555"></i>整块重算</span>
+        <span><i style="box-shadow:inset 0 0 0 2px #b91c1c"></i>被栅栏挡住</span>
+        <span><i style="background:#666"></i>活跃</span>
+        <span><i style="background:#ddd;border:1px solid #888"></i>缓存·可驱逐</span>
+        <span><i style="border:1.5px dashed #888"></i>预留（H2D 目标 / PendingStore）</span>
+        <span><i style="background:#ccc;border:2px solid #555"></i>pinned（H2D 源）</span>
+        <span>▮▮▯▯ = block 内已填 token</span>
+      </div>
+    </section>
+    <section class="card">
+      <h2>当前时刻发生了什么</h2>
+      <ul class="notes" id="notes"></ul>
+    </section>
+    <section class="card full">
+      <h2>请求时间线：灰=排队，黄=等待 H2D，红=已准入但被栅栏挡住，彩色=prefill，竖线=当前时刻</h2>
+      <div class="reqs" id="reqs"></div>
+      <div class="reqs"><div></div><div class="axis" id="axis"></div><div></div></div>
+      <div class="warn">推断项：① "写入中"block AISim 不发事件，按引擎准入规则 token_blocks − max(复用块, H2D 载入块) 推出；② vLLM 的 G1 驱逐在 pass 结束时发布，这里画在导致它的那次准入；③ 传输条只在字节真正流动的区间（结束时刻 − 字节/带宽）推进，此前是排队或等栅栏。其余状态均来自原生事件，槽位占用经过容量断言。</div>
+    </section>
+    <section class="card full">
+      <details><summary>原始事件（kv_events + host_offload_events）</summary>
+        <table id="raw"><thead><tr><th>t (ms)</th><th>来源</th><th>事件</th><th>请求</th><th>block</th><th>completes_at</th></tr></thead><tbody></tbody></table>
+      </details>
+    </section>
+  </div>
+</div>
+<script>
+const DATA = /*__DATA__*/null;
+const params = new URLSearchParams(location.search);
+if (window.top !== window.self || params.has('embed')) document.body.classList.add('embedded');
+let S = null, keyTimes = [], disp = [], D = 0, playing = false, last = 0, speed = 1, exactT = null;
+const GAP_CAP = 6;
+const $ = id => document.getElementById(id);
+
+function buildAxis() {
+  const ts = new Set([0]);
+  S.snapshots.forEach(s => ts.add(s.t));
+  S.transfers.forEach(x => { ts.add(x.start); ts.add(x.end); });
+  S.requests.forEach(r => [r.arrival, r.admit, r.compute_start, r.first_token].forEach(t => t != null && ts.add(t)));
+  keyTimes = [...ts].sort((a, b) => a - b);
+  keyTimes.push(keyTimes[keyTimes.length - 1] + 3);
+  disp = [0];
+  for (let i = 1; i < keyTimes.length; i++) disp.push(disp[i - 1] + Math.min(keyTimes[i] - keyTimes[i - 1], GAP_CAP));
+  D = disp[disp.length - 1];
+}
+function toDisp(t) {
+  for (let i = 1; i < keyTimes.length; i++) if (t <= keyTimes[i]) {
+    const a = keyTimes[i - 1], b = keyTimes[i]; return disp[i - 1] + (b > a ? (t - a) / (b - a) : 0) * (disp[i] - disp[i - 1]);
+  }
+  return D;
+}
+function toTime(d) {
+  for (let i = 1; i < disp.length; i++) if (d <= disp[i]) {
+    const f = disp[i] > disp[i - 1] ? (d - disp[i - 1]) / (disp[i] - disp[i - 1]) : 0; return keyTimes[i - 1] + f * (keyTimes[i] - keyTimes[i - 1]);
+  }
+  return keyTimes[keyTimes.length - 1];
+}
+const pct = t => (toDisp(t) / D * 100) + '%';
+const STATE = { writing: '写入中', recompute: '整块重算', active: '活跃', cached: '缓存·可驱逐', reserved: 'H2D 目标', pending: 'PendingStore', resident: 'Resident', pinned: 'pinned·H2D 源' };
+const fmt = t => (Math.abs(t - Math.round(t)) < 1e-6 ? Math.round(t) : t.toFixed(1));
+
+function slotHTML(s, t, prog) {
+  if (!s) return '<div class="slot"><span class="st" style="color:#bbb">空</span></div>';
+  const c = S.owner_color[s.owner] || '#888', bs = S.cfg.block_size;
+  const r = S.requests.find(r => r.label === s.owner);
+  const fenced = s.state === 'writing' && r && r.compute_start != null && t < r.compute_start;
+  const partial = s.tokens < bs;
+  let st = STATE[s.state] || s.state;
+  if (fenced) st = '请求被栅栏挡住';
+  else if (s.state === 'writing' && partial) st = `未写满·不落定`;
+  const fill = prog != null ? `<div class="fill" style="width:${prog * 100}%;background:${c}"></div>` : '';
+  const tok = `<span class="tok" style="color:${s.state === 'active' ? '#fff' : c}">${Array.from({ length: bs }, (_, i) => `<i class="${i < s.tokens ? 'on' : ''}"></i>`).join('')}</span>`;
+  return `<div class="slot ${s.state}${partial && s.state === 'writing' ? ' partial' : ''}${fenced ? ' fenced' : ''}" style="--c:${c}" title="${s.label} · ${s.tokens}/${bs} token · ${st}">${fill}<span class="lbl">${s.label}</span>${tok}<span class="st">${st}</span></div>`;
+}
+function snapAt(t) { let k = -1; S.snapshots.forEach((s, i) => { if (s.t <= t + 1e-9) k = i; }); return k; }
+const progress = (x, t) => x.end > x.start ? Math.min(1, Math.max(0, (t - x.start) / (x.end - x.start))) : 1;
+
+function render() {
+  const t = exactT ?? toTime(D * $('slider').value / 1000);
+  $('clock').textContent = `t = ${fmt(t)} ms`;
+  const k = snapAt(t);
+  const snap = k >= 0 ? S.snapshots[k] : { g1: Array(S.cfg.g1_blocks).fill(null), g2: Array(S.cfg.g2_blocks).fill(null), transfers: [], notes: [], phase: {} };
+  const live = snap.transfers.filter(x => t < x.end);
+  const progOf = (dir, label) => { const x = live.find(x => x.dir === dir && x.blocks.includes(label)); return x ? progress(x, t) : null; };
+  $('g1').innerHTML = snap.g1.map(s => slotHTML(s, t, s && s.state === 'reserved' ? progOf('H2D', s.label) : null)).join('');
+  $('g2').innerHTML = snap.g2.length ? snap.g2.map(s => slotHTML(s, t, s && s.state === 'pending' ? (progOf('D2H', s.label) ?? 0) : null)).join('') : '<span class="ph">未配置 G2</span>';
+  const used = a => a.filter(Boolean).length, c = S.cfg;
+  $('g1cap').textContent = `${used(snap.g1)}/${c.g1_blocks} block · 每 block ${c.block_size} token = ${c.block_size * c.bytes_per_token / 1e6} MB`;
+  $('g2cap').textContent = `${used(snap.g2)}/${c.g2_blocks} block · D2H ${c.d2h_gbps} GB/s · H2D ${c.h2d_gbps} GB/s`;
+  for (const dir of ['D2H', 'H2D']) {
+    const el = $(dir.toLowerCase()), xs = live.filter(x => x.dir === dir), x = xs[0];
+    const bar = el.querySelector('.bar'), txt = el.querySelector('.txt');
+    el.classList.toggle('busy', !!x && t >= x.start); el.classList.toggle('wait', !!x && t < x.start);
+    const name = dir === 'D2H' ? 'D2H（G1 → G2 store）' : 'H2D（G2 → G1 load）';
+    if (!x) { bar.style.width = '0'; txt.textContent = `${name} 空闲`; continue; }
+    const p = progress(x, t);
+    bar.style.width = (p * 100) + '%'; bar.style.background = dir === 'D2H' ? '#21a179' : '#f08a24';
+    const more = xs.length > 1 ? ` · 另有 ${xs.length - 1} 个排队` : '';
+    txt.textContent = t < x.start
+      ? `${dir} ${x.blocks.join(', ')} 已排队，${fmt(x.start)} ms 才开始传（链路忙或目标 block 被栅栏占用）${more}`
+      : `${dir} ${x.blocks.join(', ')} · ${(x.bytes / 1e6).toFixed(1)} MB · ${fmt(x.start)}→${fmt(x.end)} ms（${Math.round(p * 100)}%）· 耗时 = 字节 / 带宽${more}`;
+  }
+  $('notes').innerHTML = snap.notes.length
+    ? `<li style="color:var(--mute)">t = ${fmt(snap.t)} ms 的事件：</li>` + snap.notes.map(n => `<li><span class="op">${n.op}</span>${n.text}${n.blocks.length ? ` <b>[${n.blocks.join(', ')}]</b>` : ''}</li>`).join('')
+    : '<li style="color:var(--mute)">尚无事件。点 ⏭ 逐个事件前进，或 ▶ 播放。</li>';
+  S.requests.forEach(r => { const el = $('ph-' + r.label); if (el) el.textContent = phaseAt(r, t); });
+  document.querySelectorAll('.cursor').forEach(c => c.style.left = pct(t));
+  document.querySelectorAll('#raw tbody tr').forEach(tr => { const rt = +tr.dataset.t; tr.className = rt < (snap.t ?? -1) ? 'past' : rt === snap.t ? 'now' : ''; });
+}
+function phaseAt(r, t) {
+  if (t < r.arrival) return '未到达';
+  if (r.status === 'rejected') return '被拒绝';
+  const h = h2dOf(r);
+  if (t < r.admit) return h && t >= h.queued ? '等待 H2D' : '排队';
+  if (t < r.compute_start) return '已准入·栅栏';
+  if (t < r.first_token) return 'prefill';
+  return `完成 · TTFT ${fmt(r.ttft)} ms`;
+}
+const h2dOf = r => S.transfers.find(x => x.dir === 'H2D' && x.queued >= r.arrival && r.admit != null && x.end <= r.admit && x.blocks.some(b => r.seq.some(h => S.labels[h] === b)));
+
+function loadScenario(i) {
+  S = DATA[i];
+  document.querySelectorAll('.tab').forEach((b, j) => b.classList.toggle('on', i === j));
+  buildAxis();
+  const c = S.cfg;
+  const changed = Object.fromEntries((S.changes || []).map(x => [x.param, x]));
+  const chip = (text, param, unit = '') => {
+    const x = changed[param];
+    return x ? `<span class="chip changed" title="AISim 参数 ${param}：基线 ${x.base} → 本场景 ${x.value}">${text} <s>${x.base}</s> → ${x.value}${unit}</span>`
+             : `<span class="chip" title="${param}">${text} ${{'kv_cache.capacity.blocks': c.g1_blocks, 'kv_cache.host_offload.num_host_blocks': c.g2_blocks,
+                 'kv_cache.host_offload.d2h_bandwidth_gbps': c.d2h_gbps, 'kv_cache.host_offload.h2d_bandwidth_gbps': c.h2d_gbps, 'scheduler.max_sequences': c.max_seqs}[param]}${unit}</span>`;
+  };
+  const known = ['kv_cache.capacity.blocks', 'kv_cache.host_offload.num_host_blocks', 'kv_cache.host_offload.d2h_bandwidth_gbps', 'kv_cache.host_offload.h2d_bandwidth_gbps', 'scheduler.max_sequences'];
+  const extra = (S.changes || []).filter(x => !known.includes(x.param)).map(x => `<span class="chip changed" title="AISim 参数 ${x.param}">${x.param} <s>${x.base}</s> → ${x.value}</span>`);
+  $('scn').innerHTML = `<b>${S.title}</b>${S.summary}${S.finding ? `<div class="find">观察：${S.finding}</div>` : ''}
+    <div class="chips">${[chip('G1', known[0], ' block'), chip('G2', known[1], ' block'), chip('D2H', known[2], ' GB/s'), chip('H2D', known[3], ' GB/s'), chip('max_seqs', known[4]),
+      ...extra, `<span class="chip">block ${c.block_size} token</span>`, `<span class="chip">prefill ${c.prefill_ms} ms（fixed）</span>`,
+      S.exit ? `<span class="chip">aisim 退出码 ${S.exit}</span>` : '',
+      `<span class="chip-note">${(S.changes || []).length ? '黄色 = 本场景相对基线改动的 AISim 参数' : '基线参数'}</span>`].join('')}</div>`;
+  $('reqs').innerHTML = S.requests.map(r => {
+    const segs = [];
+    if (r.status === 'rejected') segs.push(`<div class="rej" style="left:${pct(r.arrival)}" title="被拒绝"></div>`);
+    else {
+      segs.push(`<div class="seg" style="left:${pct(r.arrival)};width:calc(${pct(r.admit)} - ${pct(r.arrival)});background:#d1d5db"></div>`);
+      const h = h2dOf(r);
+      if (h) segs.push(`<div class="seg" style="left:${pct(h.queued)};width:calc(${pct(h.end)} - ${pct(h.queued)});background:#fbbf24"></div>`);
+      if (r.compute_start > r.admit) segs.push(`<div class="seg" style="left:${pct(r.admit)};width:calc(${pct(r.compute_start)} - ${pct(r.admit)});background:#fca5a5"></div>`);
+      segs.push(`<div class="seg" style="left:${pct(r.compute_start)};width:calc(${pct(r.first_token)} - ${pct(r.compute_start)});background:${r.color}"></div>`);
+    }
+    const tip = (r.relation ? `${r.relation.text}（共享前 ${r.relation.shared_blocks} 个 block）· ` : '') + (r.status === 'rejected' ? '被拒绝' : `TTFT ${fmt(r.ttft)} ms · G1 复用 ${r.g1_reused} / G2 复用 ${r.host_reused} token`);
+    const rel = r.relation ? `<div class="rel">↳ ${r.relation.text}</div>` : '';
+    return `<div><b style="color:${r.color}">${r.label}</b>${rel}</div><div class="gantt" title="${r.input} token · ${tip}">${segs.join('')}<div class="cursor"></div></div><div class="ph" id="ph-${r.label}"></div>`;
+  }).join('');
+  const ticks = [...new Set(S.requests.flatMap(r => [r.arrival, r.admit, r.first_token]).filter(t => t != null))].sort((a, b) => a - b);
+  let ax = ticks.map(t => `<span class="tick" style="left:${pct(t)}">${fmt(t)}</span>`).join('');
+  for (let i = 1; i < keyTimes.length; i++) if (keyTimes[i] - keyTimes[i - 1] > GAP_CAP) ax += `<span class="brk" style="left:${(disp[i - 1] + GAP_CAP / 2) / D * 100}%">≈</span>`;
+  $('axis').innerHTML = ax + '<div class="cursor"></div>';
+  $('raw').querySelector('tbody').innerHTML = S.raw.map(e => `<tr data-t="${e.t}"><td>${fmt(e.t)}</td><td>${e.src}</td><td>${e.what}</td><td>${e.req || ''}</td><td>${e.blocks.map(h => S.labels[h] || h.slice(0, 6)).join(', ')}</td><td>${e.completes_at_ms ?? ''}</td></tr>`).join('');
+  exactT = null; $('slider').value = 0; render(); postHeight();
+}
+function step(dir) {
+  const t = exactT ?? toTime(D * $('slider').value / 1000);
+  const ts = S.snapshots.map(s => s.t);
+  const target = dir > 0 ? ts.find(x => x > t + 1e-6) : [...ts].reverse().find(x => x < t - 1e-6);
+  if (target != null) { exactT = target; $('slider').value = toDisp(target) / D * 1000; render(); }
+}
+function tick(now) {
+  if (!playing) return;
+  const dt = (now - last) / 1000; last = now;
+  let v = +$('slider').value + dt * speed * 1000 / D * 2.5;
+  if (v >= 1000) { v = 1000; playing = false; $('play').textContent = '▶ 播放'; }
+  exactT = null; $('slider').value = v; render();
+  if (playing) requestAnimationFrame(tick);
+}
+function postHeight() { if (window.parent !== window) window.parent.postMessage({ kvReplayHeight: document.documentElement.scrollHeight }, '*'); }
+new ResizeObserver(postHeight).observe(document.body);
+$('play').onclick = () => { playing = !playing; $('play').textContent = playing ? '⏸ 暂停' : '▶ 播放'; if (playing) { if (+$('slider').value >= 1000) { $('slider').value = 0; exactT = null; } last = performance.now(); requestAnimationFrame(tick); } };
+$('prev').onclick = () => step(-1); $('next').onclick = () => step(1);
+$('slider').oninput = () => { exactT = null; render(); }; $('speed').onchange = e => speed = +e.target.value;
+document.addEventListener('keydown', e => { if (e.key === 'ArrowRight') step(1); else if (e.key === 'ArrowLeft') step(-1); else if (e.key === ' ') { e.preventDefault(); $('play').click(); } });
+$('tabs').innerHTML = DATA.map((s, i) => `<button class="tab${s.title.startsWith('极端') ? ' edge' : ''}" data-i="${i}">${s.title.replace(/^极端：/, '')}</button>`).join('');
+document.querySelectorAll('.tab').forEach(b => b.onclick = () => loadScenario(+b.dataset.i));
+const start = Math.max(0, DATA.findIndex(s => s.slug === params.get('scenario')));
+loadScenario(start);
+</script>
+</body>
+</html>
