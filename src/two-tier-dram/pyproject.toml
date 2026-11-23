@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "aisim-two-tier-dram"
-version = "0.1.0"
+version = "0.1.0.dev1"
 description = "Two-tier DRAM decode model as an AISim stack and configuration section"
 requires-python = ">=3.11"
 dependencies = ["aisim"]
