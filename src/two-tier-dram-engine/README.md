@@ -66,6 +66,7 @@ engine:
 | `expert_cache_gb` | 自动 | 不填则用一级剩余空间 |
 | `expert_overlap` / `topk_overlap` | 0.5 / 0.75 | 合成的跨步重合度 |
 | `expert_prefetch` | `none` | 也可以是 `last_step`（只用空闲位置） |
+| `expert_policy` | `lru` | `lru`：全部层共用一个最久未用列表；`layer_partition`：每层平分专家槽位，层内最久未用，超出份额的专家用完即弃 |
 | `hot_kv_entries` | 65536 | 热 top-k KV 缓存条数 |
 | `profile_context_tokens` | 65536 | 测 attention／MoE 时间比例时用的上下文长度 |
 | `seed` | 0 | 合成路由与 top-k 的种子 |
@@ -96,8 +97,8 @@ python3 src/two-tier-dram-engine/sweep.py --limit 6 --jobs 6 --out /tmp/sweep-sm
 ```
 
 `sweep.py` 的 `AXES` 列出页面上的全部参数：
-- 核心参数取全组合：到达方式、输入长度、输出长度、一级容量、非专家权重放置、二级标称带宽（432 个点）。
-- 其余参数在锚点上逐个变化。锚点是每种负载 × 一级 36 GB 逐层轮换／96 GB 常驻，二级 2.2 TB/s（另 600 个点）。
+- 核心参数取全组合：到达方式、输入长度、输出长度、一级容量、非专家权重放置、二级标称带宽、专家缓存策略（864 个点）。
+- 其余参数在锚点上逐个变化。锚点是每种负载 × 一级 36 GB 逐层轮换／96 GB 常驻 × 两种缓存策略，二级 2.2 TB/s（另 1200 个点）。
 - 每种负载另跑一次原生版本。
 
 每个点是一次真实的 `aisim predict --stack engine` 运行。结果缓存在 `output/sweep/points/<id>.json`，重跑只补缺失的点；改了 AISim 或 profile 后删掉 `output/sweep/points` 再跑。每条记录带运行时的 AISim 提交，页面显示这些提交。i163v 上全部重跑约 30 分钟。并发太高时 AISim 启动会超时，脚本把这类失败重试 3 次，仍失败就停止；只有引擎自己的 `two_tier_dram:` 拒绝才记为被拒绝的点。
@@ -108,6 +109,7 @@ python3 src/two-tier-dram-engine/sweep.py --limit 6 --jobs 6 --out /tmp/sweep-sm
 - 带宽升高不变慢；
 - 二级容量只影响可行性标记；
 - 每次传输加开销不变快；
+- LRU 专家命中率低于 1% 的点，`layer_partition` 命中更多；
 - 一级 ≤ 36 GB 时非专家权重常驻被拒绝。
 
 任何一项不通过就退出 1，不写页面。

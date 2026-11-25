@@ -68,6 +68,8 @@ AXES = [
     {"key": "link_policy", "group": "link", "role": "oat", "levels": ["demand_first", "fifo"], "default": "demand_first",
      "label": "链路策略", "help": "demand_first：按需传输抢占预取；fifo：按入队顺序。"},
     # Experts.
+    {"key": "expert_policy", "group": "experts", "role": "core", "levels": ["lru", "layer_partition"], "default": "lru",
+     "label": "专家缓存策略", "help": "lru：全部层共用一个最久未用列表；layer_partition：每层平分专家槽位，层内最久未用，超出份额的专家用完即弃。"},
     {"key": "expert_cache_gb", "group": "experts", "role": "oat", "levels": [None, 4, 16], "default": None,
      "label": "专家缓存上限", "unit": "GB", "help": "不设（自动）时用一级剩余空间。"},
     {"key": "expert_overlap", "group": "experts", "role": "oat", "levels": [0.0, 0.25, 0.5, 0.75, 1.0], "default": 0.5,
@@ -97,8 +99,8 @@ CORE = [a for a in AXES if a["role"] == "core"]
 OAT = [a for a in AXES if a["role"] == "oat"]
 DEFAULTS = {a["key"]: a["default"] for a in AXES}
 # One-at-a-time sweeps run around these core settings, for every workload.
-ANCHORS = [{"tier1_gb": 36, "base_weights": "layer_prefetch", "tier2_bandwidth_gbps": 2200},
-           {"tier1_gb": 96, "base_weights": "resident", "tier2_bandwidth_gbps": 2200}]
+ANCHORS = [{"tier1_gb": t, "base_weights": w, "tier2_bandwidth_gbps": 2200, "expert_policy": policy}
+           for policy in ("lru", "layer_partition") for t, w in ((36, "layer_prefetch"), (96, "resident"))]
 PHASES = ("attention", "moe", "tail", "wait_base", "wait_kv", "wait_experts")
 LINK_KINDS = ("demand_base", "prefetch_base", "demand_expert", "prefetch_expert", "demand_kv", "prefill_kv", "writeback")
 
@@ -326,6 +328,17 @@ def checks(records: list[dict], natives: dict[str, dict]) -> list[tuple[str, boo
                 if makespan(r) < makespan(base) * 0.995:
                     bad.append(r["id"])
     results.append(("每次传输 0.1 ms 开销不比 0 快", pairs > 0 and not bad, f"{pairs} 对，{len(bad)} 对更快"))
+
+    pairs, bad = 0, []
+    for r in ok.values():
+        p, t = r["point"], r["totals"]
+        if p["expert_policy"] == "lru" and t["expert_lookups"] and t["expert_hits"] < 0.01 * t["expert_lookups"]:
+            part = find({**p, "expert_policy": "layer_partition"})
+            if part:
+                pairs += 1
+                if part["totals"]["expert_hits"] <= t["expert_hits"]:
+                    bad.append(r["id"])
+    results.append(("LRU 专家命中率低于 1% 的点，layer_partition 命中更多", pairs > 0 and not bad, f"{pairs} 对，{len(bad)} 对没有更多"))
 
     resident_small = [r for r in records if r["point"]["base_weights"] == "resident" and r["point"]["tier1_gb"] <= 36]
     results.append(("一级 ≤ 36 GB 时非专家权重常驻被拒绝（32 GB + scratch 放不下）",

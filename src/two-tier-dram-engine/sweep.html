@@ -7,7 +7,7 @@
 <style>
   :root { --bg:#fafafa; --card:#fff; --ink:#1d2330; --ink2:#52514e; --mute:#6b7280; --line:#e5e7eb; --grid:#efefed;
           --accent:#2a78d6; --compute:#c9c8c2; --base:#2a78d6; --kv:#1baf7a; --exp:#eb6834;
-          --bw1:#86b6ef; --bw2:#2a78d6; --bw3:#104281; --native:#8a8984; --bad:#d03b3b; --good:#0ca30c; }
+          --lru:#eb6834; --bw1:#86b6ef; --bw2:#2a78d6; --bw3:#104281; --native:#8a8984; --bad:#d03b3b; --good:#0ca30c; }
   * { box-sizing:border-box; }
   body { margin:0; font:13.5px/1.5 -apple-system,BlinkMacSystemFont,"PingFang SC","Noto Sans CJK SC","Segoe UI",sans-serif; background:var(--bg); color:var(--ink); }
   body.embedded { background:transparent; }
@@ -108,7 +108,11 @@
 const PACKED = "__DATA_GZ_B64__";
 const PHASE_LABEL = { compute: "计算（AISim 原生）", wait_base: "等非专家权重", wait_kv: "等 top-k KV", wait_experts: "等专家" };
 const GROUPS = { workload: "工作负载", memory: "容量与带宽", link: "链路", experts: "专家", kv: "top-k KV", model: "模型与随机性" };
-const BW_COLOR = { 1100: "var(--bw1)", 2200: "var(--bw2)", 4400: "var(--bw3)" };
+// Series a response chart can draw: tier-2 bandwidth (sequential blues) or expert cache policy (two categorical hues).
+const SERIES = {
+  tier2_bandwidth_gbps: { color: { 1100: "var(--bw1)", 2200: "var(--bw2)", 4400: "var(--bw3)" }, name: b => `二级 ${fmt(b / 1000, 1)} TB/s` },
+  expert_policy: { color: { lru: "var(--lru)", layer_partition: "var(--accent)" }, name: v => v === "lru" ? "LRU" : "分层分区" },
+};
 const NS = "http://www.w3.org/2000/svg";
 let D, AX, INDEX, cur, msg = "", localPick = "decode", showTable = false;
 
@@ -231,17 +235,17 @@ function requestTimeline(parent, rec, nat) {
   });
 }
 
-function responseChart(parent, title, note, metric, unit) {
+function responseChart(parent, title, note, metric, unit, seriesKey) {
   const card = el("div", { class: "card" }, parent);
   el("h2", { text: title }, card);
   el("div", { class: "note", text: note }, card);
-  const A = AX.find(a => a.key === "tier1_gb"), B = AX.find(a => a.key === "tier2_bandwidth_gbps");
+  const A = AX.find(a => a.key === "tier1_gb"), B = AX.find(a => a.key === seriesKey), S = SERIES[seriesKey];
   const lg = el("div", { class: "legend" }, card);
-  lg.innerHTML = B.levels.map(b => `<span><i class="line" style="background:${BW_COLOR[b]}"></i>二级 ${fmt(b / 1000, 1)} TB/s</span>`).join("") +
+  lg.innerHTML = B.levels.map(b => `<span><i class="line" style="background:${S.color[b]}"></i>${S.name(b)}</span>`).join("") +
     `<span><i class="dash"></i>AISim 原生</span>`;
   const nat = D.natives[wkey(cur)], natV = metric(nat);
   const series = B.levels.map(b => ({ b, pts: A.levels.map(t => {
-    const r = INDEX.get(keyOf({ ...cur, tier1_gb: t, tier2_bandwidth_gbps: b, ...oatDefaults() }));
+    const r = INDEX.get(keyOf({ ...cur, ...oatDefaults(), tier1_gb: t, [seriesKey]: b }));
     return { t, r, v: r && !r.error ? metric(r) : null };
   }) }));
   const vals = series.flatMap(s => s.pts.map(p => p.v)).filter(v => v != null).concat(natV == null ? [] : [natV]);
@@ -260,17 +264,18 @@ function responseChart(parent, title, note, metric, unit) {
   for (const s of series) {
     let d = "", pen = false;
     for (const p of s.pts) { if (p.v == null) { pen = false; continue; } d += (pen ? "L" : "M") + x(p.t) + " " + y(p.v); pen = true; }
-    el("path", { d, fill: "none", stroke: BW_COLOR[s.b], "stroke-width": 2 }, svg);
+    el("path", { d, fill: "none", stroke: S.color[s.b], "stroke-width": 2 }, svg);
   }
   for (const s of series) for (const p of s.pts) {
     if (p.v == null) {
       if (p.r && p.r.error) el("text", { x: x(p.t), y: H - bottom - 4, "text-anchor": "middle", fill: "var(--bad)", text: "×" }, svg);
       continue;
     }
-    const isCur = p.t === cur.tier1_gb && s.b === cur.tier2_bandwidth_gbps && isOatDefault();
-    const c = el("circle", { cx: x(p.t), cy: y(p.v), r: isCur ? 6 : 4, fill: BW_COLOR[s.b], stroke: isCur ? "var(--ink)" : "#fff", "stroke-width": 2, style: "cursor:pointer" }, svg);
-    c.addEventListener("click", () => { cur = { ...cur, tier1_gb: p.t, tier2_bandwidth_gbps: s.b, ...oatDefaults() }; msg = ""; render(); });
-    tip(c, () => `<b>一级 ${p.t} GB，二级 ${fmt(s.b / 1000, 1)} TB/s</b><br>${title.split("：")[1] || ""} ${unit(p.v)}<br>原生 ${unit(natV)}（+${fmt(pct(p.v, natV), 0)}%）<br><span style="color:var(--mute)">点击切换到这个点</span>`);
+    const isCur = p.t === cur.tier1_gb && s.b === cur[seriesKey] && isOatDefault();
+    const c = el("circle", { cx: x(p.t), cy: y(p.v), r: isCur ? 6 : 4, fill: S.color[s.b], stroke: isCur ? "var(--ink)" : "#fff", "stroke-width": 2, style: "cursor:pointer" }, svg);
+    c.addEventListener("click", () => { cur = { ...cur, ...oatDefaults(), tier1_gb: p.t, [seriesKey]: s.b }; msg = ""; render(); });
+    const hits = p.r.totals ? `<br>专家命中 ${fmt(p.r.totals.expert_hits)}/${fmt(p.r.totals.expert_lookups)}` : "";
+    tip(c, () => `<b>一级 ${p.t} GB，${S.name(s.b)}</b><br>${title.split("：")[1] || ""} ${unit(p.v)}<br>原生 ${unit(natV)}（+${fmt(pct(p.v, natV), 0)}%）${hits}<br><span style="color:var(--mute)">点击切换到这个点</span>`);
   }
 }
 const oatDefaults = () => Object.fromEntries(AX.filter(a => a.role === "oat").map(a => [a.key, a.default]));
@@ -283,13 +288,13 @@ function sensitivity(parent) {
   const isAnchor = D.anchors.some(a => Object.entries(a).every(([k, v]) => anchor[k] === v));
   const base = INDEX.get(keyOf(anchor));
   if (!isAnchor || !base || base.error) {
-    el("div", { class: "note", text: "逐个变化只在两个锚点上计算（每种负载 × 一级 36 GB 逐层轮换 / 96 GB 常驻，二级 2.2 TB/s）。" }, card);
+    el("div", { class: "note", text: "逐个变化只在 4 个锚点上计算（每种负载 × 一级 36 GB 逐层轮换 / 96 GB 常驻 × 两种缓存策略，二级 2.2 TB/s）。" }, card);
     const row = el("div", { class: "status" }, card);
-    D.anchors.forEach(a => el("button", { class: "btn", text: `跳到 ${a.tier1_gb} GB ${a.base_weights === "resident" ? "常驻" : "轮换"}`,
+    D.anchors.forEach(a => el("button", { class: "btn", text: `跳到 ${a.tier1_gb} GB ${a.base_weights === "resident" ? "常驻" : "轮换"}，${SERIES.expert_policy.name(a.expert_policy)}`,
       onclick: () => { cur = { ...cur, ...oatDefaults(), ...a }; msg = ""; render(); } }, row));
     return;
   }
-  el("div", { class: "note", text: `锚点：当前负载，一级 ${anchor.tier1_gb} GB（${anchor.base_weights === "resident" ? "非专家权重常驻" : "逐层轮换"}），二级 2.2 TB/s，完成 ${ms(makespan(base))}。每个点相对锚点的变化；点击切换。` }, card);
+  el("div", { class: "note", text: `锚点：当前负载，一级 ${anchor.tier1_gb} GB（${anchor.base_weights === "resident" ? "非专家权重常驻" : "逐层轮换"}），${SERIES.expert_policy.name(anchor.expert_policy)}，二级 2.2 TB/s，完成 ${ms(makespan(base))}。每个点相对锚点的变化；点击切换。` }, card);
   const rows = AX.filter(a => a.role === "oat").map(a => ({ a, pts: a.levels.map(v => {
     const r = INDEX.get(keyOf({ ...anchor, [a.key]: v }));
     return { v, r, d: r && !r.error ? pct(makespan(r), makespan(base)) : null };
@@ -433,8 +438,11 @@ function render() {
     requestTimeline(body, rec, nat);
   }
   const two = el("div", { class: "two", style: "margin-bottom:12px" }, body);
-  responseChart(two, "全局：全部完成时间", "当前负载与非专家权重设置，其余参数默认。× 表示被拒绝。", makespan, ms);
-  responseChart(two, "全局：平均 decode 步长", "首 token 之后每个 token 的平均间隔；一级容量主要影响这里。", r => meanItl(r, cur.output), ms);
+  responseChart(two, "全局：全部完成时间", "按二级带宽分线；当前负载、非专家权重与缓存策略，其余参数默认。× 表示被拒绝。", makespan, ms, "tier2_bandwidth_gbps");
+  responseChart(two, "全局：平均 decode 步长", "首 token 之后每个 token 的平均间隔；一级容量主要影响这里。", r => meanItl(r, cur.output), ms, "tier2_bandwidth_gbps");
+  const two2 = el("div", { class: "two", style: "margin-bottom:12px" }, body);
+  responseChart(two2, "专家缓存策略：全部完成时间", "按缓存策略分线；当前负载、非专家权重与二级带宽。", makespan, ms, "expert_policy");
+  responseChart(two2, "专家缓存策略：平均 decode 步长", "LRU 在缓存小于一步的专家时几乎不命中；分层分区让每层保留一部分。", r => meanItl(r, cur.output), ms, "expert_policy");
   sensitivity(body);
   if (!rec.error) { passStrip(body, rec); layerChart(body, rec); }
   postHeight();
