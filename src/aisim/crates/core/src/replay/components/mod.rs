@@ -1,0 +1,27 @@
+// SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
+mod admission;
+mod detokenization;
+mod encoder;
+mod engine;
+mod tokenization;
+mod types;
+
+pub(crate) use admission::{
+    AdmissionQueue, DEFAULT_MAX_SOURCE_STEPS_PER_INSTANT, DpRankLimits, ReplayReadyArrival,
+};
+pub use admission::{NoReplayMetadata, ReplayAdmissionMetadata};
+pub use detokenization::DetokenizationLatency;
+pub(crate) use detokenization::{DetokenizationStage, PassReceipt};
+pub(crate) use encoder::EncoderPool;
+pub(crate) use engine::EngineComponent;
+pub use tokenization::TokenizationLatency;
+pub(crate) use tokenization::TokenizationStage;
+pub use types::ReplayEngineObservation;
+pub(crate) use types::ReplayMode;
+pub use types::TrafficStats;
+pub(crate) use types::{
+    AdmissionEvent, EngineEffects, EnginePassMode, InternalEngineEffects, ObservedCommandEffects,
+    PressureEvent, ScheduledEngineCompletion, TrafficAccumulators,
+};

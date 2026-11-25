@@ -1,0 +1,124 @@
+// SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
+//! Crate-wide error type.
+//!
+//! `lib.rs` re-exports `AicError` so the FFI surface and other callers can
+//! use it without depending on this module path. The operator-layer
+//! `PerformanceResult` companion type lives in `operators/base.rs`.
+
+use std::path::PathBuf;
+
+use thiserror::Error;
+
+/// All errors surfaced by the Rust core.
+#[derive(Debug, Error)]
+pub enum AicError {
+    /// A recognized feature that cannot execute; never an estimator coverage miss.
+    #[error("{0}")]
+    NotImplemented(String),
+    #[error(
+        "unsupported schema version for {kind}: got {got}, expected {expected}; recompile with this engine"
+    )]
+    UnsupportedSchemaVersion {
+        kind: &'static str,
+        got: u32,
+        expected: u32,
+    },
+    #[error("invalid engine config: {0}")]
+    InvalidEngineConfig(String),
+    #[error("engine spec wire-format error: {0}")]
+    EngineSpec(String),
+    #[error("invalid forward pass metrics: {0}")]
+    InvalidForwardPassMetrics(String),
+    #[error("unsupported model for Rust core estimator: {0}")]
+    UnsupportedModel(String),
+    #[error("failed to find AIC data roots: {0}")]
+    DataRoot(String),
+    #[error("model config error: {0}")]
+    ModelConfig(String),
+    #[error("perf database error: {0}")]
+    PerfDatabase(String),
+    /// A valid FPM query lacks measured support. This is distinct from
+    /// malformed profiles, identity errors, and invalid numerical results.
+    #[error("perf database error: {0}")]
+    FpmQueryUnsupported(String),
+    /// A validated interpolation query has no eligible site. Structural and
+    /// numerical resolver errors retain their separate error paths.
+    #[error("perf database error: {0}")]
+    InterpolationCoverage(String),
+    /// A linear-attention operation (Mamba2, GDN, KDA) has no SILICON rows for a kernel it
+    /// needs: the table is missing, empty, or without that kernel. Missing perf data for every
+    /// consumer; auto selection additionally rebuilds the op_level candidate in HYBRID.
+    #[error("perf database error: {0}")]
+    LinearAttentionDataMissing(String),
+    /// Malformed or incompatible measured data is never a coverage miss.
+    /// HYBRID and regression fallbacks must propagate this error.
+    #[error("invalid performance data: {0}")]
+    InvalidPerfData(String),
+    /// A quant mode's compute dtype has no `*_tc_flops` entry in the system
+    /// YAML. Mirrors Python's `MissingSystemFlopsError`: the platform either
+    /// lacks hardware for that dtype or the YAML is incomplete — never
+    /// extrapolate a fictional throughput from bf16.
+    #[error("missing system flops: {0}")]
+    MissingSystemFlops(String),
+    /// The HYBRID/EMPIRICAL path found no calibration data for the requested
+    /// slice — no own-shape, cross-shape, or sibling transfer reference.
+    /// Mirrors Python's `EmpiricalNotImplementedError`: a coverage gap, never
+    /// converted into a fabricated `SOL / constant` value.
+    #[error("empirical estimation not implemented: {0}")]
+    EmpiricalNotImplemented(String),
+    /// The analytic SOL path cannot represent an operator required by the
+    /// requested estimate. Mirrors Python's `SolNotImplementedError` so an
+    /// optional SOL comparison can distinguish a coverage gap from an invalid
+    /// configuration or a programming error.
+    #[error("SOL estimation not implemented: {0}")]
+    SolNotImplemented(String),
+    #[error("I/O error at {path}: {source}")]
+    Io {
+        path: PathBuf,
+        #[source]
+        source: std::io::Error,
+    },
+    #[error("YAML error at {path}: {source}")]
+    Yaml {
+        path: PathBuf,
+        #[source]
+        source: serde_yaml::Error,
+    },
+    #[error("Parquet error at {path}: {source}")]
+    Parquet {
+        path: PathBuf,
+        #[source]
+        source: parquet::errors::ParquetError,
+    },
+    /// Reading or writing a forward-pass state snapshot failed. Unlike
+    /// [`Self::Io`], this is never missing performance data: Python raises
+    /// an `OSError` subclass, and no fallback or skip path treats it as a gap.
+    #[error("state snapshot I/O error at {path}: {source}")]
+    StateSnapshotIo {
+        path: PathBuf,
+        #[source]
+        source: std::io::Error,
+    },
+}
+
+impl AicError {
+    /// The "missing silicon data" class that HYBRID converts into an
+    /// empirical estimate. Mirrors Python's
+    /// `_MISSING_SILICON_DATA_EXCEPTIONS` (`PerfDataNotAvailableError`,
+    /// `InterpolationDataNotAvailableError`) — the same set `Op::Fallback`
+    /// catches. `EmpiricalNotImplemented` is deliberately NOT in this set:
+    /// it is the terminal miss raised after the empirical path itself found
+    /// no calibration data.
+    pub fn is_missing_perf_data(&self) -> bool {
+        matches!(
+            self,
+            Self::PerfDatabase(_)
+                | Self::FpmQueryUnsupported(_)
+                | Self::InterpolationCoverage(_)
+                | Self::LinearAttentionDataMissing(_)
+                | Self::Io { .. }
+        )
+    }
+}

@@ -1,0 +1,1388 @@
+// SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
+//! Mamba2, Gated Delta Network (GDN) and Kimi Delta Attention (KDA)
+//! operators for hybrid state-space models (Nemotron-H, Qwen3.5, Kimi-K3).
+//!
+//! Each wraps `db.state_space.query_*` with `scale_factor` + `clamp`.
+
+use crate::common::enums::DatabaseMode;
+use crate::common::error::AicError;
+use crate::operators::base::{PerformanceResult, Source};
+use crate::perf_database::PerfDatabase;
+use serde::{Deserialize, Serialize};
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Mamba2Op {
+    pub name: String,
+    pub scale_factor: f64,
+    /// Kernel routine name. Distinguishes per-phase Mamba2 variants
+    /// (`causal_conv1d_fn` for context, `causal_conv1d_update` for
+    /// generation, etc.).
+    pub kernel_source: String,
+    pub phase: String, // "context" | "generation" (matches Python; SOL branch keys on phase == "context")
+    pub d_model: u32,
+    pub d_state: u32,
+    pub d_conv: u32,
+    pub nheads: u32,
+    pub head_dim: u32,
+    pub n_groups: u32,
+    pub chunk_size: u32,
+}
+
+impl Mamba2Op {
+    pub fn query(
+        &self,
+        db: &PerfDatabase,
+        batch_size: u32,
+        seq_len: u32,
+    ) -> Result<PerformanceResult, AicError> {
+        // SOL (and the retired SOL_FULL alias) never reads the table, as in
+        // the GEMM, attention, MoE and mHC operators. Mamba2 has no util-space
+        // empirical layer, so EMPIRICAL answers with the same analytic SOL
+        // instead of reading measured rows.
+        if matches!(
+            db.database_mode,
+            DatabaseMode::Sol | DatabaseMode::SolFull | DatabaseMode::Empirical
+        ) {
+            let latency = self.sol_latency_ms(db, batch_size as f64, seq_len as f64);
+            return Ok(PerformanceResult::new(latency, Source::Sol)
+                .clamp_non_negative()
+                .scaled(self.scale_factor));
+        }
+        // Mirrors Python `Mamba2Kernel.query`: silicon-first, SOL fallback
+        // on perf-DB miss. The op's arg-style SOL is threaded into the table
+        // query so the perf_interp engine can util-hold beyond-range queries
+        // (mirroring how Python passes `get_sol` into the engine record).
+        match db.state_space.query_mamba2(
+            &self.kernel_source,
+            &self.phase,
+            batch_size,
+            seq_len,
+            self.d_model,
+            self.d_state,
+            self.d_conv,
+            self.nheads,
+            self.head_dim,
+            self.n_groups,
+            self.chunk_size,
+            &|b, s| self.sol_latency_ms(db, b, s),
+        ) {
+            Ok(value) => {
+                Ok(
+                    PerformanceResult::with_energy(value.latency, value.energy, Source::Silicon)
+                        .clamp_non_negative()
+                        .scaled(self.scale_factor),
+                )
+            }
+            Err(AicError::PerfDatabase(_)) => {
+                let latency = self.sol_latency_ms(db, batch_size as f64, seq_len as f64);
+                Ok(PerformanceResult::new(latency, Source::Sol)
+                    .clamp_non_negative()
+                    .scaled(self.scale_factor))
+            }
+            Err(other) => Err(other),
+        }
+    }
+
+    /// Mirrors Python `Mamba2Kernel.get_sol()`. `f64` coordinates because the
+    /// perf_interp engine evaluates SOL at blended/snapped anchor points.
+    fn sol_latency_ms(&self, db: &PerfDatabase, batch_size: f64, seq_len: f64) -> f64 {
+        let nheads = self.nheads as f64;
+        let head_dim = self.head_dim as f64;
+        let n_groups = self.n_groups as f64;
+        let d_state = self.d_state as f64;
+        let d_conv = self.d_conv as f64;
+        let d_inner = nheads * head_dim;
+        let conv_dim = d_inner + 2.0 * n_groups * d_state;
+        let x = if self.phase == "context" && seq_len > 0.0 {
+            batch_size * seq_len
+        } else {
+            batch_size
+        };
+        let total_bytes = match self.kernel_source.as_str() {
+            "causal_conv1d_fn" | "causal_conv1d_update" => {
+                x * conv_dim * (d_conv + 1.0) * 2.0 + x * conv_dim * 2.0
+            }
+            _ => {
+                // SSM kernels (`mamba_chunk_scan_combined` etc.).
+                x * (d_inner + n_groups * d_state * 2.0 + nheads) * 2.0 + x * d_inner * 2.0
+            }
+        };
+        let mem_bw = db.system_spec.gpu.mem_bw.max(1.0);
+        total_bytes / mem_bw * 1000.0
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct GdnOp {
+    pub name: String,
+    pub scale_factor: f64,
+    /// GDN kernel name. Context uses `causal_conv1d_fn` and
+    /// `chunk_gated_delta_rule`; generation uses `causal_conv1d_update`
+    /// and `fused_sigmoid_gating_delta_rule_update`.
+    pub kernel_source: String,
+    pub phase: String, // "context" | "generation" (matches Python; SOL branch keys on phase == "context")
+    pub d_model: u32,
+    pub d_conv: u32,
+    pub num_k_heads: u32,
+    pub head_k_dim: u32,
+    pub num_v_heads: u32,
+    pub head_v_dim: u32,
+    /// Mamba SSM state dtype from the model config (`mamba_ssm_dtype`).
+    /// sglang v0.5.14 auto-selects the FlashInfer GDN decode backend only
+    /// when this is "bfloat16" (`_handle_linear_attn_backend`,
+    /// server_args.py:4884-4915 @ pinned v0.5.14 clone); every bundled
+    /// Qwen3.5/3.6 config pins "float32", which serving's
+    /// `mamba2_state_dtype` default also is — hence the serde default.
+    #[serde(default = "default_mamba_ssm_dtype")]
+    pub mamba_ssm_dtype: String,
+}
+
+fn default_mamba_ssm_dtype() -> String {
+    "float32".to_string()
+}
+
+impl GdnOp {
+    fn state_element_bytes(&self) -> f64 {
+        match self.mamba_ssm_dtype.as_str() {
+            "bfloat16" | "float16" => 2.0,
+            // Qwen35Model resolves invalid configuration values to float32;
+            // keep direct/deserialized invalid values conservative as well.
+            _ => 4.0,
+        }
+    }
+
+    pub fn query(
+        &self,
+        db: &PerfDatabase,
+        batch_size: u32,
+        seq_len: u32,
+    ) -> Result<PerformanceResult, AicError> {
+        // SOL (and the retired SOL_FULL alias) never reads the table, as in
+        // the GEMM, attention, MoE and mHC operators. GDN has no util-space
+        // empirical layer, so EMPIRICAL answers with the same analytic SOL
+        // instead of reading measured rows.
+        if matches!(
+            db.database_mode,
+            DatabaseMode::Sol | DatabaseMode::SolFull | DatabaseMode::Empirical
+        ) {
+            let latency = self.sol_latency_ms(db, batch_size as f64, seq_len as f64);
+            return Ok(PerformanceResult::new(latency, Source::Sol)
+                .clamp_non_negative()
+                .scaled(self.scale_factor));
+        }
+        // Mirrors Python `GDNKernel.query`: try the silicon table; on a
+        // `PerfDataNotAvailableError`-class miss (the perf DB doesn't ship
+        // every kernel/phase slice), fall back to a per-kernel SOL formula.
+        // The op's arg-style SOL is threaded into the table query for
+        // beyond-range util-hold (mirrors Python's engine record sol_fn).
+        match db.state_space.query_gdn(
+            &self.kernel_source,
+            &self.phase,
+            batch_size,
+            seq_len,
+            self.d_model,
+            self.d_conv,
+            self.num_k_heads,
+            self.head_k_dim,
+            self.num_v_heads,
+            self.head_v_dim,
+            &self.mamba_ssm_dtype,
+            &|b, s| self.sol_latency_ms(db, b, s),
+        ) {
+            Ok(value) => {
+                Ok(
+                    PerformanceResult::with_energy(value.latency, value.energy, Source::Silicon)
+                        .clamp_non_negative()
+                        .scaled(self.scale_factor),
+                )
+            }
+            Err(AicError::PerfDatabase(_)) => {
+                let latency = self.sol_latency_ms(db, batch_size as f64, seq_len as f64);
+                Ok(PerformanceResult::new(latency, Source::Sol)
+                    .clamp_non_negative()
+                    .scaled(self.scale_factor))
+            }
+            Err(other) => Err(other),
+        }
+    }
+
+    /// Mirrors Python `GDNKernel.get_sol()`. Per-kernel byte-count formula
+    /// divided by GPU memory bandwidth. `f64` coordinates because the
+    /// perf_interp engine evaluates SOL at blended/snapped anchor points.
+    fn sol_latency_ms(&self, db: &PerfDatabase, batch_size: f64, seq_len: f64) -> f64 {
+        let x = if self.phase == "context" && seq_len > 0.0 {
+            batch_size * seq_len
+        } else {
+            batch_size
+        };
+        let bs = batch_size;
+        let nk = self.num_k_heads as f64;
+        let hk = self.head_k_dim as f64;
+        let nv = self.num_v_heads as f64;
+        let hv = self.head_v_dim as f64;
+        // Packed q/k/v convolution width (2K + V), matching the collector's conv_dim.
+        let conv_channels = 2.0 * nk * hk + nv * hv;
+        let d_conv = self.d_conv as f64;
+        let d_model = self.d_model as f64;
+        let state_size = nv * hk * hv;
+        let chunk_size = 64.0_f64;
+        // Python: `(s // chunk_size) if s else 0` — floor division.
+        let num_chunks = if seq_len > 0.0 {
+            (seq_len / 64.0).floor()
+        } else {
+            0.0
+        };
+        let h_chunks_bytes = num_chunks * state_size * 2.0 * bs;
+        let state_element_bytes = self.state_element_bytes();
+        let _ = chunk_size; // reserved for clarity / future use
+
+        let (read_bytes, write_bytes) = match self.kernel_source.as_str() {
+            "causal_conv1d_fn" | "causal_conv1d_update" => (
+                x * conv_channels * (d_conv + 1.0) * 2.0,
+                x * conv_channels * 2.0,
+            ),
+            // q/k/v reads are 2K + V wide; recurrent-state bytes follow the
+            // resolved model dtype while h_chunks stay input-dtype BF16.
+            "chunk_gated_delta_rule" => (
+                x * (2.0 * nk * hk + nv * hv) * 2.0
+                    + state_size * state_element_bytes * bs
+                    + h_chunks_bytes,
+                x * nv * hv * 2.0 + state_size * state_element_bytes * bs + h_chunks_bytes,
+            ),
+            // GDN single-step decode: reads q/k/v (2K + V wide) plus the
+            // recurrent state. The logical FLA recurrence follows the model's
+            // resolved state dtype; the explicit FlashInfer lane remains BF16
+            // (2 bytes) -- sglang's server_args.py
+            // _handle_linear_attn_backend (server_args.py:4884-4915 @ pinned
+            // v0.5.14 clone) auto-selects this backend on compute-capability
+            // major 10 and hard-errors a non-bf16 state there. q/k/v
+            // activation terms stay 2-byte bf16 for both lanes.
+            "fused_sigmoid_gating_delta_rule_update" | "flashinfer_gated_delta_rule_decode" => {
+                let state_bytes = if self.kernel_source == "flashinfer_gated_delta_rule_decode" {
+                    2.0
+                } else {
+                    state_element_bytes
+                };
+                (
+                    x * (2.0 * nk * hk + nv * hv) * 2.0 + state_size * state_bytes * bs,
+                    x * nv * hv * 2.0 + state_size * state_bytes * bs,
+                )
+            }
+            _ => (x * d_model * 2.0, x * d_model * 2.0),
+        };
+        let mem_bw = db.system_spec.gpu.mem_bw.max(1.0);
+        (read_bytes + write_bytes) / mem_bw * 1000.0
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct KdaOp {
+    pub name: String,
+    pub scale_factor: f64,
+    /// KDA kernel name. Context uses `causal_conv1d_fn_qkv3` and
+    /// `chunk_kda`; generation uses `causal_conv1d_update` and
+    /// `fused_recurrent_kda_packed_decode`; verify uses
+    /// `causal_conv1d_update` and `fused_sigmoid_gating_delta_rule_update`.
+    pub kernel_source: String,
+    /// "context" | "generation" | "verify" (matches Python; the SOL byte
+    /// model and the verify batch division key on this phase).
+    pub phase: String,
+    pub d_model: u32,
+    pub d_conv: u32,
+    pub num_k_heads: u32,
+    pub head_k_dim: u32,
+    pub num_v_heads: u32,
+    pub head_v_dim: u32,
+    /// Verify-phase token width (speculative block size + 1). Python sends
+    /// `op._draft_tokens`; 0 outside verify.
+    pub draft_tokens: i64,
+}
+
+impl KdaOp {
+    pub fn query(
+        &self,
+        db: &PerfDatabase,
+        batch_size: u32,
+        seq_len: u32,
+    ) -> Result<PerformanceResult, AicError> {
+        // Mirrors Python `KDAKernel.query`: silicon-first, SOL fallback on a
+        // perf-DB miss, with the op's arg-style SOL threaded into the table
+        // query for beyond-range util-hold (same shape as GdnOp above).
+        // Verify batching is normalized ONCE here — both the table lookup and
+        // the SOL fallback see the adjusted `(batch, seq)` coordinates.
+        let (batch_size, seq_len) = self.effective_coords(batch_size, seq_len);
+        // SOL (and the retired SOL_FULL alias) never reads the table, as in
+        // the GEMM, attention, MoE and mHC operators. KDA has no util-space
+        // empirical layer, so EMPIRICAL answers with the same analytic SOL
+        // instead of reading measured rows. The fused-kernel reroutes below
+        // choose measured rows, so they do not apply here; the fused byte
+        // models equal the sum of their constituents, so the per-layer SOL
+        // total is unchanged.
+        if matches!(
+            db.database_mode,
+            DatabaseMode::Sol | DatabaseMode::SolFull | DatabaseMode::Empirical
+        ) {
+            let latency = self.sol_latency_ms_with(
+                db,
+                &self.kernel_source,
+                batch_size as f64,
+                seq_len as f64,
+            );
+            return Ok(PerformanceResult::new(latency, Source::Sol)
+                .clamp_non_negative()
+                .scaled(self.scale_factor));
+        }
+        // SM100 sglang datasets verify DSPARK speculation through the fused
+        // CuTeDSL kernel (`fused_kda_decode_mtp_dspark`) — one row covering
+        // BOTH the conv update and the chain-verify recurrence, with no
+        // Triton verify rows collected. Route the recurrence op onto the
+        // fused table and fold the conv op to zero (its cost is inside the
+        // fused row). Python twin: `KDAKernel._query_kda_table`.
+        let mut kernel_source = self.kernel_source.as_str();
+        if self.phase == "verify"
+            && matches!(
+                kernel_source,
+                "fused_sigmoid_gating_delta_rule_update" | "causal_conv1d_update"
+            )
+            && !db.state_space.kda_has_verify_rows(kernel_source)
+            && db
+                .state_space
+                .kda_has_verify_rows("fused_kda_decode_mtp_dspark")
+        {
+            if kernel_source == "causal_conv1d_update" {
+                return Ok(PerformanceResult::new(0.0, Source::Silicon)
+                    .clamp_non_negative()
+                    .scaled(self.scale_factor));
+            }
+            kernel_source = "fused_kda_decode_mtp_dspark";
+        }
+        // Fused attempt-and-verify decode: the K3 TP8 12-head shard serves
+        // decode through kda_fused_decode (conv + recurrence + gated RMSNorm
+        // in one launch), so SM100-era datasets carry a single fused
+        // generation row for that shard and no Triton pair. Route per model
+        // key — Python twin does this BEFORE its nearest-shard fallback.
+        if self.phase == "generation"
+            && matches!(
+                kernel_source,
+                "fused_recurrent_kda_packed_decode" | "causal_conv1d_update"
+            )
+            && !db.state_space.kda_has_key(
+                kernel_source,
+                "generation",
+                self.d_model,
+                self.d_conv,
+                self.num_k_heads,
+                self.head_k_dim,
+                self.num_v_heads,
+                self.head_v_dim,
+            )
+            && db.state_space.kda_has_key(
+                "kda_fused_decode",
+                "generation",
+                self.d_model,
+                self.d_conv,
+                self.num_k_heads,
+                self.head_k_dim,
+                self.num_v_heads,
+                self.head_v_dim,
+            )
+        {
+            if kernel_source == "causal_conv1d_update" {
+                return Ok(PerformanceResult::new(0.0, Source::Silicon)
+                    .clamp_non_negative()
+                    .scaled(self.scale_factor));
+            }
+            kernel_source = "kda_fused_decode";
+        }
+        match db.state_space.query_kda(
+            kernel_source,
+            &self.phase,
+            batch_size,
+            seq_len,
+            self.d_model,
+            self.d_conv,
+            self.num_k_heads,
+            self.head_k_dim,
+            self.num_v_heads,
+            self.head_v_dim,
+            &|b, s| self.sol_latency_ms_with(db, kernel_source, b, s),
+        ) {
+            Ok(value) => {
+                Ok(
+                    PerformanceResult::with_energy(value.latency, value.energy, Source::Silicon)
+                        .clamp_non_negative()
+                        .scaled(self.scale_factor),
+                )
+            }
+            Err(AicError::PerfDatabase(_)) => {
+                let latency =
+                    self.sol_latency_ms_with(db, kernel_source, batch_size as f64, seq_len as f64);
+                Ok(PerformanceResult::new(latency, Source::Sol)
+                    .clamp_non_negative()
+                    .scaled(self.scale_factor))
+            }
+            Err(other) => Err(other),
+        }
+    }
+
+    /// Phase-normalized `(batch, seq)` for the table lookup and the SOL
+    /// fallback. Mirrors Python `KDAKernel.query`:
+    /// - context: pass-through.
+    /// - verify: `seq_len := draft_tokens`; the backend scales the generation
+    ///   batch by `(nextn + 1)` to model the verify token width, and the
+    ///   verify table is keyed by `(requests, draft_tokens)`, so divide the
+    ///   scaled batch back down: `batch := max(1, round(batch / draft))`.
+    /// - generation: `seq := 0` (Python passes `seq_len=None`; generation
+    ///   SOL formulas treat it as absent).
+    fn effective_coords(&self, batch_size: u32, seq_len: u32) -> (u32, u32) {
+        match self.phase.as_str() {
+            "context" => (batch_size, seq_len),
+            "verify" => {
+                let draft = self.draft_tokens.clamp(0, u32::MAX as i64) as u32;
+                let batch = if self.draft_tokens > 0 {
+                    // Python `round()` is banker's rounding — keep ties-to-even.
+                    (batch_size as f64 / self.draft_tokens as f64)
+                        .round_ties_even()
+                        .max(1.0) as u32
+                } else {
+                    batch_size
+                };
+                (batch, draft)
+            }
+            _ => (batch_size, 0),
+        }
+    }
+
+    /// `sol_latency_ms` with an explicit kernel source, so the fused-verify
+    /// reroute in `query` prices SOL anchors with the routed kernel's byte
+    /// model (Python's `get_sol` closure reads the rebound `kernel_source`).
+    fn sol_latency_ms_with(
+        &self,
+        db: &PerfDatabase,
+        kernel_source: &str,
+        batch_size: f64,
+        seq_len: f64,
+    ) -> f64 {
+        let mem_bw = db.system_spec.gpu.mem_bw.max(1.0);
+        self.sol_total_bytes_with(kernel_source, batch_size, seq_len) / mem_bw * 1000.0
+    }
+
+    /// Memory-bound byte model (read + write). Pure so the formulas are unit
+    /// testable without a `PerfDatabase`.
+    fn sol_total_bytes(&self, batch_size: f64, seq_len: f64) -> f64 {
+        self.sol_total_bytes_with(&self.kernel_source, batch_size, seq_len)
+    }
+
+    fn sol_total_bytes_with(&self, kernel_source: &str, batch_size: f64, seq_len: f64) -> f64 {
+        let b = batch_size;
+        let s = seq_len;
+        let x = if (self.phase == "context" || self.phase == "verify") && s > 0.0 {
+            b * s
+        } else {
+            b
+        };
+        let proj_size = self.num_v_heads as f64 * self.head_v_dim as f64;
+        // fp32 delta-rule state: [num_v_heads, head_k_dim, head_v_dim].
+        let state_bytes =
+            self.num_v_heads as f64 * self.head_k_dim as f64 * self.head_v_dim as f64 * 4.0;
+        let d_conv = self.d_conv as f64;
+        let d_model = self.d_model as f64;
+        // SOL-only aliasing of the vLLM physical kernels onto the canonical
+        // byte models (Python `_query_kda_table`; the TABLE lookup keeps the
+        // physical name — no alias map on load, unlike GDN).
+        let kernel = match kernel_source {
+            // vLLM prefill cores: same chunked-scan byte model as chunk_kda.
+            "chunk_kda_with_fused_gate" | "flashkda_fwd" => "chunk_kda",
+            // vLLM fused decode = conv update + recurrence + gated norm.
+            "fused_kda_decode" => "fused_recurrent_kda_packed_decode",
+            // vLLM chain-verify kernel: same traffic as the sglang verify op.
+            "fused_recurrent_kda" => "fused_sigmoid_gating_delta_rule_update",
+            other => other,
+        };
+        let (read_bytes, write_bytes) = match kernel {
+            // Three sequential convs, each over proj_size channels.
+            "causal_conv1d_fn_qkv3" => (
+                3.0 * (x * proj_size * (d_conv + 1.0) * 2.0),
+                3.0 * (x * proj_size * 2.0),
+            ),
+            "causal_conv1d_update" => {
+                let conv_channels = 3.0 * proj_size;
+                (
+                    x * conv_channels * (d_conv + 1.0) * 2.0,
+                    x * conv_channels * 2.0,
+                )
+            }
+            "chunk_kda" => {
+                // Chunked delta-rule scan; per-chunk states h [B, NT, H, K, V]
+                // round-trip through global memory (fp32 state).
+                // Python: `(s // chunk_size) if s else 0` — floor division.
+                let num_chunks = if s > 0.0 { (s / 64.0).floor() } else { 0.0 };
+                let h_chunks_bytes = num_chunks * state_bytes * b;
+                // q/k/v plus the per-K gate g are all x * proj_size wide.
+                (
+                    x * 4.0 * proj_size * 2.0 + state_bytes * b + h_chunks_bytes,
+                    x * proj_size * 2.0 + state_bytes * b + h_chunks_bytes,
+                )
+            }
+            "fused_recurrent_kda_packed_decode" => (
+                x * (3.0 * proj_size + proj_size) * 2.0 + state_bytes * b,
+                x * proj_size * 2.0 + state_bytes * b,
+            ),
+            // Verify: reads committed state once per request, writes one
+            // intermediate fp32 state per draft token.
+            "fused_sigmoid_gating_delta_rule_update" => (
+                x * 4.0 * proj_size * 2.0 + state_bytes * b,
+                x * proj_size * 2.0 + state_bytes * x,
+            ),
+            // SM100 sglang fused CuTeDSL DSPARK verify: conv update +
+            // chain-verify recurrence in one kernel (sum of the two
+            // constituent byte models above).
+            "fused_kda_decode_mtp_dspark" => {
+                let conv_channels = 3.0 * proj_size;
+                (
+                    x * conv_channels * (d_conv + 1.0) * 2.0
+                        + (x * 4.0 * proj_size * 2.0 + state_bytes * b),
+                    x * conv_channels * 2.0 + (x * proj_size * 2.0 + state_bytes * x),
+                )
+            }
+            // Fused attempt-and-verify decode (12-head TP8 shard): conv
+            // update + packed recurrence + gated RMSNorm in one launch (sum
+            // of the two constituent decode byte models above).
+            "kda_fused_decode" => {
+                let conv_channels = 3.0 * proj_size;
+                (
+                    x * conv_channels * (d_conv + 1.0) * 2.0
+                        + (x * (3.0 * proj_size + proj_size) * 2.0 + state_bytes * b),
+                    x * conv_channels * 2.0 + (x * proj_size * 2.0 + state_bytes * b),
+                )
+            }
+            _ => (x * d_model * 2.0, x * d_model * 2.0),
+        };
+        read_bytes + write_bytes
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    /// Census anchor for the capability-major-10 sglang GDN FlashInfer decode lane
+    /// (AIC-1745 Task 4, Rust twin of Task 3's
+    /// `test_flashinfer_lane_sol_matches_census_at_bs128`,
+    /// `tests/unit/sdk/database/test_gdn_flashinfer_lane.py`). Same shape:
+    /// Qwen3.5-397B GDN dims (num_k_heads=16, head_k_dim=128, num_v_heads=64,
+    /// head_v_dim=128) tp4-sharded (head COUNTS only, per qwen35.py's
+    /// `gdn_nk_per_tp = nk // tp` / `gdn_nv_per_tp = nv // tp`: nk=4, nv=16),
+    /// batch_size=128, real gb300/sglang/0.5.14 spec (mem_bw=8e12,
+    /// sm_version=103). `d_model` below is 8192, a deliberate synthetic
+    /// stand-in -- not 397B's real value (4096). The current packaged GDN
+    /// table has no FlashInfer rows because all declared model cases use
+    /// float32 state; this explicit bf16 operation therefore pins the pure-SOL
+    /// closed form without claiming packaged silicon coverage.
+    ///
+    /// Hand-derived expectation (state_bytes=2 for this lane):
+    ///   state_size = nv*hk*hv = 16*128*128 = 262144
+    ///   read  = b*(2*nk*hk + nv*hv)*2 + state_size*2*b
+    ///         = 128*(2*4*128 + 16*128)*2 + 262144*2*128 = 786432 + 67108864 = 67895296
+    ///   write = b*nv*hv*2 + state_size*2*b = 128*16*128*2 + 67108864 = 524288 + 67108864 = 67633152
+    ///   sol_us = (read+write) / mem_bw * 1e6 = 135528448 / 8e12 * 1e6 = 16.941056
+    /// matches Python's pinned "16.94 us/layer" at this exact shape
+    /// (task-3-report.md Sec. 7, commit 21a4938).
+    #[test]
+    fn gdn_flashinfer_lane_sol_matches_python_bs128_census_anchor() {
+        let systems_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../..")
+            .join("python/aisim/src/aisim_core/systems");
+        let db = PerfDatabase::load(&systems_root, "gb300", "sglang", "0.5.14")
+            .expect("gb300/sglang/0.5.14 must load");
+        assert_eq!(db.system_spec.gpu.sm_version, Some(103));
+
+        let op = GdnOp {
+            name: "gdn".into(),
+            scale_factor: 1.0,
+            kernel_source: "flashinfer_gated_delta_rule_decode".into(),
+            phase: "generation".into(),
+            d_model: 8192,
+            d_conv: 4,
+            num_k_heads: 4,
+            head_k_dim: 128,
+            num_v_heads: 16,
+            head_v_dim: 128,
+            mamba_ssm_dtype: "bfloat16".into(),
+        };
+
+        let sol_us = op.sol_latency_ms(&db, 128.0, 0.0) * 1000.0;
+        assert!(
+            (sol_us - 16.941056).abs() < 1e-6,
+            "sol_us = {sol_us}, expected 16.941056"
+        );
+    }
+
+    #[test]
+    fn gdn_context_and_fla_sol_state_bytes_follow_resolved_dtype() {
+        let systems_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../..")
+            .join("python/aisim/src/aisim_core/systems");
+        let db = PerfDatabase::load(&systems_root, "gb300", "sglang", "0.5.14")
+            .expect("gb300/sglang/0.5.14 must load");
+        let op = |kernel_source: &str, phase: &str, dtype: &str| GdnOp {
+            name: "gdn".into(),
+            scale_factor: 1.0,
+            kernel_source: kernel_source.into(),
+            phase: phase.into(),
+            d_model: 1,
+            d_conv: 4,
+            num_k_heads: 0,
+            head_k_dim: 1,
+            num_v_heads: 1,
+            head_v_dim: 1,
+            mamba_ssm_dtype: dtype.into(),
+        };
+
+        // Context at (b=1,s=64): activation + chunk terms are 260 bytes;
+        // recurrent-state read/write adds 8 bytes for FP32 or 4 for 16-bit.
+        let batch = 1.0;
+        let seq = 64.0;
+        let context_fp32 =
+            op("chunk_gated_delta_rule", "context", "float32").sol_latency_ms(&db, batch, seq);
+        let context_bf16 =
+            op("chunk_gated_delta_rule", "context", "bfloat16").sol_latency_ms(&db, batch, seq);
+        let context_fp16 =
+            op("chunk_gated_delta_rule", "context", "float16").sol_latency_ms(&db, batch, seq);
+        assert!((context_bf16 - context_fp16).abs() < 1e-15);
+        assert!((context_bf16 / context_fp32 - 264.0 / 268.0).abs() < 1e-12);
+
+        // Generation at b=1: activation terms are 4 bytes; state read/write
+        // adds 8 bytes for FP32 or 4 for 16-bit.
+        let generation_fp32 = op(
+            "fused_sigmoid_gating_delta_rule_update",
+            "generation",
+            "float32",
+        )
+        .sol_latency_ms(&db, batch, 0.0);
+        let generation_bf16 = op(
+            "fused_sigmoid_gating_delta_rule_update",
+            "generation",
+            "bfloat16",
+        )
+        .sol_latency_ms(&db, batch, 0.0);
+        let generation_fp16 = op(
+            "fused_sigmoid_gating_delta_rule_update",
+            "generation",
+            "float16",
+        )
+        .sol_latency_ms(&db, batch, 0.0);
+        let generation_invalid = op(
+            "fused_sigmoid_gating_delta_rule_update",
+            "generation",
+            "invalid",
+        )
+        .sol_latency_ms(&db, batch, 0.0);
+        let explicit_flashinfer = op(
+            "flashinfer_gated_delta_rule_decode",
+            "generation",
+            "float32",
+        )
+        .sol_latency_ms(&db, batch, 0.0);
+        assert!((generation_bf16 - generation_fp16).abs() < 1e-15);
+        assert!((generation_invalid - generation_fp32).abs() < 1e-15);
+        assert!((explicit_flashinfer - generation_bf16).abs() < 1e-15);
+        assert!((generation_bf16 / generation_fp32 - 8.0 / 12.0).abs() < 1e-12);
+    }
+
+    fn kda_op(kernel_source: &str, phase: &str, draft_tokens: i64) -> KdaOp {
+        KdaOp {
+            name: "kda".into(),
+            scale_factor: 1.0,
+            kernel_source: kernel_source.into(),
+            phase: phase.into(),
+            d_model: 4096,
+            d_conv: 4,
+            num_k_heads: 16,
+            head_k_dim: 128,
+            num_v_heads: 16,
+            head_v_dim: 128,
+            draft_tokens,
+        }
+    }
+
+    #[test]
+    fn kda_verify_divides_scaled_batch_by_draft_tokens() {
+        let op = kda_op("fused_sigmoid_gating_delta_rule_update", "verify", 4);
+        // The backend scales the generation batch by (nextn + 1) = draft.
+        assert_eq!(op.effective_coords(16, 1), (4, 4));
+        // Python `max(1, round(...))` floor.
+        assert_eq!(op.effective_coords(1, 1), (1, 4));
+        // Python round() is banker's rounding: 10/4 = 2.5 -> 2, not 3.
+        assert_eq!(op.effective_coords(10, 1), (2, 4));
+        // draft_tokens == 0: batch untouched, seq collapses to 0 (SOL x = b).
+        let op0 = kda_op("fused_sigmoid_gating_delta_rule_update", "verify", 0);
+        assert_eq!(op0.effective_coords(16, 1), (16, 0));
+        // Generation drops the runtime seq (Python passes seq_len=None).
+        let generation = kda_op("fused_recurrent_kda_packed_decode", "generation", 0);
+        assert_eq!(generation.effective_coords(8, 4096), (8, 0));
+    }
+
+    #[test]
+    fn kda_fused_decode_sol_is_conv_plus_packed_recurrence() {
+        // The fused attempt-and-verify decode covers the conv update AND the
+        // packed recurrence (plus the folded gated RMSNorm); its byte model
+        // must equal the sum of the two constituent models (Python parity).
+        let fused = kda_op("kda_fused_decode", "generation", 0);
+        let conv = kda_op("causal_conv1d_update", "generation", 0);
+        let recurrence = kda_op("fused_recurrent_kda_packed_decode", "generation", 0);
+        for b in [1.0, 8.0, 256.0] {
+            assert_eq!(
+                fused.sol_total_bytes(b, 0.0),
+                conv.sol_total_bytes(b, 0.0) + recurrence.sol_total_bytes(b, 0.0)
+            );
+        }
+    }
+
+    #[test]
+    fn kda_fused_verify_sol_is_conv_plus_recurrence() {
+        // The SM100 fused CuTeDSL DSPARK verify kernel covers the conv update
+        // AND the chain-verify recurrence; its byte model must equal the sum
+        // of the two constituent models (Python `get_sol` parity).
+        let fused = kda_op("fused_kda_decode_mtp_dspark", "verify", 4);
+        let conv = kda_op("causal_conv1d_update", "verify", 4);
+        let recurrence = kda_op("fused_sigmoid_gating_delta_rule_update", "verify", 4);
+        for (b, s) in [(1.0, 2.0), (4.0, 4.0), (64.0, 8.0)] {
+            assert_eq!(
+                fused.sol_total_bytes(b, s),
+                conv.sol_total_bytes(b, s) + recurrence.sol_total_bytes(b, s)
+            );
+        }
+    }
+
+    #[test]
+    fn kda_sol_byte_model_matches_python_formulas() {
+        // Shape: proj_size = 16*128 = 2048; state_bytes = 16*128*128*4 = 1048576.
+        let proj = 2048.0;
+        let state = 1_048_576.0;
+
+        // Verify recurrence at (b=2, s=4): x = 8.
+        // read = 8*4*2048*2 + state*2; write = 8*2048*2 + state*8.
+        let op = kda_op("fused_sigmoid_gating_delta_rule_update", "verify", 4);
+        let x = 8.0;
+        let expected = (x * 4.0 * proj * 2.0 + state * 2.0) + (x * proj * 2.0 + state * x);
+        assert_eq!(op.sol_total_bytes(2.0, 4.0), expected);
+
+        // vLLM prefill core aliases onto the chunk_kda byte model
+        // (b=1, s=128 -> x=128, num_chunks=2).
+        let op = kda_op("flashkda_fwd", "context", 0);
+        let x = 128.0;
+        let h_chunks = 2.0 * state * 1.0;
+        let expected =
+            (x * 4.0 * proj * 2.0 + state + h_chunks) + (x * proj * 2.0 + state + h_chunks);
+        assert_eq!(op.sol_total_bytes(1.0, 128.0), expected);
+
+        // Packed conv update (generation, x = b): 3P channels.
+        let op = kda_op("causal_conv1d_update", "generation", 0);
+        let ch = 3.0 * proj;
+        let expected = 8.0 * ch * 5.0 * 2.0 + 8.0 * ch * 2.0;
+        assert_eq!(op.sol_total_bytes(8.0, 0.0), expected);
+
+        // qkv3 context conv: three sequential convs over proj channels.
+        let op = kda_op("causal_conv1d_fn_qkv3", "context", 0);
+        let x = 2.0 * 64.0;
+        let expected = 3.0 * (x * proj * 5.0 * 2.0) + 3.0 * (x * proj * 2.0);
+        assert_eq!(op.sol_total_bytes(2.0, 64.0), expected);
+
+        // Unknown kernel: d_model round-trip.
+        let op = kda_op("mystery_kernel", "generation", 0);
+        assert_eq!(op.sol_total_bytes(4.0, 0.0), 4.0 * 4096.0 * 2.0 * 2.0);
+    }
+
+    /// A decode op reads its measured row instead of the analytic estimate.
+    /// Synthetic fixture: one `causal_conv1d_update` row at `batch=2`; the
+    /// query hits it exactly, so the expected latency is the stored value
+    /// times `scale_factor`. A decode kernel without rows keeps the analytic
+    /// estimate.
+    #[test]
+    fn mamba2_decode_op_reads_its_measured_row() {
+        use crate::perf_database::energy_test_fixtures::{
+            Col, write_energy_systems_root, write_parquet,
+        };
+        let root = tempfile::tempdir().expect("tmpdir");
+        write_energy_systems_root(root.path());
+        let data = root.path().join("data/test/1.0");
+        std::fs::create_dir_all(&data).expect("mkdir data");
+        write_parquet(
+            &data.join("mamba2_perf.parquet"),
+            &[
+                Col::Str("kernel_source", vec!["causal_conv1d_update"]),
+                Col::Str("phase", vec!["generation"]),
+                Col::I64("batch_size", vec![2]),
+                Col::I64("seq_len", vec![1]),
+                Col::I64("d_model", vec![1024]),
+                Col::I64("d_state", vec![64]),
+                Col::I64("d_conv", vec![4]),
+                Col::I64("nheads", vec![16]),
+                Col::I64("head_dim", vec![64]),
+                Col::I64("n_groups", vec![4]),
+                Col::I64("chunk_size", vec![128]),
+                Col::F64("latency", vec![0.25]),
+            ],
+        );
+        let db = PerfDatabase::load(root.path(), "testsys", "test", "1.0").expect("load");
+        let op = |kernel_source: &str| Mamba2Op {
+            name: "generation_mamba".into(),
+            scale_factor: 2.0,
+            kernel_source: kernel_source.into(),
+            phase: "generation".into(),
+            d_model: 1024,
+            d_state: 64,
+            d_conv: 4,
+            nheads: 16,
+            head_dim: 64,
+            n_groups: 4,
+            chunk_size: 128,
+        };
+        let measured = op("causal_conv1d_update").query(&db, 2, 1024).unwrap();
+        assert_eq!(measured.source, Source::Silicon);
+        assert_eq!(measured.latency_ms, 0.5);
+        let analytic = op("selective_state_update").query(&db, 2, 1024).unwrap();
+        assert_eq!(analytic.source, Source::Sol);
+    }
+
+    /// A per-shard op (8 heads, 2 groups) over a table that holds only the
+    /// full layer (16 heads, 4 groups) prices at the analytic estimate in
+    /// SILICON and HYBRID instead of reading the full-layer row. Hand-derived
+    /// SOL for the shard: conv_dim = 8*64 + 2*2*64 = 768 channels; x = b*s =
+    /// 1024; bytes = x*conv_dim*(d_conv+1)*2 + x*conv_dim*2 = 9_437_184 over
+    /// the fixture's 7.7e12 B/s memory bandwidth, times `scale_factor` 2.0.
+    #[test]
+    fn mamba2_per_shard_shape_miss_prices_at_sol_in_silicon_and_hybrid() {
+        use crate::common::enums::{DatabaseMode, TransferPolicy};
+        use crate::perf_database::energy_test_fixtures::{
+            Col, write_energy_systems_root, write_parquet,
+        };
+        let root = tempfile::tempdir().expect("tmpdir");
+        write_energy_systems_root(root.path());
+        let data = root.path().join("data/test/1.0");
+        std::fs::create_dir_all(&data).expect("mkdir data");
+        write_parquet(
+            &data.join("mamba2_perf.parquet"),
+            &[
+                Col::Str("kernel_source", vec!["causal_conv1d_fn"]),
+                Col::Str("phase", vec!["context"]),
+                Col::I64("batch_size", vec![2]),
+                Col::I64("seq_len", vec![512]),
+                Col::I64("d_model", vec![1024]),
+                Col::I64("d_state", vec![64]),
+                Col::I64("d_conv", vec![4]),
+                Col::I64("nheads", vec![16]),
+                Col::I64("head_dim", vec![64]),
+                Col::I64("n_groups", vec![4]),
+                Col::I64("chunk_size", vec![128]),
+                Col::F64("latency", vec![0.5]),
+            ],
+        );
+        let shard = Mamba2Op {
+            name: "context_mamba".into(),
+            scale_factor: 2.0,
+            kernel_source: "causal_conv1d_fn".into(),
+            phase: "context".into(),
+            d_model: 1024,
+            d_state: 64,
+            d_conv: 4,
+            nheads: 8,
+            head_dim: 64,
+            n_groups: 2,
+            chunk_size: 128,
+        };
+        let expected = 9_437_184.0 / 7.7e12 * 1000.0 * 2.0;
+        for mode in [DatabaseMode::Silicon, DatabaseMode::Hybrid] {
+            let db = PerfDatabase::load(root.path(), "testsys", "test", "1.0")
+                .expect("load")
+                .with_mode(mode, TransferPolicy::ALL);
+            let result = shard.query(&db, 2, 512).unwrap();
+            assert_eq!(result.source, Source::Sol, "{mode:?}");
+            assert!(
+                (result.latency_ms - expected).abs() <= 1e-12 * expected,
+                "{mode:?}"
+            );
+        }
+    }
+
+    /// Mamba2 follows the database-mode semantics of the other table-backed
+    /// operators: SILICON and HYBRID read measured rows, while SOL, the
+    /// retired SOL_FULL alias and EMPIRICAL never read them. Mamba2 has no
+    /// util-space empirical layer, so EMPIRICAL answers with the analytic SOL.
+    ///
+    /// Synthetic fixture: one context row at `[batch=2][seq=512]` and one
+    /// decode row at `[batch=2]`; both queries hit them exactly, so a row
+    /// read returns the stored value times `scale_factor` (2.0). Hand-derived
+    /// SOL for this shape: conv_dim = 16*64 + 2*4*64 = 1536 channels and
+    /// bytes = x*conv_dim*(d_conv+1)*2 + x*conv_dim*2, with x = b*s = 1024 for
+    /// context (18_874_368 bytes) and x = b = 2 for decode (36_864 bytes),
+    /// over the fixture's 7.7e12 B/s memory bandwidth.
+    #[test]
+    fn mamba2_reads_measured_rows_only_in_silicon_and_hybrid() {
+        use crate::common::enums::{DatabaseMode, TransferPolicy};
+        use crate::perf_database::energy_test_fixtures::{
+            Col, write_energy_systems_root, write_parquet,
+        };
+        let root = tempfile::tempdir().expect("tmpdir");
+        write_energy_systems_root(root.path());
+        let data = root.path().join("data/test/1.0");
+        std::fs::create_dir_all(&data).expect("mkdir data");
+        write_parquet(
+            &data.join("mamba2_perf.parquet"),
+            &[
+                Col::Str(
+                    "kernel_source",
+                    vec!["causal_conv1d_fn", "causal_conv1d_update"],
+                ),
+                Col::Str("phase", vec!["context", "generation"]),
+                Col::I64("batch_size", vec![2, 2]),
+                Col::I64("seq_len", vec![512, 1]),
+                Col::I64("d_model", vec![1024, 1024]),
+                Col::I64("d_state", vec![64, 64]),
+                Col::I64("d_conv", vec![4, 4]),
+                Col::I64("nheads", vec![16, 16]),
+                Col::I64("head_dim", vec![64, 64]),
+                Col::I64("n_groups", vec![4, 4]),
+                Col::I64("chunk_size", vec![128, 128]),
+                Col::F64("latency", vec![0.5, 0.25]),
+            ],
+        );
+        let op = |kernel_source: &str, phase: &str| Mamba2Op {
+            name: format!("{phase}_mamba"),
+            scale_factor: 2.0,
+            kernel_source: kernel_source.into(),
+            phase: phase.into(),
+            d_model: 1024,
+            d_state: 64,
+            d_conv: 4,
+            nheads: 16,
+            head_dim: 64,
+            n_groups: 4,
+            chunk_size: 128,
+        };
+        let context = op("causal_conv1d_fn", "context");
+        let decode = op("causal_conv1d_update", "generation");
+        let sol_ms = |bytes: f64| bytes / 7.7e12 * 1000.0 * 2.0;
+        for mode in [
+            DatabaseMode::Silicon,
+            DatabaseMode::Hybrid,
+            DatabaseMode::Empirical,
+            DatabaseMode::Sol,
+            DatabaseMode::SolFull,
+        ] {
+            let db = PerfDatabase::load(root.path(), "testsys", "test", "1.0")
+                .expect("load")
+                .with_mode(mode, TransferPolicy::ALL);
+            let ctx = context.query(&db, 2, 512).unwrap();
+            let dec = decode.query(&db, 2, 1024).unwrap();
+            if matches!(mode, DatabaseMode::Silicon | DatabaseMode::Hybrid) {
+                assert_eq!(
+                    (ctx.source, ctx.latency_ms),
+                    (Source::Silicon, 1.0),
+                    "{mode:?}"
+                );
+                assert_eq!(
+                    (dec.source, dec.latency_ms),
+                    (Source::Silicon, 0.5),
+                    "{mode:?}"
+                );
+            } else {
+                assert_eq!(
+                    (ctx.source, dec.source),
+                    (Source::Sol, Source::Sol),
+                    "{mode:?}"
+                );
+                let (ctx_sol, dec_sol) = (sol_ms(18_874_368.0), sol_ms(36_864.0));
+                assert!(
+                    (ctx.latency_ms - ctx_sol).abs() <= 1e-12 * ctx_sol,
+                    "{mode:?}"
+                );
+                assert!(
+                    (dec.latency_ms - dec_sol).abs() <= 1e-12 * dec_sol,
+                    "{mode:?}"
+                );
+            }
+        }
+    }
+
+    /// GDN follows the database-mode semantics of the other table-backed
+    /// operators: SILICON and HYBRID read measured rows and fall back to the
+    /// analytic SOL on a miss; SOL, the retired SOL_FULL alias and EMPIRICAL
+    /// never read them. GDN has no util-space empirical layer, so EMPIRICAL
+    /// answers with the analytic SOL.
+    ///
+    /// Synthetic fixture: one context row at `[batch=2][seq=512]` and one
+    /// decode row at `[batch=2]`; both queries hit exactly, so a row read
+    /// returns the stored value times `scale_factor` (2.0). Hand-derived SOL:
+    /// conv_channels = 2*4*64 + 8*64 = 1024; context conv bytes =
+    /// x*1024*5*2 + x*1024*2 with x = 2*512 (12_582_912 bytes); decode
+    /// recurrence bytes with x = b = 2, state_size = 8*64*64 = 32768 at
+    /// 4 bytes: read 2*1024*2 + 32768*4*2 = 266_240, write 2*512*2 +
+    /// 32768*4*2 = 264_192, total 530_432 bytes; over the fixture's 7.7e12
+    /// B/s memory bandwidth.
+    #[test]
+    fn gdn_reads_measured_rows_only_in_silicon_and_hybrid() {
+        use crate::common::enums::TransferPolicy;
+        use crate::perf_database::energy_test_fixtures::{
+            Col, write_energy_systems_root, write_parquet,
+        };
+        let root = tempfile::tempdir().expect("tmpdir");
+        write_energy_systems_root(root.path());
+        let data = root.path().join("data/test/1.0");
+        std::fs::create_dir_all(&data).expect("mkdir data");
+        write_parquet(
+            &data.join("gdn_perf.parquet"),
+            &[
+                Col::Str(
+                    "kernel_source",
+                    vec!["causal_conv1d_fn", "fused_sigmoid_gating_delta_rule_update"],
+                ),
+                Col::Str("phase", vec!["context", "generation"]),
+                Col::I64("batch_size", vec![2, 2]),
+                Col::I64("seq_len", vec![512, 1]),
+                Col::I64("d_model", vec![1024, 1024]),
+                Col::I64("d_conv", vec![4, 4]),
+                Col::I64("num_k_heads", vec![4, 4]),
+                Col::I64("head_k_dim", vec![64, 64]),
+                Col::I64("num_v_heads", vec![8, 8]),
+                Col::I64("head_v_dim", vec![64, 64]),
+                Col::F64("latency", vec![0.5, 0.25]),
+            ],
+        );
+        let op = |kernel_source: &str, phase: &str| GdnOp {
+            name: format!("{phase}_gdn"),
+            scale_factor: 2.0,
+            kernel_source: kernel_source.into(),
+            phase: phase.into(),
+            d_model: 1024,
+            d_conv: 4,
+            num_k_heads: 4,
+            head_k_dim: 64,
+            num_v_heads: 8,
+            head_v_dim: 64,
+            mamba_ssm_dtype: "float32".into(),
+        };
+        let context = op("causal_conv1d_fn", "context");
+        let decode = op("fused_sigmoid_gating_delta_rule_update", "generation");
+        let missing = op("chunk_gated_delta_rule", "context");
+        let sol_ms = |bytes: f64| bytes / 7.7e12 * 1000.0 * 2.0;
+        for mode in [
+            DatabaseMode::Silicon,
+            DatabaseMode::Hybrid,
+            DatabaseMode::Empirical,
+            DatabaseMode::Sol,
+            DatabaseMode::SolFull,
+        ] {
+            let db = PerfDatabase::load(root.path(), "testsys", "test", "1.0")
+                .expect("load")
+                .with_mode(mode, TransferPolicy::ALL);
+            let ctx = context.query(&db, 2, 512).unwrap();
+            let dec = decode.query(&db, 2, 1024).unwrap();
+            let miss = missing.query(&db, 2, 512).unwrap();
+            assert_eq!(miss.source, Source::Sol, "{mode:?}");
+            if matches!(mode, DatabaseMode::Silicon | DatabaseMode::Hybrid) {
+                assert_eq!(
+                    (ctx.source, ctx.latency_ms),
+                    (Source::Silicon, 1.0),
+                    "{mode:?}"
+                );
+                assert_eq!(
+                    (dec.source, dec.latency_ms),
+                    (Source::Silicon, 0.5),
+                    "{mode:?}"
+                );
+            } else {
+                assert_eq!(
+                    (ctx.source, dec.source),
+                    (Source::Sol, Source::Sol),
+                    "{mode:?}"
+                );
+                let (ctx_sol, dec_sol) = (sol_ms(12_582_912.0), sol_ms(530_432.0));
+                assert!(
+                    (ctx.latency_ms - ctx_sol).abs() <= 1e-12 * ctx_sol,
+                    "{mode:?}"
+                );
+                assert!(
+                    (dec.latency_ms - dec_sol).abs() <= 1e-12 * dec_sol,
+                    "{mode:?}"
+                );
+            }
+        }
+    }
+
+    /// KDA follows the database-mode semantics of the other table-backed
+    /// operators: SILICON and HYBRID read measured rows and fall back to the
+    /// analytic SOL on a miss; SOL, the retired SOL_FULL alias and EMPIRICAL
+    /// never read them. KDA has no util-space empirical layer, so EMPIRICAL
+    /// answers with the analytic SOL.
+    ///
+    /// Synthetic fixture (the `kda_op` shape, scale_factor 1.0): one context
+    /// row at `[batch=2][seq=64]`, one decode row at `[batch=2]` and one
+    /// verify row at `[batch=2][draft=4]`; every query hits exactly, so a row
+    /// read returns the stored value. Hand-derived SOL with proj = 2048 and
+    /// the fp32 state = 16*128*128*4 = 1_048_576 bytes:
+    /// - context qkv3 conv, x = 2*64 = 128: read 3*(128*2048*5*2) =
+    ///   7_864_320, write 3*(128*2048*2) = 1_572_864, total 9_437_184;
+    /// - decode packed recurrence, x = b = 2: read 2*(3*2048+2048)*2 +
+    ///   1_048_576*2 = 2_129_920, write 2*2048*2 + 1_048_576*2 = 2_105_344,
+    ///   total 4_235_264;
+    /// - verify recurrence at (b=2, s=4), x = 8: read 8*4*2048*2 +
+    ///   1_048_576*2 = 2_228_224, write 8*2048*2 + 1_048_576*8 = 8_421_376,
+    ///   total 10_649_600;
+    /// each over the fixture's 7.7e12 B/s memory bandwidth.
+    #[test]
+    fn kda_reads_measured_rows_only_in_silicon_and_hybrid() {
+        use crate::common::enums::TransferPolicy;
+        use crate::perf_database::energy_test_fixtures::{
+            Col, write_energy_systems_root, write_parquet,
+        };
+        let root = tempfile::tempdir().expect("tmpdir");
+        write_energy_systems_root(root.path());
+        let data = root.path().join("data/test/1.0");
+        std::fs::create_dir_all(&data).expect("mkdir data");
+        write_parquet(
+            &data.join("kda_perf.parquet"),
+            &[
+                Col::Str(
+                    "kernel_source",
+                    vec![
+                        "causal_conv1d_fn_qkv3",
+                        "fused_recurrent_kda_packed_decode",
+                        "fused_sigmoid_gating_delta_rule_update",
+                    ],
+                ),
+                Col::Str("phase", vec!["context", "generation", "verify"]),
+                Col::I64("batch_size", vec![2, 2, 2]),
+                Col::I64("seq_len", vec![64, 1, 4]),
+                Col::I64("d_model", vec![4096, 4096, 4096]),
+                Col::I64("d_conv", vec![4, 4, 4]),
+                Col::I64("num_k_heads", vec![16, 16, 16]),
+                Col::I64("head_k_dim", vec![128, 128, 128]),
+                Col::I64("num_v_heads", vec![16, 16, 16]),
+                Col::I64("head_v_dim", vec![128, 128, 128]),
+                Col::F64("latency", vec![0.5, 0.25, 0.125]),
+            ],
+        );
+        let context = kda_op("causal_conv1d_fn_qkv3", "context", 0);
+        let decode = kda_op("fused_recurrent_kda_packed_decode", "generation", 0);
+        let verify = kda_op("fused_sigmoid_gating_delta_rule_update", "verify", 4);
+        let missing = kda_op("chunk_kda", "context", 0);
+        let sol_ms = |bytes: f64| bytes / 7.7e12 * 1000.0;
+        for mode in [
+            DatabaseMode::Silicon,
+            DatabaseMode::Hybrid,
+            DatabaseMode::Empirical,
+            DatabaseMode::Sol,
+            DatabaseMode::SolFull,
+        ] {
+            let db = PerfDatabase::load(root.path(), "testsys", "test", "1.0")
+                .expect("load")
+                .with_mode(mode, TransferPolicy::ALL);
+            let ctx = context.query(&db, 2, 64).unwrap();
+            // Generation drops the runtime seq.
+            let dec = decode.query(&db, 2, 4096).unwrap();
+            // Verify: effective_coords(8, 1) with draft 4 -> (2, 4).
+            let ver = verify.query(&db, 8, 1).unwrap();
+            let miss = missing.query(&db, 2, 64).unwrap();
+            assert_eq!(miss.source, Source::Sol, "{mode:?}");
+            if matches!(mode, DatabaseMode::Silicon | DatabaseMode::Hybrid) {
+                assert_eq!(
+                    (ctx.source, ctx.latency_ms),
+                    (Source::Silicon, 0.5),
+                    "{mode:?}"
+                );
+                assert_eq!(
+                    (dec.source, dec.latency_ms),
+                    (Source::Silicon, 0.25),
+                    "{mode:?}"
+                );
+                assert_eq!(
+                    (ver.source, ver.latency_ms),
+                    (Source::Silicon, 0.125),
+                    "{mode:?}"
+                );
+            } else {
+                assert_eq!(
+                    (ctx.source, dec.source, ver.source),
+                    (Source::Sol, Source::Sol, Source::Sol),
+                    "{mode:?}"
+                );
+                for (got, bytes) in [
+                    (ctx.latency_ms, 9_437_184.0),
+                    (dec.latency_ms, 4_235_264.0),
+                    (ver.latency_ms, 10_649_600.0),
+                ] {
+                    let want = sol_ms(bytes);
+                    assert!((got - want).abs() <= 1e-12 * want, "{mode:?}");
+                }
+            }
+        }
+    }
+
+    /// The fused verify reroute exists to pick a measured row: when only
+    /// `fused_kda_decode_mtp_dspark` verify rows exist, SILICON folds the
+    /// conv op to zero and routes the recurrence onto the fused row. The
+    /// analytic modes neither probe the table nor return that zero: each op
+    /// prices its own kernel's byte model (the fused byte model equals the
+    /// sum of the two, so the per-layer SOL total is unchanged). The
+    /// recurrence bytes at (b=2, s=4) are the 10_649_600 derived above.
+    #[test]
+    fn kda_analytic_modes_skip_the_fused_verify_reroute() {
+        use crate::common::enums::TransferPolicy;
+        use crate::perf_database::energy_test_fixtures::{
+            Col, write_energy_systems_root, write_parquet,
+        };
+        let root = tempfile::tempdir().expect("tmpdir");
+        write_energy_systems_root(root.path());
+        let data = root.path().join("data/test/1.0");
+        std::fs::create_dir_all(&data).expect("mkdir data");
+        write_parquet(
+            &data.join("kda_perf.parquet"),
+            &[
+                Col::Str("kernel_source", vec!["fused_kda_decode_mtp_dspark"]),
+                Col::Str("phase", vec!["verify"]),
+                Col::I64("batch_size", vec![2]),
+                Col::I64("seq_len", vec![4]),
+                Col::I64("d_model", vec![4096]),
+                Col::I64("d_conv", vec![4]),
+                Col::I64("num_k_heads", vec![16]),
+                Col::I64("head_k_dim", vec![128]),
+                Col::I64("num_v_heads", vec![16]),
+                Col::I64("head_v_dim", vec![128]),
+                Col::F64("latency", vec![0.3]),
+            ],
+        );
+        let conv = kda_op("causal_conv1d_update", "verify", 4);
+        let rec = kda_op("fused_sigmoid_gating_delta_rule_update", "verify", 4);
+        let sol_ms = |bytes: f64| bytes / 7.7e12 * 1000.0;
+
+        for mode in [DatabaseMode::Silicon, DatabaseMode::Hybrid] {
+            let db = PerfDatabase::load(root.path(), "testsys", "test", "1.0")
+                .expect("load")
+                .with_mode(mode, TransferPolicy::ALL);
+            let conv_si = conv.query(&db, 8, 1).unwrap();
+            let rec_si = rec.query(&db, 8, 1).unwrap();
+            assert_eq!(
+                (conv_si.source, conv_si.latency_ms),
+                (Source::Silicon, 0.0),
+                "{mode:?}"
+            );
+            assert_eq!(
+                (rec_si.source, rec_si.latency_ms),
+                (Source::Silicon, 0.3),
+                "{mode:?}"
+            );
+        }
+
+        // Conv update byte model at (b=2, s=4), x = 8, conv channels
+        // 3*proj = 6144: read 8*6144*(4+1)*2 = 491_520, write 8*6144*2 =
+        // 98_304, total 589_824.
+        let conv_want = sol_ms(589_824.0);
+        let rec_want = sol_ms(10_649_600.0);
+        for mode in [
+            DatabaseMode::Sol,
+            DatabaseMode::SolFull,
+            DatabaseMode::Empirical,
+        ] {
+            let db = PerfDatabase::load(root.path(), "testsys", "test", "1.0")
+                .expect("load")
+                .with_mode(mode, TransferPolicy::ALL);
+            let conv_sol = conv.query(&db, 8, 1).unwrap();
+            let rec_sol = rec.query(&db, 8, 1).unwrap();
+            assert_eq!(conv_sol.source, Source::Sol, "{mode:?}");
+            assert!(
+                (conv_sol.latency_ms - conv_want).abs() <= 1e-12 * conv_want,
+                "{mode:?}"
+            );
+            assert_eq!(rec_sol.source, Source::Sol, "{mode:?}");
+            assert!(
+                (rec_sol.latency_ms - rec_want).abs() <= 1e-12 * rec_want,
+                "{mode:?}"
+            );
+        }
+    }
+
+    /// Generation twin of the verify test: when only `kda_fused_decode`
+    /// generation rows exist for the model key, SILICON folds the conv
+    /// update to zero and routes the packed recurrence onto the fused row.
+    /// The analytic modes price each op's own kernel instead: the decode
+    /// packed recurrence at x = b = 2 is the 4_235_264 bytes derived above;
+    /// the conv update at x = b = 2 with conv channels 3*proj = 6144 reads
+    /// 2*6144*(4+1)*2 = 122_880 and writes 2*6144*2 = 24_576, total 147_456.
+    #[test]
+    fn kda_analytic_modes_skip_the_fused_decode_reroute() {
+        use crate::common::enums::TransferPolicy;
+        use crate::perf_database::energy_test_fixtures::{
+            Col, write_energy_systems_root, write_parquet,
+        };
+        let root = tempfile::tempdir().expect("tmpdir");
+        write_energy_systems_root(root.path());
+        let data = root.path().join("data/test/1.0");
+        std::fs::create_dir_all(&data).expect("mkdir data");
+        write_parquet(
+            &data.join("kda_perf.parquet"),
+            &[
+                Col::Str("kernel_source", vec!["kda_fused_decode"]),
+                Col::Str("phase", vec!["generation"]),
+                Col::I64("batch_size", vec![2]),
+                Col::I64("seq_len", vec![1]),
+                Col::I64("d_model", vec![4096]),
+                Col::I64("d_conv", vec![4]),
+                Col::I64("num_k_heads", vec![16]),
+                Col::I64("head_k_dim", vec![128]),
+                Col::I64("num_v_heads", vec![16]),
+                Col::I64("head_v_dim", vec![128]),
+                Col::F64("latency", vec![0.3]),
+            ],
+        );
+        let conv = kda_op("causal_conv1d_update", "generation", 0);
+        let rec = kda_op("fused_recurrent_kda_packed_decode", "generation", 0);
+        let sol_ms = |bytes: f64| bytes / 7.7e12 * 1000.0;
+
+        for mode in [DatabaseMode::Silicon, DatabaseMode::Hybrid] {
+            let db = PerfDatabase::load(root.path(), "testsys", "test", "1.0")
+                .expect("load")
+                .with_mode(mode, TransferPolicy::ALL);
+            let conv_si = conv.query(&db, 2, 4096).unwrap();
+            let rec_si = rec.query(&db, 2, 4096).unwrap();
+            assert_eq!(
+                (conv_si.source, conv_si.latency_ms),
+                (Source::Silicon, 0.0),
+                "{mode:?}"
+            );
+            assert_eq!(
+                (rec_si.source, rec_si.latency_ms),
+                (Source::Silicon, 0.3),
+                "{mode:?}"
+            );
+        }
+
+        let conv_want = sol_ms(147_456.0);
+        let rec_want = sol_ms(4_235_264.0);
+        for mode in [
+            DatabaseMode::Sol,
+            DatabaseMode::SolFull,
+            DatabaseMode::Empirical,
+        ] {
+            let db = PerfDatabase::load(root.path(), "testsys", "test", "1.0")
+                .expect("load")
+                .with_mode(mode, TransferPolicy::ALL);
+            let conv_sol = conv.query(&db, 2, 4096).unwrap();
+            let rec_sol = rec.query(&db, 2, 4096).unwrap();
+            assert_eq!(conv_sol.source, Source::Sol, "{mode:?}");
+            assert!(
+                (conv_sol.latency_ms - conv_want).abs() <= 1e-12 * conv_want,
+                "{mode:?}"
+            );
+            assert_eq!(rec_sol.source, Source::Sol, "{mode:?}");
+            assert!(
+                (rec_sol.latency_ms - rec_want).abs() <= 1e-12 * rec_want,
+                "{mode:?}"
+            );
+        }
+    }
+}

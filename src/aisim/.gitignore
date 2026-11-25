@@ -1,0 +1,25 @@
+# OS metadata
+.DS_Store
+
+# Python environments, caches, and build output
+.venv*/
+dist/
+build/
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+*.egg-info/
+*.pyc
+*.so
+*.dylib
+
+# Whole-forward FPM datasets are external runtime inputs, not source assets.
+**/fpm_forward_perf.parquet
+**/fpm_forward_perf.metadata.json
+
+# Rust build output
+target/

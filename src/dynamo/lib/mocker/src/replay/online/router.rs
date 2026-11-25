@@ -1,0 +1,1077 @@
+// SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
+use std::sync::Arc;
+use std::sync::Mutex;
+#[cfg(test)]
+use std::sync::atomic::AtomicBool;
+use std::sync::atomic::{AtomicUsize, Ordering};
+
+use anyhow::{Context, Result, anyhow};
+use dynamo_kv_events::event::RouterEvent;
+use dynamo_kv_events::residency::StorageTier;
+use dynamo_kv_hashing::routing::{BlockHashOptions, compute_block_hash_for_seq};
+use dynamo_kv_indexer::host::{
+    ConcurrentRadixTreeCompressed, KvIndexer, KvIndexerInterface, KvIndexerMetrics,
+    LowerTierIndexers, LowerTierQueryOptions, MatchDetails, ThreadPoolIndexer, TieredMatchDetails,
+    query_lower_tiers_with_options,
+};
+use dynamo_kv_router::config::KvRouterConfig;
+use dynamo_kv_router::tracking_hash::tracking_hash_context;
+use dynamo_router_protocol::identity::RoutingPartitionRef;
+use dynamo_router_protocol::session::SessionContext;
+use dynamo_router_protocol::worker::WorkerId;
+use dynamo_scheduler::host::{
+    CacheHitWeights, OverlapAnalysis, RoutingConstraints, ScheduleMode, ScheduleRequest,
+    TrackingHashContext, TrackingHashScope,
+};
+use tokio::sync::mpsc;
+use tokio_util::sync::CancellationToken;
+use uuid::Uuid;
+
+use crate::common::protocols::{
+    DirectRequest, KvCacheEventSink, KvEventPublishers, MockerConfig, RawKvEvent,
+};
+use crate::replay::router_shared::{
+    ReplayScheduler, replay_router_config, replay_selector, replay_slots,
+    replay_workers_with_configs,
+};
+use crate::replay::{ReplayPrefillLoadEstimator, ReplayRouterMode};
+
+#[derive(Clone)]
+enum PrimaryIndexer {
+    Single(KvIndexer),
+    Concurrent(Arc<ThreadPoolIndexer<ConcurrentRadixTreeCompressed>>),
+}
+
+/// Device (G1) index plus lower-tier (for example G2 `HostPinned`) residency.
+#[derive(Clone)]
+struct ReplayIndexer {
+    primary: PrimaryIndexer,
+    block_size: u32,
+    lower_tier: LowerTierIndexers,
+}
+
+impl ReplayIndexer {
+    async fn apply_event(&self, event: RouterEvent) {
+        if !event.storage_tier.is_gpu() {
+            let indexer = self.lower_tier.get_or_create(event.storage_tier);
+            if let Err(error) = indexer.apply_event_and_wait(event).await {
+                tracing::warn!(%error, "failed to apply replay lower-tier KV event");
+            }
+            return;
+        }
+        match &self.primary {
+            PrimaryIndexer::Single(indexer) => indexer.apply_event(event).await,
+            PrimaryIndexer::Concurrent(indexer) => indexer.apply_event(event).await,
+        }
+    }
+
+    async fn find_matches_for_request(
+        &self,
+        tokens: &[u32],
+        lora_name: Option<&str>,
+    ) -> Result<TieredMatchDetails> {
+        // Until lower-tier residency arrives, the cheaper score-only lookup
+        // gives the same device overlap.
+        if self.lower_tier.all().is_empty() {
+            let overlap_scores = match &self.primary {
+                PrimaryIndexer::Single(indexer) => {
+                    indexer
+                        .find_matches_for_request(tokens, lora_name, None, None)
+                        .await?
+                }
+                PrimaryIndexer::Concurrent(indexer) => {
+                    indexer
+                        .find_matches_for_request(tokens, lora_name, None, None)
+                        .await?
+                }
+            };
+            return Ok(TieredMatchDetails {
+                device: MatchDetails {
+                    overlap_scores,
+                    ..MatchDetails::default()
+                },
+                lower_tier: Default::default(),
+            });
+        }
+        let sequence = compute_block_hash_for_seq(
+            tokens,
+            self.block_size,
+            BlockHashOptions {
+                lora_name,
+                ..Default::default()
+            },
+        );
+        let device = match &self.primary {
+            PrimaryIndexer::Single(indexer) => indexer.find_match_details(sequence.clone()).await?,
+            PrimaryIndexer::Concurrent(indexer) => indexer
+                .backend()
+                .find_match_details_impl_with_options(&sequence, false, false),
+        };
+        let lower_tier = query_lower_tiers_with_options(
+            &self.lower_tier,
+            &sequence,
+            &device,
+            LowerTierQueryOptions::default(),
+        );
+        Ok(TieredMatchDetails { device, lower_tier })
+    }
+
+    async fn flush(&self) -> usize {
+        match &self.primary {
+            PrimaryIndexer::Single(indexer) => indexer.flush().await,
+            PrimaryIndexer::Concurrent(indexer) => {
+                KvIndexerInterface::flush(indexer.as_ref()).await
+            }
+        }
+    }
+}
+
+fn create_replay_indexer(block_size: u32, num_threads: usize) -> ReplayIndexer {
+    let primary = if num_threads > 1 {
+        PrimaryIndexer::Concurrent(Arc::new(ThreadPoolIndexer::new(
+            ConcurrentRadixTreeCompressed::new(),
+            num_threads,
+            block_size,
+        )))
+    } else {
+        PrimaryIndexer::Single(KvIndexer::new_with_pruning(
+            CancellationToken::new(),
+            block_size,
+            Arc::new(KvIndexerMetrics::new_unregistered()),
+            None,
+        ))
+    };
+    ReplayIndexer {
+        primary,
+        block_size,
+        lower_tier: LowerTierIndexers::new(1, block_size),
+    }
+}
+
+#[derive(Clone)]
+struct ReplayKvEventSink {
+    worker_id: WorkerId,
+    event_tx: mpsc::UnboundedSender<RouterEvent>,
+}
+
+impl KvCacheEventSink for ReplayKvEventSink {
+    fn publish_batch_with_metadata(&self, events: Vec<RawKvEvent>) -> anyhow::Result<()> {
+        for event in events {
+            let mut routed =
+                RouterEvent::with_storage_tier(self.worker_id, event.event, event.storage_tier);
+            routed.session_id = event.session_id;
+            self.event_tx
+                .send(routed)
+                .map_err(|_| anyhow!("replay router event channel closed"))?;
+        }
+        Ok(())
+    }
+
+    fn publish(&self, event: dynamo_kv_events::event::KvCacheEvent) -> anyhow::Result<()> {
+        self.event_tx
+            .send(RouterEvent::new(self.worker_id, event))
+            .map_err(|_| anyhow!("replay router event channel closed"))
+    }
+
+    fn publish_with_storage_tier(
+        &self,
+        event: dynamo_kv_events::event::KvCacheEvent,
+        storage_tier: StorageTier,
+    ) -> anyhow::Result<()> {
+        self.event_tx
+            .send(RouterEvent::with_storage_tier(
+                self.worker_id,
+                event,
+                storage_tier,
+            ))
+            .map_err(|_| anyhow!("replay router event channel closed"))
+    }
+}
+
+pub(crate) struct RoundRobinRouter {
+    next_worker_idx: AtomicUsize,
+    next_rank_by_worker: Box<[AtomicUsize]>,
+}
+
+impl RoundRobinRouter {
+    fn new(num_workers: usize) -> Self {
+        Self {
+            next_worker_idx: AtomicUsize::new(0),
+            next_rank_by_worker: (0..num_workers).map(|_| AtomicUsize::new(0)).collect(),
+        }
+    }
+
+    fn select_worker(
+        &self,
+        num_workers: usize,
+        dp_size: usize,
+        preferred_dp_rank: Option<u32>,
+    ) -> Result<ReplayPlacement> {
+        anyhow::ensure!(
+            self.next_rank_by_worker.len() == num_workers,
+            "online replay worker topology changed after router construction"
+        );
+        let worker_idx = self.next_worker_idx.fetch_add(1, Ordering::AcqRel) % num_workers;
+        let dp_rank = match preferred_dp_rank {
+            Some(dp_rank) => {
+                let dp_rank = usize::try_from(dp_rank)
+                    .map_err(|_| anyhow!("preferred attention-DP rank does not fit usize"))?;
+                anyhow::ensure!(
+                    dp_rank < dp_size,
+                    "preferred attention-DP rank {dp_rank} is out of range for dp_size {dp_size}"
+                );
+                dp_rank
+            }
+            None => self.next_rank_by_worker[worker_idx].fetch_add(1, Ordering::AcqRel) % dp_size,
+        };
+        Ok(ReplayPlacement {
+            worker_idx,
+            dp_rank,
+        })
+    }
+}
+
+/// One router decision in the logical-worker/attention-DP topology.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct ReplayPlacement {
+    pub(crate) worker_idx: usize,
+    pub(crate) dp_rank: usize,
+}
+
+pub(crate) struct KvReplayRouter {
+    config: KvRouterConfig,
+    block_size: u32,
+    scheduler: Arc<ReplayScheduler>,
+    scheduler_cancel: CancellationToken,
+    event_tx: Mutex<Option<mpsc::UnboundedSender<RouterEvent>>>,
+    event_task: Mutex<Option<tokio::task::JoinHandle<()>>>,
+    indexer: ReplayIndexer,
+    tracking_hash: TrackingHashContext,
+    #[cfg(test)]
+    fail_mark_prefill: AtomicBool,
+    #[cfg(test)]
+    fail_free: AtomicBool,
+}
+
+impl KvReplayRouter {
+    fn new(
+        args: &MockerConfig,
+        router_config: Option<KvRouterConfig>,
+        prefill_load_estimator: Option<ReplayPrefillLoadEstimator>,
+        num_workers: usize,
+    ) -> Result<Self> {
+        let config = replay_router_config(args, router_config);
+        let tracking_hash = tracking_hash_context(&config)?;
+        let indexer =
+            create_replay_indexer(args.block_size as u32, config.router_event_threads as usize);
+        let workers_with_configs = replay_workers_with_configs(args, num_workers);
+        let slots = replay_slots(args, &workers_with_configs);
+        let (_worker_config_tx, worker_config_rx) =
+            tokio::sync::watch::channel(workers_with_configs);
+        let selector = replay_selector(&config)?;
+        let profile = config
+            .configured_policy_profile()
+            .map_err(anyhow::Error::from)?;
+        let scheduler_cancel = CancellationToken::new();
+        let scheduler = Arc::new(dynamo_scheduler::host::LocalScheduler::new(
+            slots,
+            worker_config_rx,
+            profile,
+            args.block_size as u32,
+            selector,
+            prefill_load_estimator,
+            None,
+            None,
+            None,
+            None,
+            config.router_queue_recheck_interval(),
+            config.router_track_prefill_tokens,
+            scheduler_cancel.clone(),
+            "replay",
+            false,
+        ));
+        let (event_tx, mut event_rx) = mpsc::unbounded_channel();
+        let indexer_clone = indexer.clone();
+        let event_task = tokio::spawn(async move {
+            while let Some(event) = event_rx.recv().await {
+                indexer_clone.apply_event(event).await;
+            }
+            let _ = indexer_clone.flush().await;
+        });
+
+        Ok(Self {
+            config,
+            block_size: args.block_size as u32,
+            scheduler,
+            scheduler_cancel,
+            event_tx: Mutex::new(Some(event_tx)),
+            event_task: Mutex::new(Some(event_task)),
+            indexer,
+            tracking_hash,
+            #[cfg(test)]
+            fail_mark_prefill: AtomicBool::new(false),
+            #[cfg(test)]
+            fail_free: AtomicBool::new(false),
+        })
+    }
+
+    fn sink(&self, worker_id: WorkerId) -> Arc<dyn KvCacheEventSink> {
+        let event_tx = self
+            .event_tx
+            .lock()
+            .unwrap()
+            .as_ref()
+            .expect("router event channel should exist while runtime is active")
+            .clone();
+        Arc::new(ReplayKvEventSink {
+            worker_id,
+            event_tx,
+        })
+    }
+
+    async fn select_worker(&self, request: &DirectRequest) -> Result<ReplayPlacement> {
+        let uuid = request
+            .uuid
+            .ok_or_else(|| anyhow!("online replay requires requests to have stable UUIDs"))?;
+        let tiered = self
+            .indexer
+            .find_matches_for_request(&request.tokens, None)
+            .await?;
+        let overlap = OverlapAnalysis::new(
+            &CacheHitWeights::from(&self.config),
+            self.block_size,
+            &tiered,
+        )
+        .signals();
+        let token_seq = self.config.compute_seq_hashes_for_tracking_with_context(
+            &self.tracking_hash,
+            TrackingHashScope {
+                partition: RoutingPartitionRef::new("replay", "default"),
+                block_size: self.block_size,
+            },
+            &request.tokens,
+            None,
+            BlockHashOptions::default(),
+            None,
+        );
+        let (priority_jump, strict_priority) = request.router_priorities();
+        let response = self
+            .scheduler
+            .schedule_request(ScheduleRequest {
+                accounting_attribution: Default::default(),
+                mode: ScheduleMode::Tracked {
+                    request_id: uuid.to_string(),
+                },
+                token_seq,
+                block_hashes: None,
+                isl_tokens: request.tokens.len(),
+                overlap,
+                kv_transfer_candidates: None,
+                retain_kv_transfer_chain: false,
+                routing_constraints: RoutingConstraints::default(),
+                router_config_override: None,
+                lora_name: None,
+                priority_jump,
+                strict_priority,
+                policy_class: request.policy_class.clone(),
+                session_context: request
+                    .replay_context
+                    .as_ref()
+                    .and_then(|context| context.session_id())
+                    .map(|id| SessionContext::new(id.to_owned(), None, None, None)),
+                expected_output_tokens: Some(
+                    u32::try_from(request.max_output_tokens)
+                        .context("max_output_tokens does not fit into u32")?,
+                ),
+                affinity_target: None,
+                pinned_worker: None,
+                allowed_worker_ids: None,
+                shared_cache_hits: None,
+            })
+            .await?;
+        Ok(ReplayPlacement {
+            worker_idx: usize::try_from(response.best_worker.worker_id)
+                .map_err(|_| anyhow!("selected worker id does not fit into usize"))?,
+            dp_rank: usize::try_from(response.best_worker.dp_rank)
+                .map_err(|_| anyhow!("selected DP rank does not fit into usize"))?,
+        })
+    }
+
+    async fn mark_prefill_completed(&self, uuid: Uuid) -> Result<()> {
+        #[cfg(test)]
+        if self.fail_mark_prefill.load(Ordering::Acquire) {
+            return Err(anyhow!("injected mark-prefill failure"));
+        }
+        self.scheduler
+            .mark_prefill_completed(&uuid.to_string())
+            .await
+            .map_err(anyhow::Error::from)
+    }
+
+    async fn free(&self, uuid: Uuid) -> Result<()> {
+        #[cfg(test)]
+        if self.fail_free.load(Ordering::Acquire) {
+            return Err(anyhow!("injected free failure"));
+        }
+        self.scheduler
+            .free(&uuid.to_string())
+            .await
+            .map_err(anyhow::Error::from)
+    }
+
+    async fn shutdown(&self) -> Result<()> {
+        self.scheduler_cancel.cancel();
+        self.event_tx.lock().unwrap().take();
+        let Some(event_task) = self.event_task.lock().unwrap().take() else {
+            return Ok(());
+        };
+        event_task
+            .await
+            .map_err(|e| anyhow!("replay router event task failed: {e}"))?;
+        Ok(())
+    }
+
+    #[cfg(test)]
+    fn debug_potential_loads(
+        &self,
+        isl_tokens: usize,
+        track_prefill_tokens: bool,
+    ) -> Vec<dynamo_scheduler::host::PotentialLoad> {
+        self.scheduler.get_potential_loads(
+            None,
+            isl_tokens,
+            Default::default(),
+            track_prefill_tokens,
+        )
+    }
+
+    #[cfg(test)]
+    fn fail_mark_prefill(&self) {
+        self.fail_mark_prefill.store(true, Ordering::Release);
+    }
+
+    #[cfg(test)]
+    fn fail_free(&self) {
+        self.fail_free.store(true, Ordering::Release);
+    }
+}
+
+#[expect(
+    clippy::large_enum_variant,
+    reason = "ReplayRouter is long-lived and the KV router variant is intentional"
+)]
+pub(crate) enum ReplayRouter {
+    RoundRobin(RoundRobinRouter),
+    Kv(KvReplayRouter),
+}
+
+impl ReplayRouter {
+    pub(crate) fn new(
+        mode: ReplayRouterMode,
+        args: &MockerConfig,
+        router_config: Option<KvRouterConfig>,
+        prefill_load_estimator: Option<ReplayPrefillLoadEstimator>,
+        num_workers: usize,
+    ) -> Result<Self> {
+        Ok(match mode {
+            ReplayRouterMode::RoundRobin => Self::RoundRobin(RoundRobinRouter::new(num_workers)),
+            ReplayRouterMode::KvRouter => Self::Kv(KvReplayRouter::new(
+                args,
+                router_config,
+                prefill_load_estimator,
+                num_workers,
+            )?),
+        })
+    }
+
+    pub(crate) fn sink(&self, worker_id: WorkerId) -> KvEventPublishers {
+        match self {
+            Self::RoundRobin(_) => KvEventPublishers::default(),
+            Self::Kv(router) => KvEventPublishers::new(Some(router.sink(worker_id)), None),
+        }
+    }
+
+    pub(crate) async fn select_worker(
+        &self,
+        request: &DirectRequest,
+        num_workers: usize,
+        dp_size: usize,
+    ) -> Result<ReplayPlacement> {
+        anyhow::ensure!(
+            request.kv_hints.is_none(),
+            "Dynamo online replay does not support authored KV fetch hints"
+        );
+        anyhow::ensure!(
+            request.images.is_empty(),
+            "Dynamo online replay does not support image requests"
+        );
+        anyhow::ensure!(
+            num_workers > 0,
+            "online replay requires at least one worker"
+        );
+        anyhow::ensure!(dp_size > 0, "online replay requires at least one DP rank");
+        match self {
+            Self::RoundRobin(router) => {
+                router.select_worker(num_workers, dp_size, request.preferred_dp_rank())
+            }
+            Self::Kv(router) => router.select_worker(request).await,
+        }
+    }
+
+    pub(crate) async fn on_first_token(&self, uuid: Uuid) -> Result<bool> {
+        match self {
+            Self::RoundRobin(_) => Ok(false),
+            Self::Kv(router) => {
+                router.mark_prefill_completed(uuid).await?;
+                Ok(true)
+            }
+        }
+    }
+
+    pub(crate) async fn on_complete(&self, uuid: Uuid) -> Result<bool> {
+        match self {
+            Self::RoundRobin(_) => Ok(false),
+            Self::Kv(router) => {
+                router.free(uuid).await?;
+                Ok(true)
+            }
+        }
+    }
+
+    pub(crate) async fn shutdown(&self) -> Result<()> {
+        match self {
+            Self::RoundRobin(_) => Ok(()),
+            Self::Kv(router) => router.shutdown().await,
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn debug_potential_loads(
+        &self,
+        isl_tokens: usize,
+        track_prefill_tokens: bool,
+    ) -> Vec<dynamo_scheduler::host::PotentialLoad> {
+        match self {
+            Self::RoundRobin(_) => Vec::new(),
+            Self::Kv(router) => router.debug_potential_loads(isl_tokens, track_prefill_tokens),
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn fail_mark_prefill(&self) {
+        if let Self::Kv(router) = self {
+            router.fail_mark_prefill();
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn fail_free(&self) {
+        if let Self::Kv(router) = self {
+            router.fail_free();
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+    use std::time::Duration;
+
+    use dynamo_admission::host::RouterQueuePolicy;
+    use dynamo_kv_events::event::{
+        KvCacheEvent, KvCacheEventData, KvCacheStoreData, KvCacheStoredBlockData,
+    };
+    use dynamo_kv_events::residency::StorageTier;
+    use dynamo_kv_hashing::routing::compute_block_hash_for_seq;
+    use dynamo_kv_hashing::{ExternalSequenceBlockHash, LocalBlockHash};
+    use dynamo_router_protocol::worker::WorkerWithDpRank;
+
+    use super::*;
+
+    #[test]
+    fn round_robin_cycles_logical_workers_before_attention_dp_ranks() {
+        let router = RoundRobinRouter::new(2);
+        let placements = (0..6)
+            .map(|_| router.select_worker(2, 2, None).unwrap())
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            placements,
+            vec![
+                ReplayPlacement {
+                    worker_idx: 0,
+                    dp_rank: 0,
+                },
+                ReplayPlacement {
+                    worker_idx: 1,
+                    dp_rank: 0,
+                },
+                ReplayPlacement {
+                    worker_idx: 0,
+                    dp_rank: 1,
+                },
+                ReplayPlacement {
+                    worker_idx: 1,
+                    dp_rank: 1,
+                },
+                ReplayPlacement {
+                    worker_idx: 0,
+                    dp_rank: 0,
+                },
+                ReplayPlacement {
+                    worker_idx: 1,
+                    dp_rank: 0,
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn round_robin_honors_preferred_attention_dp_rank() {
+        let router = RoundRobinRouter::new(2);
+
+        assert_eq!(
+            router.select_worker(2, 2, Some(1)).unwrap(),
+            ReplayPlacement {
+                worker_idx: 0,
+                dp_rank: 1,
+            }
+        );
+        assert_eq!(
+            router.select_worker(2, 2, Some(1)).unwrap(),
+            ReplayPlacement {
+                worker_idx: 1,
+                dp_rank: 1,
+            }
+        );
+        assert!(
+            router
+                .select_worker(2, 2, Some(2))
+                .unwrap_err()
+                .to_string()
+                .contains("out of range")
+        );
+    }
+
+    fn priority_request(uuid: u128, priority: i32, strict_priority: u32) -> DirectRequest {
+        DirectRequest {
+            tokens: vec![uuid as u32; 64],
+            max_output_tokens: 2,
+            output_token_ids: None,
+            uuid: Some(Uuid::from_u128(uuid)),
+            dp_rank: 0,
+            preferred_dp_rank: None,
+            preferred_prefill_dp_rank: None,
+            kv_hints: None,
+            arrival_timestamp_ms: Some(0.0),
+            priority,
+            strict_priority,
+            policy_class: None,
+            replay_context: None,
+            images: Vec::new(),
+        }
+    }
+
+    #[tokio::test]
+    async fn online_replay_rejects_unhandled_request_fields_before_placement() {
+        for mode in [ReplayRouterMode::RoundRobin, ReplayRouterMode::KvRouter] {
+            let router = ReplayRouter::new(mode, &MockerConfig::default(), None, None, 1).unwrap();
+            let mut request = priority_request(1, 0, 0);
+            request.kv_hints = Some(aisimulate_core::replay::AuthoredKvHints {
+                source_worker: 0,
+                source_dp_rank: 0,
+            });
+            let error = router.select_worker(&request, 1, 1).await.unwrap_err();
+            assert!(error.to_string().contains("authored KV fetch hints"));
+            request.kv_hints = None;
+            request.images.push(aisimulate_core::engine::ImageSpec {
+                identity: 1,
+                token_start: 0,
+                token_end: 1,
+                encoder: aisimulate_core::engine::EncoderShape {
+                    sequences: 1,
+                    patch_tokens: 1,
+                    transformer_tokens: 1,
+                    output_tokens: 1,
+                },
+                embedding_bytes: 1,
+            });
+            let error = router.select_worker(&request, 1, 1).await.unwrap_err();
+            assert!(error.to_string().contains("image requests"));
+            request.images.clear();
+            assert_eq!(
+                router.select_worker(&request, 1, 1).await.unwrap(),
+                ReplayPlacement {
+                    worker_idx: 0,
+                    dp_rank: 0
+                }
+            );
+            router.on_complete(request.uuid.unwrap()).await.unwrap();
+            router.shutdown().await.unwrap();
+        }
+    }
+
+    #[tokio::test]
+    async fn kv_router_preserves_selected_attention_dp_rank() {
+        let mut args = MockerConfig::from_value(serde_json::json!({
+            "engine": {
+                "block_size": 64,
+                "max_num_batched_tokens": 64
+            }
+        }))
+        .unwrap();
+        args.dp_size = 2;
+        let router = ReplayRouter::new(ReplayRouterMode::KvRouter, &args, None, None, 1).unwrap();
+        let request = priority_request(100, 0, 0);
+        let tokens_hash =
+            compute_block_hash_for_seq(&request.tokens, 64, BlockHashOptions::default())[0];
+        let ReplayRouter::Kv(kv_router) = &router else {
+            unreachable!("test constructed a KV replay router")
+        };
+        kv_router
+            .indexer
+            .apply_event(store_event(0, 1, 1, tokens_hash, StorageTier::Device))
+            .await;
+        kv_router.indexer.flush().await;
+
+        assert_eq!(
+            router.select_worker(&request, 1, 2).await.unwrap(),
+            ReplayPlacement {
+                worker_idx: 0,
+                dp_rank: 1,
+            }
+        );
+
+        router.on_complete(request.uuid.unwrap()).await.unwrap();
+        router.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn online_replay_forwards_priorities_to_scheduler_queue() {
+        let args = MockerConfig::from_value(serde_json::json!({
+            "engine": {
+                "block_size": 64,
+                "max_num_batched_tokens": 64
+            }
+        }))
+        .unwrap();
+        let config = KvRouterConfig {
+            router_queue_threshold: Some(0.5),
+            router_queue_policy: RouterQueuePolicy::Fcfs,
+            ..KvRouterConfig::default()
+        };
+        let router = Arc::new(
+            ReplayRouter::new(ReplayRouterMode::KvRouter, &args, Some(config), None, 1).unwrap(),
+        );
+
+        let active = priority_request(1, 0, 0);
+        router.select_worker(&active, 1, 1).await.unwrap();
+
+        let (completed_tx, mut completed_rx) = mpsc::unbounded_channel();
+        let low_task = {
+            let router = Arc::clone(&router);
+            let completed_tx = completed_tx.clone();
+            tokio::spawn(async move {
+                let request = priority_request(2, 1_000, 0);
+                router.select_worker(&request, 1, 1).await.unwrap();
+                completed_tx.send(2).unwrap();
+            })
+        };
+        tokio::task::yield_now().await;
+        let high_task = {
+            let router = Arc::clone(&router);
+            tokio::spawn(async move {
+                let request = priority_request(3, 0, 1);
+                router.select_worker(&request, 1, 1).await.unwrap();
+                completed_tx.send(3).unwrap();
+            })
+        };
+        tokio::task::yield_now().await;
+
+        router.on_complete(Uuid::from_u128(1)).await.unwrap();
+        let first = tokio::time::timeout(Duration::from_secs(1), completed_rx.recv())
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(first, 3);
+
+        router.on_complete(Uuid::from_u128(3)).await.unwrap();
+        let second = tokio::time::timeout(Duration::from_secs(1), completed_rx.recv())
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(second, 2);
+        router.on_complete(Uuid::from_u128(2)).await.unwrap();
+
+        low_task.await.unwrap();
+        high_task.await.unwrap();
+        router.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn free_clears_prefill_load_without_first_token() {
+        let args = MockerConfig::from_value(serde_json::json!({
+            "engine": {
+                "block_size": 64,
+                "max_num_batched_tokens": 64
+            }
+        }))
+        .unwrap();
+        let router = ReplayRouter::new(
+            ReplayRouterMode::KvRouter,
+            &args,
+            Some(KvRouterConfig {
+                router_track_prefill_tokens: true,
+                ..KvRouterConfig::default()
+            }),
+            None,
+            1,
+        )
+        .unwrap();
+        let uuid = Uuid::from_u128(4);
+
+        router
+            .select_worker(&priority_request(4, 0, 0), 1, 1)
+            .await
+            .unwrap();
+        assert_eq!(
+            router.debug_potential_loads(0, true)[0].potential_prefill_tokens,
+            64
+        );
+
+        router.on_complete(uuid).await.unwrap();
+
+        assert_eq!(
+            router.debug_potential_loads(0, true)[0].potential_prefill_tokens,
+            0
+        );
+        router.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn online_replay_forwards_policy_class_and_returns_config_errors() {
+        let args = MockerConfig::from_value(serde_json::json!({
+            "engine": {
+                "block_size": 64,
+                "max_num_batched_tokens": 64
+            }
+        }))
+        .unwrap();
+        let missing = KvRouterConfig {
+            router_policy_config: Some("/definitely/missing/router-policy.yaml".to_string()),
+            ..KvRouterConfig::default()
+        };
+        assert!(
+            ReplayRouter::new(ReplayRouterMode::KvRouter, &args, Some(missing), None, 1,).is_err()
+        );
+
+        let path = std::env::temp_dir().join(format!(
+            "dynamo-online-replay-policy-{}.yaml",
+            Uuid::new_v4()
+        ));
+        std::fs::write(
+            &path,
+            r#"
+default_policy_class: latency
+policy_classes:
+  - name: latency
+    quantum: 1
+    prefill_busy_threshold: 0
+  - name: batch
+    quantum: 4
+    prefill_busy_threshold: 1024
+"#,
+        )
+        .unwrap();
+        let router = Arc::new(
+            ReplayRouter::new(
+                ReplayRouterMode::KvRouter,
+                &args,
+                Some(KvRouterConfig {
+                    router_policy_config: Some(path.display().to_string()),
+                    ..KvRouterConfig::default()
+                }),
+                None,
+                1,
+            )
+            .unwrap(),
+        );
+        std::fs::remove_file(path).unwrap();
+
+        let mut active = priority_request(10, 0, 0);
+        active.policy_class = Some("latency".to_string());
+        router.select_worker(&active, 1, 1).await.unwrap();
+
+        let queued_task = {
+            let router = Arc::clone(&router);
+            tokio::spawn(async move {
+                let mut queued = priority_request(11, 0, 0);
+                queued.policy_class = Some("latency".to_string());
+                router.select_worker(&queued, 1, 1).await.unwrap()
+            })
+        };
+        tokio::task::yield_now().await;
+
+        let mut batch = priority_request(12, 0, 0);
+        batch.policy_class = Some("batch".to_string());
+        assert_eq!(
+            router.select_worker(&batch, 1, 1).await.unwrap(),
+            ReplayPlacement {
+                worker_idx: 0,
+                dp_rank: 0,
+            }
+        );
+        assert!(
+            !queued_task.is_finished(),
+            "latency request should remain queued while its class is busy"
+        );
+
+        router.on_complete(Uuid::from_u128(10)).await.unwrap();
+        router.on_complete(Uuid::from_u128(12)).await.unwrap();
+        assert_eq!(
+            queued_task.await.unwrap(),
+            ReplayPlacement {
+                worker_idx: 0,
+                dp_rank: 0,
+            }
+        );
+        router.on_complete(Uuid::from_u128(11)).await.unwrap();
+        router.shutdown().await.unwrap();
+    }
+
+    fn store_event(
+        worker_id: WorkerId,
+        event_id: u64,
+        dp_rank: u32,
+        tokens_hash: LocalBlockHash,
+        storage_tier: StorageTier,
+    ) -> RouterEvent {
+        RouterEvent::with_storage_tier(
+            worker_id,
+            KvCacheEvent {
+                event_id,
+                data: KvCacheEventData::Stored(KvCacheStoreData {
+                    parent_hash: None,
+                    start_position: None,
+                    blocks: vec![KvCacheStoredBlockData {
+                        block_hash: ExternalSequenceBlockHash(event_id),
+                        tokens_hash,
+                        mm_extra_info: None,
+                    }],
+                }),
+                dp_rank,
+            },
+            storage_tier,
+        )
+    }
+
+    #[tokio::test]
+    async fn online_kv_router_continues_a_device_match_into_host_pinned() {
+        let args = MockerConfig::from_value(serde_json::json!({
+            "engine": {
+                "block_size": 64
+            }
+        }))
+        .unwrap();
+        let router = ReplayRouter::new(ReplayRouterMode::KvRouter, &args, None, None, 2).unwrap();
+        let mut request = priority_request(100, 0, 0);
+        request.tokens = vec![100; 256];
+        let hashes = compute_block_hash_for_seq(&request.tokens, 64, BlockHashOptions::default());
+        let ReplayRouter::Kv(kv_router) = &router else {
+            unreachable!("test constructed a KV replay router")
+        };
+        // Worker 1 holds block 0 in G1 and blocks 1..4 in G2, chained under it.
+        let store = |event_id, first: usize, tier| {
+            let block_hash = |index: usize| ExternalSequenceBlockHash(1_000 + index as u64);
+            RouterEvent::with_storage_tier(
+                1,
+                KvCacheEvent {
+                    event_id,
+                    data: KvCacheEventData::Stored(KvCacheStoreData {
+                        parent_hash: first.checked_sub(1).map(block_hash),
+                        start_position: None,
+                        blocks: (first..if first == 0 { 1 } else { 4 })
+                            .map(|index| KvCacheStoredBlockData {
+                                block_hash: block_hash(index),
+                                tokens_hash: hashes[index],
+                                mm_extra_info: None,
+                            })
+                            .collect(),
+                    }),
+                    dp_rank: 0,
+                },
+                tier,
+            )
+        };
+        kv_router
+            .indexer
+            .apply_event(store(1, 0, StorageTier::Device))
+            .await;
+        kv_router
+            .indexer
+            .apply_event(store(2, 1, StorageTier::HostPinned))
+            .await;
+        kv_router.indexer.flush().await;
+
+        let tiered = kv_router
+            .indexer
+            .find_matches_for_request(&request.tokens, None)
+            .await
+            .unwrap();
+        let worker = WorkerWithDpRank::new(1, 0);
+        assert_eq!(tiered.device.overlap_scores.scores.get(&worker), Some(&1));
+        assert_eq!(
+            tiered.lower_tier[&StorageTier::HostPinned]
+                .hits
+                .get(&worker),
+            Some(&3)
+        );
+        router.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn online_kv_router_routes_to_a_host_pinned_prefix() {
+        let args = MockerConfig::from_value(serde_json::json!({
+            "engine": {
+                "block_size": 64
+            }
+        }))
+        .unwrap();
+        let router = ReplayRouter::new(ReplayRouterMode::KvRouter, &args, None, None, 2).unwrap();
+        let request = priority_request(100, 0, 0);
+        let tokens_hash =
+            compute_block_hash_for_seq(&request.tokens, 64, BlockHashOptions::default())[0];
+        let ReplayRouter::Kv(kv_router) = &router else {
+            unreachable!("test constructed a KV replay router")
+        };
+        kv_router
+            .indexer
+            .apply_event(store_event(1, 1, 0, tokens_hash, StorageTier::HostPinned))
+            .await;
+        kv_router.indexer.flush().await;
+        let tiered = kv_router
+            .indexer
+            .find_matches_for_request(&request.tokens, None)
+            .await
+            .unwrap();
+        assert!(tiered.device.overlap_scores.scores.is_empty());
+        assert_eq!(
+            tiered.lower_tier[&StorageTier::HostPinned]
+                .hits
+                .get(&WorkerWithDpRank::new(1, 0)),
+            Some(&1)
+        );
+
+        assert_eq!(
+            router.select_worker(&request, 2, 1).await.unwrap(),
+            ReplayPlacement {
+                worker_idx: 1,
+                dp_rank: 0,
+            }
+        );
+        router.on_complete(request.uuid.unwrap()).await.unwrap();
+        router.shutdown().await.unwrap();
+    }
+}

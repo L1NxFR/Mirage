@@ -1,57 +1,60 @@
-# 源码仓库
+# Mirage
 
-上游参考仓库通过 Git 子模块固定到具体提交。
+Mirage uses AISim to study how memory placement affects LLM inference. The
+two-tier DRAM model estimates decode latency when KV cache entries and expert
+weights share a fast memory tier backed by a larger, slower tier.
 
-| 目录 | 仓库 |
+## Source layout
+
+| Directory | What it contains |
 | --- | --- |
-| `aisim/` | [NVIDIA AI Simulator](https://github.com/ai-dynamo/aisim) |
-| `dynamo/` | [NVIDIA Dynamo](https://github.com/ai-dynamo/dynamo) |
+| [aisim](aisim/README.md) | NVIDIA's offline LLM serving simulator. Mirage uses its prediction engine and replay events. |
+| [two-tier-dram](two-tier-dram/README.md) | An AISim extension that models fast-tier capacity, transfers between tiers, and their effect on decode latency. |
+| [dynamo](dynamo/README.md) | NVIDIA's distributed inference framework, included as a serving-system reference. |
+| [kv-trace](kv-trace/README.md) | A replay tool that renders AISim's KV cache events as an offline HTML timeline. |
 
-克隆 Mirage 并获取参考仓库：
+## Run the two-tier DRAM model
 
-```sh
-git clone --recurse-submodules https://github.com/L1NxFR/Mirage.git
+The upstream directories in this branch are source references. Performance
+tables, benchmark datasets, workload traces, and media assets are excluded.
+For the full sweep, use the prepared AISim environment and performance tables
+on i163v. Run these commands there from the Mirage repository root.
+
+```bash
+uv pip install --python src/aisim/python/aisim/.venv/bin/python -e src/two-tier-dram
+python3 src/two-tier-dram/scenarios.py
 ```
 
-对于已有的本地副本：
+The sweep writes its results to `src/two-tier-dram/output/sweep.md` and
+`sweep.json`. Open `two-tier-dram-replay.html` in the same directory to inspect
+the replay.
 
-```sh
-git submodule update --init --recursive
+## Test the model
+
+The model tests use a synthetic workload and run with Python 3.11 or later.
+
+```bash
+(cd src/two-tier-dram && python3 -m unittest discover -s tests -p test_model.py)
 ```
 
-## 项目内 pstack skills
+After installing AISim and the extension, run the full suite, including the
+integration tests.
 
-skills 安装在项目根目录：实体位于 `../.claude/skills/`，`../.agents/skills` 是指向它的相对符号链接（`../.claude/skills`），两者是同一份文件。从项目根目录启动 Claude Code 或 Codex 即可发现。
-
-在 Claude Code 中用 `/poteto-mode` 调用；在 Codex 中输入：
-
-```text
-$poteto-mode 先阅读项目记录与 src，明确这个任务的验收标准，再实施和验证。
+```bash
+(cd src/two-tier-dram && ../aisim/python/aisim/.venv/bin/python -m unittest discover -s tests -v)
 ```
 
-若菜单没有发现 skill，可直接要求读取 `.claude/skills/poteto-mode/SKILL.md`（Codex 另读其 Codex 映射）。处理 src 时遵循本目录 AGENTS.md。
+## Source versions
 
-- [完整中文指南](../dashboard/site/content/other/project-guide/agent-pstack-guide.md)：初始化、关键步骤、常用技能、更新与验证。
-- [上游版本及校验清单](../.agents/pstack/upstream.json)：固定提交，不自动更新。
-- [许可与来源](../.agents/pstack/NOTICE-skills.md)：保留上游许可。
+The AISim and Dynamo source files are selected from the pinned revisions below.
+The versions
+below come from the `two-tier-dram-replay` checkout on `i163v`, at Mirage
+commit `47622cc09bdf2abfeb7e447d6bc93dcb74512df4`.
 
-## 依赖与验证
+| Component | Pinned revision | Source on i163v |
+| --- | --- | --- |
+| AISim | [c85b08623fc5fb8c6c6600619251d7fbf775bb1f](https://github.com/ai-dynamo/aisim/tree/c85b08623fc5fb8c6c6600619251d7fbf775bb1f) | Clean checkout at this commit. |
+| Dynamo | [b20fe6fe94021b854597965c7305931175e8f482](https://github.com/ai-dynamo/dynamo/tree/b20fe6fe94021b854597965c7305931175e8f482) | The server records this commit. Its source directory was empty, so the files come from the pinned upstream revision. |
+| Two-tier DRAM | `b4432aa2210d60bc0657efe8e635cdcd751e04ae` (Git tree) | Matches the tracked files in the server checkout. |
 
-读取技能不需要安装应用依赖。执行某项技能时按其脚本声明准备 Node.js、Bun、Git、GitHub CLI 或应用自己的依赖；并非所有任务都需要这些工具。PR 工具需要已有登录及相应授权。技能安装没有安装这些运行依赖。
-
-参考组件的运行和测试命令见各自 README。Dashboard 的构建和工作区测试仅验证文档站点。
-
-从项目根目录核对安装文件完整性：
-
-```sh
-python3 - <<'PYTHON'
-import hashlib, json
-from pathlib import Path
-manifest = json.loads(Path('.agents/pstack/upstream.json').read_text())
-for name, expected in manifest['sha256'].items():
-    path = Path('.claude/skills') / name
-    assert path.is_file(), f'缺少文件：{name}'
-    assert hashlib.sha256(path.read_bytes()).hexdigest() == expected, f'文件已改变：{name}'
-print(f"通过：{manifest['skill_count']} 个上游 skills 的文件校验")
-PYTHON
-```
+KV trace is an additional tool from this Mirage worktree.

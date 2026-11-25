@@ -1,0 +1,346 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+import pytest
+
+from aisim.sweeper.parallel_enum import (
+    DisaggParallelConfig,
+    ParallelShape,
+    ReplicaParallelConfig,
+)
+from aisim.sweeper.parallel_projection import (
+    AGG_ATTENTION_MODE,
+    AGG_FFN_MODE,
+    AGG_GPUS_PER_ENGINE,
+    DECODE_ATTENTION_MODE,
+    DECODE_FFN_MODE,
+    DECODE_GPUS_PER_ENGINE,
+    PARALLEL_CONFIG_CHOICE,
+    PREFILL_ATTENTION_MODE,
+    PREFILL_FFN_MODE,
+    PREFILL_GPU_SHARE,
+    PREFILL_GPUS_PER_ENGINE,
+    USED_GPU_RATIO,
+    InfeasibleParallelSelection,
+    ParallelConfigProjector,
+)
+from aisim.sweeper.search_space import BranchSpace
+
+
+def _role(*, gpus: int, attention: str, ffn: str, replicas: int) -> ReplicaParallelConfig:
+    tp, dp = (gpus, 1) if attention == "tp" else (1, gpus)
+    moe_tp, moe_ep = (gpus, 1) if ffn == "tp" else (1, gpus)
+    return ReplicaParallelConfig(
+        shape=ParallelShape(tp=tp, dp=dp, moe_tp=moe_tp, moe_ep=moe_ep),
+        replicas=replicas,
+    )
+
+
+def _branch(mode, configs, support, *, budget=32):
+    return BranchSpace(
+        deployment_mode=mode,
+        parallel_configs=tuple(configs),
+        supported_backends=support,
+        knob_choices={"backend": sorted(set().union(*support.values()))},
+        gpu_budget=budget,
+    )
+
+
+def test_agg_parameters_have_structural_defaults():
+    configs = [
+        _role(gpus=1, attention="tp", ffn="tp", replicas=8),
+        _role(gpus=4, attention="tp", ffn="ep", replicas=4),
+        _role(gpus=16, attention="dp", ffn="ep", replicas=2),
+    ]
+    branch = _branch("agg", configs, {config: frozenset({"vllm"}) for config in configs})
+
+    projector = ParallelConfigProjector(branch)
+    parameters = {parameter.name: parameter for parameter in projector.parameters}
+
+    assert parameters[USED_GPU_RATIO].default == 1.0
+    assert parameters[AGG_GPUS_PER_ENGINE].values == (1.0, 4.0, 16.0)
+    assert parameters[AGG_GPUS_PER_ENGINE].default == 4.0
+    assert parameters[AGG_GPUS_PER_ENGINE].log_scale
+    assert parameters[AGG_ATTENTION_MODE].default == "tp"
+    assert parameters[AGG_FFN_MODE].default == "ep"
+
+
+def test_agg_exact_valid_point_projects_to_itself():
+    tep4 = _role(gpus=4, attention="tp", ffn="ep", replicas=4)
+    dep8 = _role(gpus=8, attention="dp", ffn="ep", replicas=2)
+    branch = _branch("agg", [tep4, dep8], {tep4: frozenset({"vllm"}), dep8: frozenset({"vllm"})})
+    projector = ParallelConfigProjector(branch)
+
+    projection = projector.project(
+        {
+            USED_GPU_RATIO: 0.5,
+            AGG_GPUS_PER_ENGINE: 8,
+            AGG_ATTENTION_MODE: "dp",
+            AGG_FFN_MODE: "ep",
+        },
+        "vllm",
+    )
+
+    assert projection.config == dep8
+    assert projection.distance == 0.0
+    assert not projection.mode_projected
+
+
+def test_projection_hard_filters_backend_then_snaps_worker_size():
+    vllm4 = _role(gpus=4, attention="tp", ffn="ep", replicas=4)
+    sglang8 = _role(gpus=8, attention="tp", ffn="ep", replicas=2)
+    branch = _branch(
+        "agg",
+        [vllm4, sglang8],
+        {vllm4: frozenset({"vllm"}), sglang8: frozenset({"sglang"})},
+    )
+    projector = ParallelConfigProjector(branch)
+
+    projection = projector.project(
+        {
+            USED_GPU_RATIO: 0.5,
+            AGG_GPUS_PER_ENGINE: 8,
+            AGG_ATTENTION_MODE: "tp",
+            AGG_FFN_MODE: "ep",
+        },
+        "vllm",
+    )
+
+    assert projection.config == vllm4
+    assert not projection.mode_projected
+
+
+def test_projection_falls_back_when_requested_mode_has_no_valid_config():
+    dep8 = _role(gpus=8, attention="dp", ffn="ep", replicas=2)
+    branch = _branch("agg", [dep8], {dep8: frozenset({"vllm"})})
+    projector = ParallelConfigProjector(branch)
+
+    projection = projector.project(
+        {
+            USED_GPU_RATIO: 0.5,
+            AGG_GPUS_PER_ENGINE: 8,
+            AGG_ATTENTION_MODE: "tp",
+            AGG_FFN_MODE: "ep",
+        },
+        "vllm",
+    )
+
+    assert projection.config == dep8
+    assert projection.mode_projected
+
+
+def test_disagg_projection_uses_role_features_and_joint_gpu_budget():
+    balanced = DisaggParallelConfig(
+        prefill=_role(gpus=4, attention="tp", ffn="ep", replicas=2),
+        decode=_role(gpus=8, attention="dp", ffn="ep", replicas=1),
+    )
+    decode_heavy = DisaggParallelConfig(
+        prefill=_role(gpus=4, attention="tp", ffn="ep", replicas=1),
+        decode=_role(gpus=8, attention="dp", ffn="tp", replicas=3),
+    )
+    configs = [balanced, decode_heavy]
+    branch = _branch("disagg", configs, {config: frozenset({"sglang"}) for config in configs})
+    projector = ParallelConfigProjector(branch)
+
+    projection = projector.project(
+        {
+            USED_GPU_RATIO: 1.0,
+            PREFILL_GPU_SHARE: 0.125,
+            PREFILL_GPUS_PER_ENGINE: 4,
+            DECODE_GPUS_PER_ENGINE: 8,
+            PREFILL_ATTENTION_MODE: "tp",
+            DECODE_ATTENTION_MODE: "dp",
+            PREFILL_FFN_MODE: "ep",
+            DECODE_FFN_MODE: "tp",
+        },
+        "sglang",
+    )
+
+    assert projection.config == decode_heavy
+    assert projection.config.total_gpus == 28 <= branch.gpu_budget
+    assert projection.actual_features[PREFILL_GPU_SHARE] == 1 / 7
+
+
+def test_single_config_makes_every_parallel_parameter_constant():
+    pinned = _role(gpus=4, attention="tp", ffn="ep", replicas=8)
+    branch = _branch("agg", [pinned], {pinned: frozenset({"vllm"})})
+
+    projector = ParallelConfigProjector(branch)
+
+    assert all(parameter.is_constant for parameter in projector.parameters)
+    assert projector.project({}, "vllm").config == pinned
+
+
+def test_dense_pool_does_not_expose_ffn_mode():
+    dense = ReplicaParallelConfig(
+        shape=ParallelShape(tp=4, dp=1, moe_tp=1, moe_ep=1),
+        replicas=4,
+    )
+    branch = _branch("agg", [dense], {dense: frozenset({"vllm"})})
+
+    projector = ParallelConfigProjector(branch)
+
+    assert AGG_FFN_MODE not in {parameter.name for parameter in projector.parameters}
+
+
+def test_custom_parallel_preset_is_one_flat_choice() -> None:
+    first = _role(gpus=1, attention="tp", ffn="tp", replicas=1)
+    second = _role(gpus=4, attention="tp", ffn="tp", replicas=2)
+    branch = BranchSpace(
+        deployment_mode="agg",
+        parallel_configs=(first, second),
+        supported_backends={
+            first: frozenset({"vllm"}),
+            second: frozenset({"vllm"}),
+        },
+        knob_choices={"backend": ["vllm"]},
+        flat_parallel_choices=True,
+    )
+
+    projector = ParallelConfigProjector(branch)
+
+    assert [parameter.name for parameter in projector.parameters] == [PARALLEL_CONFIG_CHOICE]
+    assert projector.project({PARALLEL_CONFIG_CHOICE: 1}, "vllm").config == second
+
+
+def test_preset_off_exposes_independent_parallel_knobs() -> None:
+    legal = _role(gpus=1, attention="tp", ffn="tp", replicas=1)
+    branch = BranchSpace(
+        deployment_mode="agg",
+        parallel_configs=(legal,),
+        supported_backends={legal: frozenset({"vllm"})},
+        knob_choices={"backend": ["vllm"]},
+        parallel_independent_choices={
+            "replicas": (1, 2),
+            "tp": (1, 2),
+            "pp": (1,),
+            "attention_dp": (1,),
+            "moe_tp": (1,),
+            "moe_ep": (1,),
+        },
+    )
+
+    projector = ParallelConfigProjector(branch)
+    projection = projector.project(
+        {
+            "replicas": 2,
+            "tp": 2,
+            "pp": 1,
+            "attention_dp": 1,
+            "moe_tp": 1,
+            "moe_ep": 1,
+        },
+        "vllm",
+    )
+
+    assert {parameter.name for parameter in projector.parameters} == {
+        "replicas",
+        "tp",
+        "pp",
+        "attention_dp",
+        "moe_tp",
+        "moe_ep",
+    }
+    assert projection.config == legal
+    assert projection.requested_features["replicas"] == 2
+    assert projection.actual_features["replicas"] == 1
+    assert projection.distance > 0
+
+
+def test_independent_parallel_domain_preserves_explicit_scale() -> None:
+    legal = _role(gpus=1, attention="tp", ffn="tp", replicas=1)
+    linear = BranchSpace(
+        deployment_mode="agg",
+        parallel_configs=(legal,),
+        supported_backends={legal: frozenset({"vllm"})},
+        knob_choices={"backend": ["vllm"]},
+        parallel_independent_choices={"replicas": (1, 2, 4)},
+    )
+    logarithmic = BranchSpace(
+        deployment_mode="agg",
+        parallel_configs=(legal,),
+        supported_backends={legal: frozenset({"vllm"})},
+        knob_choices={"backend": ["vllm"]},
+        parallel_independent_choices={"replicas": (1,)},
+        parallel_independent_log_ranges={"replicas": (1, 1_000_000)},
+    )
+
+    linear_parameter = ParallelConfigProjector(linear).parameters[0]
+    log_parameter = ParallelConfigProjector(logarithmic).parameters[0]
+
+    assert not linear_parameter.log_scale
+    assert log_parameter.kind == "integer"
+    assert log_parameter.log_scale
+    assert (log_parameter.minimum, log_parameter.maximum) == (1.0, 1_000_000.0)
+
+
+def test_disagg_custom_and_default_roles_remain_atomic_and_correlated() -> None:
+    prefill_one = _role(gpus=1, attention="tp", ffn="tp", replicas=1)
+    prefill_two = _role(gpus=2, attention="tp", ffn="tp", replicas=1)
+    decode_one = _role(gpus=1, attention="tp", ffn="tp", replicas=1)
+    decode_two = _role(gpus=2, attention="tp", ffn="tp", replicas=2)
+    first = DisaggParallelConfig(prefill=prefill_one, decode=decode_one)
+    second = DisaggParallelConfig(prefill=prefill_two, decode=decode_two)
+    branch = BranchSpace(
+        deployment_mode="disagg",
+        parallel_configs=(first, second),
+        supported_backends={
+            first: frozenset({"vllm"}),
+            second: frozenset({"vllm"}),
+        },
+        knob_choices={"backend": ["vllm"]},
+        gpu_budget=8,
+        parallel_custom_choices={"prefill": (prefill_one, prefill_two)},
+    )
+    projector = ParallelConfigProjector(branch)
+
+    names = {parameter.name for parameter in projector.parameters}
+    assert f"prefill_{PARALLEL_CONFIG_CHOICE}" in names
+    assert DECODE_GPUS_PER_ENGINE in names
+    assert "prefill_tp" not in names
+    projection = projector.project(
+        {
+            f"prefill_{PARALLEL_CONFIG_CHOICE}": 1,
+            USED_GPU_RATIO: 0.75,
+            PREFILL_GPU_SHARE: 1 / 3,
+            DECODE_GPUS_PER_ENGINE: 2,
+            DECODE_ATTENTION_MODE: "tp",
+        },
+        "vllm",
+    )
+    assert projection.config == second
+
+
+def test_infeasible_independent_parallel_combination_is_typed() -> None:
+    prefill = _role(gpus=1, attention="tp", ffn="tp", replicas=1)
+    decode = _role(gpus=1, attention="tp", ffn="tp", replicas=1)
+    legal = DisaggParallelConfig(prefill=prefill, decode=decode)
+    branch = BranchSpace(
+        deployment_mode="disagg",
+        parallel_configs=(legal,),
+        supported_backends={legal: frozenset({"vllm"})},
+        knob_choices={"backend": ["vllm"]},
+        parallel_custom_choices={"prefill": (prefill,)},
+        parallel_independent_choices={
+            "decode_replicas": (2,),
+            "decode_tp": (1,),
+            "decode_pp": (1,),
+            "decode_attention_dp": (1,),
+            "decode_moe_tp": (1,),
+            "decode_moe_ep": (1,),
+        },
+    )
+
+    with pytest.raises(InfeasibleParallelSelection, match="infeasible"):
+        ParallelConfigProjector(branch).project(
+            {
+                f"prefill_{PARALLEL_CONFIG_CHOICE}": 0,
+                "decode_replicas": 2,
+                "decode_tp": 1,
+                "decode_pp": 1,
+                "decode_attention_dp": 1,
+                "decode_moe_tp": 1,
+                "decode_moe_ep": 1,
+            },
+            "vllm",
+        )
