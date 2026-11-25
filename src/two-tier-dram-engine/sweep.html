@@ -1,0 +1,468 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>两级 DRAM 参数扫描（AISim 引擎内，EXI 输入）</title>
+<style>
+  :root { --bg:#fafafa; --card:#fff; --ink:#1d2330; --ink2:#52514e; --mute:#6b7280; --line:#e5e7eb; --grid:#efefed;
+          --accent:#2a78d6; --compute:#c9c8c2; --base:#2a78d6; --kv:#1baf7a; --exp:#eb6834;
+          --bw1:#86b6ef; --bw2:#2a78d6; --bw3:#104281; --native:#8a8984; --bad:#d03b3b; --good:#0ca30c; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:13.5px/1.5 -apple-system,BlinkMacSystemFont,"PingFang SC","Noto Sans CJK SC","Segoe UI",sans-serif; background:var(--bg); color:var(--ink); }
+  body.embedded { background:transparent; }
+  .wrap { padding:14px 18px 18px; max-width:1320px; margin:0 auto; }
+  body.embedded .wrap { padding:4px 2px 8px; }
+  h1 { font-size:17px; margin:0 0 2px; }
+  body.embedded h1 { display:none; }
+  .sub { color:var(--mute); font-size:12px; margin-bottom:10px; }
+  .layout { display:grid; grid-template-columns:300px minmax(0,1fr); gap:12px; align-items:start; }
+  @media (max-width:980px) {
+    .layout { grid-template-columns:minmax(0,1fr); }
+    /* Narrow (embedded in a doc): parameters in columns, so the results stay near the controls. */
+    #controls { display:grid; grid-template-columns:repeat(auto-fill,minmax(190px,1fr)); gap:0 14px; }
+    #controls .group { grid-column:1/-1; }
+    aside .note { display:none; }
+  }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:12px 14px; margin-bottom:12px; min-width:0; }
+  .card h2 { font-size:12.5px; margin:0 0 6px; color:var(--ink2); font-weight:600; }
+  .card .note { font-size:11.5px; color:var(--mute); margin:0 0 8px; }
+  aside .card { padding:10px 12px; }
+  .group { font-size:11px; font-weight:700; color:var(--mute); letter-spacing:.04em; margin:10px 0 4px; }
+  .group:first-child { margin-top:0; }
+  .param { margin-bottom:7px; }
+  .param .lab { font-size:12px; display:flex; justify-content:space-between; gap:6px; }
+  .param .lab .k { font-family:ui-monospace,monospace; font-size:10.5px; color:var(--mute); }
+  .param.changed .lab span:first-child { color:#7a4b00; font-weight:700; }
+  .seg { display:flex; flex-wrap:wrap; gap:3px; margin-top:2px; }
+  .seg button { font:inherit; font-size:11.5px; border:1px solid var(--line); background:#fff; color:var(--ink); padding:1px 7px; border-radius:5px; cursor:pointer; }
+  .seg button.on { border-color:var(--accent); background:#eaf2fc; color:#184f95; font-weight:600; }
+  .seg button.on.changed { border-color:#f0b429; background:#fff1c2; color:#7a4b00; }
+  .seg button.na { color:#b5b4ae; border-style:dashed; }
+  .seg button.def::after { content:"·"; margin-left:2px; color:var(--mute); }
+  .fixed { font-size:11.5px; color:var(--ink2); margin:2px 0; }
+  .fixed b { font-weight:600; color:var(--mute); margin-right:4px; }
+  .btn { font:inherit; font-size:12px; border:1px solid var(--line); background:#fff; padding:3px 10px; border-radius:6px; cursor:pointer; }
+  .btn:hover, .seg button:hover { border-color:var(--accent); }
+  .status { display:flex; flex-wrap:wrap; gap:6px; align-items:center; font-size:12px; }
+  .chip { font-size:11.5px; background:#f1f3f7; border-radius:4px; padding:1px 7px; white-space:nowrap; }
+  .chip.changed { background:#fff1c2; color:#7a4b00; box-shadow:inset 0 0 0 1px #f0b429; font-weight:600; }
+  .chip.changed s { color:#a37b2c; font-weight:400; }
+  .chip.bad { background:#fde8e8; color:#8f1f1f; font-weight:600; }
+  .chip.good { background:#e6f6e6; color:#0b5d0b; }
+  .msg { font-size:12px; color:#7a4b00; background:#fff8e1; border-radius:6px; padding:4px 8px; margin-top:6px; }
+  .err { font-size:12.5px; color:#8f1f1f; background:#fde8e8; border-radius:6px; padding:8px 10px; }
+  .kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:10px; }
+  .kpi .v { font-size:20px; font-weight:650; font-variant-numeric:tabular-nums; }
+  .kpi .l { font-size:11.5px; color:var(--mute); }
+  .kpi .d { font-size:11.5px; color:var(--ink2); font-variant-numeric:tabular-nums; }
+  .two { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:12px; }
+  @media (max-width:760px) { .two { grid-template-columns:minmax(0,1fr); } }
+  .two .card { margin-bottom:0; }
+  .legend { display:flex; flex-wrap:wrap; gap:12px; font-size:11.5px; color:var(--ink2); margin-bottom:6px; }
+  .legend i { display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:4px; vertical-align:-1px; }
+  .legend i.line { height:2px; vertical-align:3px; width:14px; }
+  .legend i.dash { height:0; border-top:2px dashed var(--native); vertical-align:3px; width:14px; border-radius:0; }
+  svg { display:block; width:100%; overflow:visible; }
+  svg text { font-size:10.5px; fill:var(--mute); font-family:inherit; }
+  svg .lbl { fill:var(--ink2); }
+  .tip { position:fixed; pointer-events:none; background:#fff; border:1px solid var(--line); border-radius:6px; padding:6px 8px; font-size:11.5px; box-shadow:0 2px 10px rgba(0,0,0,.08); z-index:10; display:none; max-width:320px; }
+  .tip b { font-weight:600; }
+  .tabs { display:flex; gap:4px; margin-bottom:6px; flex-wrap:wrap; }
+  table { border-collapse:collapse; font-size:11.5px; font-variant-numeric:tabular-nums; width:100%; }
+  th, td { padding:2px 6px; text-align:right; border-bottom:1px solid var(--grid); }
+  th:first-child, td:first-child { text-align:left; }
+  .tablewrap { max-height:320px; overflow:auto; margin-top:6px; }
+  .checks { font-size:12px; margin:0; padding-left:0; list-style:none; }
+  .checks li { margin:2px 0; }
+  .ok { color:var(--good); font-weight:700; } .no { color:var(--bad); font-weight:700; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>两级 DRAM 参数扫描（AISim 引擎内，EXI 输入）</h1>
+  <div class="sub"><span id="meta"></span> <a id="full" href="#" target="_blank" rel="noopener" style="display:none">在新窗口打开完整页面 ↗</a></div>
+  <div class="layout">
+    <aside>
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <h2 style="margin:0">参数</h2><button class="btn" id="reset">恢复 EXI 默认</button>
+        </div>
+        <div class="note">每个按钮是一个扫描值；带 · 的是默认值。虚线按钮在当前组合下没有算过，点它会跳到最近的已算点。</div>
+        <div id="controls"></div>
+      </div>
+    </aside>
+    <main>
+      <div class="card">
+        <div class="status" id="status"></div>
+        <div id="msg"></div>
+      </div>
+      <div id="body"></div>
+      <div class="card"><h2>固定参数</h2><div id="fixed"></div></div>
+      <div class="card"><h2>交叉检查（生成页面前在全部点上运行）</h2><ul class="checks" id="checks"></ul></div>
+    </main>
+  </div>
+</div>
+<div class="tip" id="tip"></div>
+<script>
+const PACKED = "__DATA_GZ_B64__";
+const PHASE_LABEL = { compute: "计算（AISim 原生）", wait_base: "等非专家权重", wait_kv: "等 top-k KV", wait_experts: "等专家" };
+const GROUPS = { workload: "工作负载", memory: "容量与带宽", link: "链路", experts: "专家", kv: "top-k KV", model: "模型与随机性" };
+const BW_COLOR = { 1100: "var(--bw1)", 2200: "var(--bw2)", 4400: "var(--bw3)" };
+const NS = "http://www.w3.org/2000/svg";
+let D, AX, INDEX, cur, msg = "", localPick = "decode", showTable = false;
+
+const fmt = (v, d = 0) => v == null ? "—" : Number(v).toLocaleString("en-US", { maximumFractionDigits: d, minimumFractionDigits: d });
+const ms = v => v == null ? "—" : v >= 1000 ? fmt(v / 1000, 2) + " s" : fmt(v, v < 10 ? 2 : 0) + " ms";
+const pct = (a, b) => (a / b - 1) * 100;
+const show = (axis, v) => v == null ? "自动" : axis.key === "tier2_bandwidth_gbps" ? fmt(v / 1000, 1) + " TB/s" : String(v);
+const keyOf = p => AX.map(a => JSON.stringify(p[a.key])).join("|");
+const wkey = p => [p.arrival, p.prompt, p.output].join("-");
+const defaults = () => Object.fromEntries(AX.map(a => [a.key, a.default]));
+const isDefault = (a, v) => JSON.stringify(v) === JSON.stringify(a.default);
+const makespan = r => Math.max(...r.requests.map(q => q[3]));
+const meanTtft = r => r.requests.reduce((s, q) => s + q[2] - q[0], 0) / r.requests.length;
+const meanItl = (r, out) => out > 1 ? r.requests.reduce((s, q) => s + (q[3] - q[2]) / (out - 1), 0) / r.requests.length : null;
+
+function el(tag, attrs = {}, parent) {
+  const svg = ["svg", "g", "rect", "line", "path", "text", "circle", "polyline"].includes(tag);
+  const e = svg ? document.createElementNS(NS, tag) : document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === "text") e.textContent = v; else if (k === "html") e.innerHTML = v;
+    else if (k.startsWith("on")) e.addEventListener(k.slice(2), v); else e.setAttribute(k, v);
+  }
+  if (parent) parent.appendChild(e);
+  return e;
+}
+const tipEl = document.getElementById("tip");
+function tip(target, html) {
+  target.addEventListener("mousemove", e => {
+    tipEl.innerHTML = html(); tipEl.style.display = "block";
+    const x = Math.min(e.clientX + 14, window.innerWidth - tipEl.offsetWidth - 8);
+    const y = e.clientY + 14 + tipEl.offsetHeight > window.innerHeight ? e.clientY - tipEl.offsetHeight - 10 : e.clientY + 14;
+    tipEl.style.left = x + "px"; tipEl.style.top = y + "px";
+  });
+  target.addEventListener("mouseleave", () => { tipEl.style.display = "none"; });
+}
+
+// ---- lookup -------------------------------------------------------------
+const WEIGHT = a => a.group === "workload" ? 100 : a.role === "core" ? 10 : 1;
+function nearest(want, fixedKey) {
+  let best = null, bestCost = Infinity;
+  for (const r of D.points) {
+    if (fixedKey && JSON.stringify(r.point[fixedKey]) !== JSON.stringify(want[fixedKey])) continue;
+    let cost = 0;
+    for (const a of AX) if (JSON.stringify(r.point[a.key]) !== JSON.stringify(want[a.key])) cost += WEIGHT(a);
+    if (cost < bestCost) { best = r; bestCost = cost; }
+  }
+  return best;
+}
+function setParam(key, value) {
+  const want = { ...cur, [key]: value };
+  if (INDEX.has(keyOf(want))) { cur = want; msg = ""; }
+  else {
+    const r = nearest(want, key);
+    const moved = AX.filter(a => a.key !== key && JSON.stringify(r.point[a.key]) !== JSON.stringify(want[a.key]));
+    cur = { ...r.point };
+    msg = `这个组合没有算过，已跳到最近的已算点：同时改了 ${moved.map(a => `${a.label} → ${show(a, r.point[a.key])}`).join("，")}。`;
+  }
+  render();
+}
+
+// ---- controls -----------------------------------------------------------
+function renderControls() {
+  const root = document.getElementById("controls"); root.innerHTML = "";
+  let group = null;
+  for (const a of AX) {
+    if (a.group !== group) { group = a.group; el("div", { class: "group", text: GROUPS[group] }, root); }
+    const box = el("div", { class: "param" + (isDefault(a, cur[a.key]) ? "" : " changed") }, root);
+    const lab = el("div", { class: "lab" }, box);
+    el("span", { text: a.label + (a.unit ? `（${a.unit === "GB/s" ? "TB/s" : a.unit}）` : "") }, lab);
+    el("span", { class: "k", text: a.group === "workload" ? "workload" : a.key }, lab);
+    if (a.help) box.title = a.help;
+    const seg = el("div", { class: "seg" }, box);
+    for (const v of a.levels) {
+      const on = JSON.stringify(v) === JSON.stringify(cur[a.key]);
+      const avail = INDEX.has(keyOf({ ...cur, [a.key]: v }));
+      const cls = [on ? "on" : "", on && !isDefault(a, v) ? "changed" : "", avail ? "" : "na", isDefault(a, v) ? "def" : ""].join(" ");
+      el("button", { class: cls, text: a.key === "tier2_bandwidth_gbps" ? fmt(v / 1000, 1) : v == null ? "自动" : String(v),
+                     onclick: () => setParam(a.key, v) }, seg);
+    }
+  }
+  const fx = document.getElementById("fixed"); fx.innerHTML = "";
+  for (const f of D.fixed) el("div", { class: "fixed", html: `<b>${f.label}</b>${f.value}` }, fx);
+}
+
+// ---- charts -------------------------------------------------------------
+function axisX(g, x, y0, ticks, label, w) {
+  for (const t of ticks) {
+    el("line", { x1: x(t), x2: x(t), y1: 0, y2: y0, stroke: "var(--grid)" }, g);
+    el("text", { x: x(t), y: y0 + 13, "text-anchor": "middle", text: label(t) }, g);
+  }
+}
+function niceTicks(max, n = 5) {
+  const step0 = max / n, mag = Math.pow(10, Math.floor(Math.log10(step0)));
+  const step = [1, 2, 2.5, 5, 10].map(m => m * mag).find(s => s >= step0);
+  const out = []; for (let t = 0; t <= max + 1e-9; t += step) out.push(t);
+  return out;
+}
+
+function requestTimeline(parent, rec, nat) {
+  const card = el("div", { class: "card" }, parent);
+  el("h2", { text: "全局：每个请求的时间线（细条：AISim 原生，粗条：两级）" }, card);
+  const lg = el("div", { class: "legend" }, card);
+  lg.innerHTML = `<span><i style="background:#e4e3de"></i>排队</span><span><i style="background:var(--bw1)"></i>到首 token（prefill）</span><span><i style="background:var(--bw3)"></i>decode</span>`;
+  const W = 900, rowH = 14, natH = 7, gap = 10, left = 46, top = 4, step = natH + 2 + rowH + gap;
+  const n = rec.requests.length, H = top + n * step + 18;
+  const tMax = Math.max(makespan(rec), makespan(nat)) * 1.02;
+  const svg = el("svg", { viewBox: `0 0 ${W} ${H}` }, card);
+  const x = t => left + (t / tMax) * (W - left - 10);
+  const g = el("g", {}, svg);
+  axisX(g, x, H - 18, niceTicks(tMax, 6), t => ms(t), W);
+  rec.requests.forEach((q, i) => {
+    const y = top + i * step;
+    el("text", { x: left - 6, y: y + natH + rowH - 2, "text-anchor": "end", class: "lbl", text: `R${i + 1}` }, svg);
+    [[nat.requests[i], y, natH, "原生"], [q, y + natH + 2, rowH, "两级"]].forEach(([r, yy, h, name]) => {
+      const segs = [[r[0], r[1], "#e4e3de"], [r[1], r[2], "var(--bw1)"], [r[2], r[3], "var(--bw3)"]];
+      for (const [a, b, c] of segs) if (b > a) el("rect", { x: x(a), y: yy, width: Math.max(1, x(b) - x(a) - 1), height: h, rx: 2, fill: c }, svg);
+      const hit = el("rect", { x: x(r[0]), y: yy - 1, width: Math.max(4, x(r[3]) - x(r[0])), height: h + 2, fill: "transparent" }, svg);
+      tip(hit, () => `<b>R${i + 1}（${name}）</b><br>到达 ${ms(r[0])}，准入 ${ms(r[1])}<br>首 token ${ms(r[2])}（TTFT ${ms(r[2] - r[0])}）<br>最后 token ${ms(r[3])}`);
+    });
+  });
+}
+
+function responseChart(parent, title, note, metric, unit) {
+  const card = el("div", { class: "card" }, parent);
+  el("h2", { text: title }, card);
+  el("div", { class: "note", text: note }, card);
+  const A = AX.find(a => a.key === "tier1_gb"), B = AX.find(a => a.key === "tier2_bandwidth_gbps");
+  const lg = el("div", { class: "legend" }, card);
+  lg.innerHTML = B.levels.map(b => `<span><i class="line" style="background:${BW_COLOR[b]}"></i>二级 ${fmt(b / 1000, 1)} TB/s</span>`).join("") +
+    `<span><i class="dash"></i>AISim 原生</span>`;
+  const nat = D.natives[wkey(cur)], natV = metric(nat);
+  const series = B.levels.map(b => ({ b, pts: A.levels.map(t => {
+    const r = INDEX.get(keyOf({ ...cur, tier1_gb: t, tier2_bandwidth_gbps: b, ...oatDefaults() }));
+    return { t, r, v: r && !r.error ? metric(r) : null };
+  }) }));
+  const vals = series.flatMap(s => s.pts.map(p => p.v)).filter(v => v != null).concat(natV == null ? [] : [natV]);
+  if (!vals.length) { el("div", { class: "note", text: "当前组合下没有可用的点。" }, card); return; }
+  const W = 420, H = 210, left = 52, right = 10, top = 8, bottom = 30;
+  const svg = el("svg", { viewBox: `0 0 ${W} ${H}` }, card);
+  const xs = A.levels, x = t => left + (xs.indexOf(t) / (xs.length - 1)) * (W - left - right);
+  const yMax = Math.max(...vals) * 1.08, y = v => top + (1 - v / yMax) * (H - top - bottom);
+  for (const t of niceTicks(yMax, 4)) {
+    el("line", { x1: left, x2: W - right, y1: y(t), y2: y(t), stroke: "var(--grid)" }, svg);
+    el("text", { x: left - 6, y: y(t) + 3, "text-anchor": "end", text: unit(t) }, svg);
+  }
+  for (const t of xs) el("text", { x: x(t), y: H - bottom + 14, "text-anchor": "middle", text: t }, svg);
+  el("text", { x: (left + W - right) / 2, y: H - 2, "text-anchor": "middle", text: "一级容量（GB）" }, svg);
+  if (natV != null) el("line", { x1: left, x2: W - right, y1: y(natV), y2: y(natV), stroke: "var(--native)", "stroke-dasharray": "5 4", "stroke-width": 1.5 }, svg);
+  for (const s of series) {
+    let d = "", pen = false;
+    for (const p of s.pts) { if (p.v == null) { pen = false; continue; } d += (pen ? "L" : "M") + x(p.t) + " " + y(p.v); pen = true; }
+    el("path", { d, fill: "none", stroke: BW_COLOR[s.b], "stroke-width": 2 }, svg);
+  }
+  for (const s of series) for (const p of s.pts) {
+    if (p.v == null) {
+      if (p.r && p.r.error) el("text", { x: x(p.t), y: H - bottom - 4, "text-anchor": "middle", fill: "var(--bad)", text: "×" }, svg);
+      continue;
+    }
+    const isCur = p.t === cur.tier1_gb && s.b === cur.tier2_bandwidth_gbps && isOatDefault();
+    const c = el("circle", { cx: x(p.t), cy: y(p.v), r: isCur ? 6 : 4, fill: BW_COLOR[s.b], stroke: isCur ? "var(--ink)" : "#fff", "stroke-width": 2, style: "cursor:pointer" }, svg);
+    c.addEventListener("click", () => { cur = { ...cur, tier1_gb: p.t, tier2_bandwidth_gbps: s.b, ...oatDefaults() }; msg = ""; render(); });
+    tip(c, () => `<b>一级 ${p.t} GB，二级 ${fmt(s.b / 1000, 1)} TB/s</b><br>${title.split("：")[1] || ""} ${unit(p.v)}<br>原生 ${unit(natV)}（+${fmt(pct(p.v, natV), 0)}%）<br><span style="color:var(--mute)">点击切换到这个点</span>`);
+  }
+}
+const oatDefaults = () => Object.fromEntries(AX.filter(a => a.role === "oat").map(a => [a.key, a.default]));
+const isOatDefault = () => AX.filter(a => a.role === "oat").every(a => isDefault(a, cur[a.key]));
+
+function sensitivity(parent) {
+  const card = el("div", { class: "card" }, parent);
+  el("h2", { text: "全局：其余参数逐个变化时完成时间的变化" }, card);
+  const anchor = { ...cur, ...oatDefaults() };
+  const isAnchor = D.anchors.some(a => Object.entries(a).every(([k, v]) => anchor[k] === v));
+  const base = INDEX.get(keyOf(anchor));
+  if (!isAnchor || !base || base.error) {
+    el("div", { class: "note", text: "逐个变化只在两个锚点上计算（每种负载 × 一级 36 GB 逐层轮换 / 96 GB 常驻，二级 2.2 TB/s）。" }, card);
+    const row = el("div", { class: "status" }, card);
+    D.anchors.forEach(a => el("button", { class: "btn", text: `跳到 ${a.tier1_gb} GB ${a.base_weights === "resident" ? "常驻" : "轮换"}`,
+      onclick: () => { cur = { ...cur, ...oatDefaults(), ...a }; msg = ""; render(); } }, row));
+    return;
+  }
+  el("div", { class: "note", text: `锚点：当前负载，一级 ${anchor.tier1_gb} GB（${anchor.base_weights === "resident" ? "非专家权重常驻" : "逐层轮换"}），二级 2.2 TB/s，完成 ${ms(makespan(base))}。每个点相对锚点的变化；点击切换。` }, card);
+  const rows = AX.filter(a => a.role === "oat").map(a => ({ a, pts: a.levels.map(v => {
+    const r = INDEX.get(keyOf({ ...anchor, [a.key]: v }));
+    return { v, r, d: r && !r.error ? pct(makespan(r), makespan(base)) : null };
+  }) }));
+  const ds = rows.flatMap(r => r.pts.map(p => p.d)).filter(d => d != null);
+  const lim = Math.max(5, ...ds.map(Math.abs)) * 1.1;
+  const W = 900, rowH = 22, left = 150, right = 20, H = rows.length * rowH + 24;
+  const svg = el("svg", { viewBox: `0 0 ${W} ${H}` }, card);
+  const x = d => left + ((d + lim) / (2 * lim)) * (W - left - right);
+  for (const t of niceTicks(lim, 3).flatMap(t => t ? [-t, t] : [0])) {
+    el("line", { x1: x(t), x2: x(t), y1: 0, y2: H - 20, stroke: t ? "var(--grid)" : "var(--native)" }, svg);
+    el("text", { x: x(t), y: H - 6, "text-anchor": "middle", text: (t > 0 ? "+" : "") + fmt(t, 0) + "%" }, svg);
+  }
+  rows.forEach((row, i) => {
+    const y = i * rowH + rowH / 2;
+    el("text", { x: left - 8, y: y + 4, "text-anchor": "end", class: "lbl", text: row.a.label }, svg);
+    const ok = row.pts.filter(p => p.d != null);
+    if (ok.length > 1) el("line", { x1: x(Math.min(...ok.map(p => p.d))), x2: x(Math.max(...ok.map(p => p.d))), y1: y, y2: y, stroke: "#d6d5cf", "stroke-width": 2 }, svg);
+    for (const p of row.pts) {
+      if (p.d == null) { if (p.r && p.r.error) el("text", { x: W - right, y: y + 4, "text-anchor": "end", fill: "var(--bad)", text: `${show(row.a, p.v)}：被拒绝` }, svg); continue; }
+      const on = JSON.stringify(p.v) === JSON.stringify(cur[row.a.key]);
+      const c = el("circle", { cx: x(p.d), cy: y, r: on ? 6 : 4.5, fill: isDefault(row.a, p.v) ? "var(--native)" : "var(--accent)", stroke: on ? "var(--ink)" : "#fff", "stroke-width": 2, style: "cursor:pointer" }, svg);
+      c.addEventListener("click", () => { cur = { ...anchor, [row.a.key]: p.v }; msg = ""; render(); });
+      tip(c, () => `<b>${row.a.label} = ${show(row.a, p.v)}</b>${isDefault(row.a, p.v) ? "（默认）" : ""}<br>完成 ${ms(makespan(p.r))}（${p.d >= 0 ? "+" : ""}${fmt(p.d, 1)}%）`);
+    }
+    const extremes = ok.length ? [ok.reduce((a, b) => a.d < b.d ? a : b), ok.reduce((a, b) => a.d > b.d ? a : b)] : [];
+    for (const p of extremes) if (Math.abs(p.d) >= 0.5) el("text", { x: x(p.d) + (p.d < 0 ? -9 : 9), y: y + 4, "text-anchor": p.d < 0 ? "end" : "start", text: show(row.a, p.v) }, svg);
+  });
+}
+
+function passStrip(parent, rec) {
+  const card = el("div", { class: "card" }, parent);
+  el("h2", { text: "局部（时间）：每个 pass 的时长构成" }, card);
+  el("div", { class: "note", text: "横轴是时间，每段是一个 pass；灰色是 AISim 原生定价的计算，彩色是两级模型加上的等待。▲ 标出下方逐层图用的两个 pass。" }, card);
+  const lg = el("div", { class: "legend" }, card);
+  lg.innerHTML = ["compute", "wait_base", "wait_kv", "wait_experts"].map(k => `<span><i style="background:var(--${k === "compute" ? "compute" : k.slice(5) === "experts" ? "exp" : k.slice(5)})"></i>${PHASE_LABEL[k]}</span>`).join("");
+  const W = 900, H = 74, left = 4, right = 4, barTop = 16, barH = 30;
+  const tEnd = Math.max(...rec.strip.map(s => s[0] + s[1])) * 1.005;
+  const svg = el("svg", { viewBox: `0 0 ${W} ${H}` }, card);
+  const x = t => left + (t / tEnd) * (W - left - right);
+  axisX(svg, x, barTop + barH + 4, niceTicks(tEnd, 6), t => ms(t), W);
+  const marks = Object.entries(rec.local).map(([k, v]) => [v.pass, k]);
+  rec.strip.forEach((s, i) => {
+    const [start, dur, native, wb, wk, we, np, nd, ptok, gb] = s;
+    let t = start;
+    const parts = [[native, "var(--compute)"], [wb, "var(--base)"], [wk, "var(--kv)"], [we, "var(--exp)"]];
+    const scale = dur / Math.max(1e-9, native + wb + wk + we);  // dur = native + waits; absorbs rounding
+    for (const [v, c] of parts) { if (v > 0) el("rect", { x: x(t), y: barTop, width: Math.max(0.5, x(t + v * scale) - x(t)), height: barH, fill: c }, svg); t += v * scale; }
+    el("line", { x1: x(start), x2: x(start), y1: barTop, y2: barTop + barH, stroke: "#fff", "stroke-width": 1 }, svg);
+    const hit = el("rect", { x: x(start), y: barTop - 4, width: Math.max(3, x(start + dur) - x(start)), height: barH + 8, fill: "transparent" }, svg);
+    tip(hit, () => `<b>pass ${i + 1}</b>：${np ? `${np} 个 prefill（${fmt(ptok)} token）` : ""}${np && nd ? " + " : ""}${nd ? `${nd} 个 decode` : ""}<br>开始 ${ms(start)}，时长 ${ms(dur)}，原生 ${ms(native)}<br>等非专家权重 ${ms(wb)}，等 KV ${ms(wk)}，等专家 ${ms(we)}<br>本 pass 复制 ${fmt(gb, 1)} GB`);
+    for (const [p, k] of marks) if (p === i) el("text", { x: x(start + dur / 2), y: barTop - 4, "text-anchor": "middle", class: "lbl", text: "▲" + (k === "prefill" ? "prefill" : "decode") }, svg);
+  });
+}
+
+function layerChart(parent, rec) {
+  const card = el("div", { class: "card" }, parent);
+  el("h2", { text: "局部（空间）：一个 pass 内逐层的时长构成" }, card);
+  const tabs = el("div", { class: "tabs" }, card);
+  const picks = Object.keys(rec.local);
+  if (!picks.includes(localPick)) localPick = picks[0];
+  const names = { prefill: "第一个 pass（R1 prefill）", decode: "稳态 decode（batch 最大的最后一个纯 decode pass）" };
+  for (const k of picks) el("button", { class: "btn" + (k === localPick ? "" : ""), style: k === localPick ? "border-color:var(--accent);color:#184f95;font-weight:600" : "",
+    text: names[k], onclick: () => { localPick = k; render(); } }, tabs);
+  el("button", { class: "btn", text: showTable ? "隐藏数据表" : "数据表", onclick: () => { showTable = !showTable; render(); } }, tabs);
+  const L = rec.local[localPick], P = D.phases, s = rec.strip[L.pass];
+  el("div", { class: "note", text: `pass ${L.pass + 1}：${s[6] ? s[6] + " 个 prefill（" + fmt(s[8]) + " token）" : ""}${s[6] && s[7] ? " + " : ""}${s[7] ? s[7] + " 个 decode" : ""}，时长 ${ms(s[1])}（原生 ${ms(s[2])}）。C = CSA 层（压缩 4，top-k），H = HCA 层（压缩 128）。` }, card);
+  const lg = el("div", { class: "legend" }, card);
+  lg.innerHTML = ["compute", "wait_base", "wait_kv", "wait_experts"].map(k => `<span><i style="background:var(--${k === "compute" ? "compute" : k.slice(5) === "experts" ? "exp" : k.slice(5)})"></i>${PHASE_LABEL[k]}</span>`).join("");
+  const rows = L.layers.map(r => ({ compute: r[P.indexOf("attention")] + r[P.indexOf("moe")] + r[P.indexOf("tail")],
+    wait_base: r[P.indexOf("wait_base")], wait_kv: r[P.indexOf("wait_kv")], wait_experts: r[P.indexOf("wait_experts")] }));
+  const tot = rows.map(r => r.compute + r.wait_base + r.wait_kv + r.wait_experts);
+  const W = 900, H = 200, left = 46, right = 4, top = 6, bottom = 30;
+  const svg = el("svg", { viewBox: `0 0 ${W} ${H}` }, card);
+  const n = rows.length, bw = (W - left - right) / n, yMax = Math.max(...tot) * 1.08 || 1;
+  const y = v => top + (1 - v / yMax) * (H - top - bottom);
+  for (const t of niceTicks(yMax, 4)) {
+    el("line", { x1: left, x2: W - right, y1: y(t), y2: y(t), stroke: "var(--grid)" }, svg);
+    el("text", { x: left - 6, y: y(t) + 3, "text-anchor": "end", text: ms(t) }, svg);
+  }
+  const kinds = D._kinds;
+  rows.forEach((r, i) => {
+    let acc = 0;
+    const x0 = left + i * bw + 1, w = Math.max(1, bw - 2);
+    for (const [k, c] of [["compute", "var(--compute)"], ["wait_base", "var(--base)"], ["wait_kv", "var(--kv)"], ["wait_experts", "var(--exp)"]]) {
+      if (r[k] > 0) { el("rect", { x: x0, y: y(acc + r[k]), width: w, height: Math.max(0.5, y(acc) - y(acc + r[k]) - (acc ? 1 : 0)), fill: c }, svg); acc += r[k]; }
+    }
+    if (kinds) el("text", { x: x0 + w / 2, y: H - bottom + 11, "text-anchor": "middle", style: "font-size:8px", text: kinds[i] }, svg);
+    if (i % 10 === 0) el("text", { x: x0 + w / 2, y: H - bottom + 23, "text-anchor": "middle", text: "L" + i }, svg);
+    const hit = el("rect", { x: left + i * bw, y: top, width: bw, height: H - top - bottom, fill: "transparent" }, svg);
+    tip(hit, () => `<b>L${i}${kinds ? "（" + (kinds[i] === "C" ? "CSA" : "HCA") + "）" : ""}</b>：共 ${ms(tot[i])}<br>计算 ${ms(r.compute)}<br>等非专家权重 ${ms(r.wait_base)}<br>等 top-k KV ${ms(r.wait_kv)}<br>等专家 ${ms(r.wait_experts)}`);
+  });
+  if (showTable) {
+    const wrap = el("div", { class: "tablewrap" }, card);
+    const tb = el("table", {}, wrap);
+    tb.innerHTML = `<tr><th>层</th><th>计算 ms</th><th>等非专家权重 ms</th><th>等 top-k KV ms</th><th>等专家 ms</th><th>合计 ms</th></tr>` +
+      rows.map((r, i) => `<tr><td>L${i}${kinds ? " " + kinds[i] : ""}</td><td>${fmt(r.compute, 3)}</td><td>${fmt(r.wait_base, 3)}</td><td>${fmt(r.wait_kv, 3)}</td><td>${fmt(r.wait_experts, 3)}</td><td>${fmt(tot[i], 3)}</td></tr>`).join("");
+  }
+}
+
+function kpis(parent, rec, nat) {
+  const card = el("div", { class: "card" }, parent);
+  const g = el("div", { class: "kpis" }, card);
+  const T = rec.totals, link = Object.values(T.link_gb).reduce((a, b) => a + b, 0);
+  const itl = meanItl(rec, cur.output), itlN = meanItl(nat, cur.output);
+  const items = [
+    ["全部完成", ms(makespan(rec)), `原生 ${ms(makespan(nat))}，+${fmt(pct(makespan(rec), makespan(nat)), 0)}%`],
+    ["平均 TTFT", ms(meanTtft(rec)), `原生 ${ms(meanTtft(nat))}`],
+    ["平均 decode 步长", ms(itl), `原生 ${ms(itlN)}`],
+    ["复制总量", fmt(link, 0) + " GB", `专家 ${fmt(T.link_gb.demand_expert + T.link_gb.prefetch_expert, 0)}，非专家 ${fmt(T.link_gb.demand_base + T.link_gb.prefetch_base, 0)}，KV ${fmt(T.link_gb.demand_kv + T.link_gb.prefill_kv, 1)}`],
+    ["一级峰值", fmt(T.peak_tier1_gb, 1) + " GB", `专家可用 ${fmt(T.expert_room_gb, 1)} GB；命中 ${fmt(T.expert_hits)}/${fmt(T.expert_lookups)}`],
+    ["等待合计", ms(T.wait_ms[0] + T.wait_ms[1] + T.wait_ms[2]), `权重 ${ms(T.wait_ms[0])}，KV ${ms(T.wait_ms[1])}，专家 ${ms(T.wait_ms[2])}`],
+  ];
+  for (const [l, v, d] of items) { const k = el("div", { class: "kpi" }, g); el("div", { class: "l", text: l }, k); el("div", { class: "v", text: v }, k); el("div", { class: "d", text: d }, k); }
+  el("div", { class: "note", style: "margin:8px 0 0", text: `若复制写入与计算读取共用一级的 18 TB/s，最多再多 ${ms(T.contention_ub_ms)}（未计入）。` }, card);
+}
+
+// ---- page ---------------------------------------------------------------
+function renderStatus(rec) {
+  const st = document.getElementById("status"); st.innerHTML = "";
+  const changed = AX.filter(a => !isDefault(a, cur[a.key]));
+  el("span", { class: "chip", text: `负载：4 个 ${fmt(cur.prompt)} token 请求，${cur.arrival === "staggered" ? "每 50 ms 到一个" : "同时到达"}，各输出 ${cur.output} token` }, st);
+  if (!changed.length) el("span", { class: "chip", text: "EXI 图示配置（全部默认）" }, st);
+  for (const a of changed) if (a.group !== "workload") el("span", { class: "chip changed", html: `${a.label} <s>${show(a, a.default)}</s> → ${show(a, cur[a.key])}` }, st);
+  const eff = cur.tier2_bandwidth_gbps * cur.copy_efficiency;
+  el("span", { class: "chip", text: `有效复制带宽 ${fmt(eff / 1000, 2)} TB/s` }, st);
+  if (rec && !rec.error) el("span", { class: "chip " + (rec.totals.tier2_feasible ? "good" : "bad"), text: rec.totals.tier2_feasible ? "二级放得下：可行" : `二级 ${cur.tier2_gb} GB 放不下 805.7 GB 权重：反事实，不可行` }, st);
+  document.getElementById("msg").innerHTML = msg ? `<div class="msg">${msg}</div>` : "";
+}
+
+function render() {
+  const rec = INDEX.get(keyOf(cur));
+  renderControls(); renderStatus(rec);
+  const body = document.getElementById("body"); body.innerHTML = "";
+  const nat = D.natives[wkey(cur)];
+  if (rec.error) {
+    const c = el("div", { class: "card" }, body);
+    el("div", { class: "err", html: `<b>AISim 拒绝了这个配置：</b>${rec.error}` }, c);
+  } else {
+    kpis(body, rec, nat);
+    requestTimeline(body, rec, nat);
+  }
+  const two = el("div", { class: "two", style: "margin-bottom:12px" }, body);
+  responseChart(two, "全局：全部完成时间", "当前负载与非专家权重设置，其余参数默认。× 表示被拒绝。", makespan, ms);
+  responseChart(two, "全局：平均 decode 步长", "首 token 之后每个 token 的平均间隔；一级容量主要影响这里。", r => meanItl(r, cur.output), ms);
+  sensitivity(body);
+  if (!rec.error) { passStrip(body, rec); layerChart(body, rec); }
+  postHeight();
+}
+
+function postHeight() { if (window.parent !== window) window.parent.postMessage({ kvReplayHeight: document.documentElement.scrollHeight }, "*"); }
+
+async function main() {
+  if (window.parent !== window) {
+    document.body.classList.add("embedded");
+    const full = document.getElementById("full"); full.href = location.pathname; full.style.display = "inline";
+  }
+  const bytes = Uint8Array.from(atob(PACKED), c => c.charCodeAt(0));
+  const text = await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"))).text();
+  D = JSON.parse(text); AX = D.axes;
+  D._kinds = D.kinds || null;
+  INDEX = new Map(D.points.map(r => [keyOf(r.point), r]));
+  cur = defaults();
+  if (!INDEX.has(keyOf(cur))) cur = { ...D.points[0].point };  // a --limit smoke run may not include the defaults
+  document.getElementById("meta").textContent =
+    `${D.meta.runs} 次 aisim predict --stack engine 运行（AISim ${D.meta.aisim}，生成于 ${D.meta.generated}）。核心参数全组合；其余参数在锚点上逐个变化。`;
+  document.getElementById("reset").onclick = () => { cur = defaults(); msg = ""; render(); };
+  const ul = document.getElementById("checks");
+  for (const c of D.checks) el("li", { html: `<span class="${c.ok ? "ok" : "no"}">${c.ok ? "✓" : "✗"}</span> ${c.name}<span style="color:var(--mute)">（${c.detail}）</span>` }, ul);
+  render();
+  new ResizeObserver(postHeight).observe(document.body);
+}
+main();
+</script>
+</body>
+</html>

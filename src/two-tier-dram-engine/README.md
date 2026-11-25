@@ -39,30 +39,36 @@ cd python/aisim && uvx --from "maturin>=1.12,<2" maturin develop --release --uv 
 
 ```yaml
 engine:
+  hardware: exi_3ddram                       # 计算按一级带宽定价
+  ais_perf_model: {estimation_mode: op_level, database_mode: SOL, systems_paths: [src/two-tier-dram/systems, default]}
   workers:
     aggregated:
       parallelism: {replicas: 1, tensor: 1, attention_data: 1}
       kv_cache:
         capacity: {type: fixed, blocks: 40000}   # 现在表示二级里的 KV 容量
         two_tier_dram:
-          tier1_gb: 96
-          link_gbps: 64
+          tier1_gb: 36
+          tier2_bandwidth_gbps: 2200
+          tier2_capacity_check: counterfactual   # 805.7 GB 的模型放不进 128 GB 二级
           trace_path: ./two-tier.jsonl           # 每个 pass 一行；前 trace_passes 个带逐层细节
 ```
 
-字段：
+字段（默认值为 EXI-3DDRAM 图示配置）：
 
 | 字段 | 默认 | 含义 |
 | --- | --- | --- |
-| `tier1_gb` / `scratch_gb` / `tier2_gb` | 96 / 4 / 2048 | 一级容量、其中的 scratch、二级容量 |
-| `link_gbps` / `link_overhead_ms` | 64 / 0.01 | 链路带宽、每次传输的固定开销 |
+| `tier1_gb` / `scratch_gb` / `tier2_gb` | 36 / 4 / 128 | 一级容量、其中的 scratch、二级容量 |
+| `tier2_bandwidth_gbps` / `copy_efficiency` | 2200 / 1.0 | 二级标称带宽；有效复制带宽是两者的乘积 |
+| `link_overhead_ms` | 0 | 每次传输的固定开销 |
+| `tier2_capacity_check` | `enforce` | 二级放不下权重时拒绝运行；`counterfactual` 照常运行并标为不可行 |
 | `link_policy` | `demand_first` | 也可以是 `fifo` |
-| `base_weights` | `resident` | 也可以是 `layer_prefetch`（方案 A） |
+| `base_weights` | `resident` | 也可以是 `layer_prefetch`（逐层轮换非专家权重） |
 | `expert_cache_gb` | 自动 | 不填则用一级剩余空间 |
 | `expert_overlap` / `topk_overlap` | 0.5 / 0.75 | 合成的跨步重合度 |
 | `expert_prefetch` | `none` | 也可以是 `last_step`（只用空闲位置） |
 | `hot_kv_entries` | 65536 | 热 top-k KV 缓存条数 |
 | `profile_context_tokens` | 65536 | 测 attention／MoE 时间比例时用的上下文长度 |
+| `seed` | 0 | 合成路由与 top-k 的种子 |
 | `trace_path` / `trace_passes` | 不写 / 200 | trace 文件；带逐层细节的 pass 数 |
 
 限制：
@@ -75,9 +81,38 @@ engine:
 python3 src/two-tier-dram-engine/scenarios.py --show
 ```
 
-脚本运行 6 个场景，每种负载另跑一次不带 `two_tier_dram` 的原生版本。它检查跨场景关系，然后生成 `output/two-tier-dram-engine-replay.html`。
+脚本运行 8 个场景（其中一个预期被拒绝），每种负载另跑一次不带 `two_tier_dram` 的原生版本。它检查跨场景关系，然后生成 `output/two-tier-dram-engine-replay.html`。
 
 页面包括：
 - 每个请求在两级下与原生下的时间线；
 - pass 列表；
 - 带逐层细节的 pass 的动画：一级占用、61 层缓存概览、当前层的专家和 KV、共享链路。
+
+## 参数扫描
+
+```sh
+python3 src/two-tier-dram-engine/sweep.py            # 默认 32 并发
+python3 src/two-tier-dram-engine/sweep.py --limit 6 --jobs 6 --out /tmp/sweep-smoke   # 冒烟测试
+```
+
+`sweep.py` 的 `AXES` 列出页面上的全部参数：
+- 核心参数取全组合：到达方式、输入长度、输出长度、一级容量、非专家权重放置、二级标称带宽（432 个点）。
+- 其余参数在锚点上逐个变化。锚点是每种负载 × 一级 36 GB 逐层轮换／96 GB 常驻，二级 2.2 TB/s（另 600 个点）。
+- 每种负载另跑一次原生版本。
+
+每个点是一次真实的 `aisim predict --stack engine` 运行。结果缓存在 `output/sweep/points/<id>.json`，重跑只补缺失的点；改了 AISim 或 profile 后删掉 `output/sweep/points` 再跑。每条记录带运行时的 AISim 提交，页面显示这些提交。i163v 上全部重跑约 30 分钟。并发太高时 AISim 启动会超时，脚本把这类失败重试 3 次，仍失败就停止；只有引擎自己的 `two_tier_dram:` 拒绝才记为被拒绝的点。
+
+写页面前会检查：
+- 两级完成时间不早于原生；
+- 2.2 TB/s × 0.5 与 1.1 TB/s × 1.0 结果相同；
+- 带宽升高不变慢；
+- 二级容量只影响可行性标记；
+- 每次传输加开销不变快；
+- 一级 ≤ 36 GB 时非专家权重常驻被拒绝。
+
+任何一项不通过就退出 1，不写页面。
+
+页面 `output/sweep/two-tier-dram-sweep.html`（数据 gzip 后内嵌）：
+- 左侧每个参数一组按钮；在当前组合下没算过的值显示为虚线，点击会跳到最近的已算点。
+- 全局：完成时间、TTFT、decode 步长、复制量；每个请求的时间线；完成时间和 decode 步长随一级容量、二级带宽的变化；锚点上其余参数逐个变化的影响。
+- 局部：每个 pass 的计算与等待构成；第一个 prefill pass 和稳态 decode pass 的逐层构成（附数据表）。
