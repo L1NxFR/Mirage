@@ -2379,5 +2379,8 @@
   ],
   "src/two-tier-dram/two_tier_dram/render.py": [
     "Codex"
+  ],
+  ".gitignore": [
+    "Codex"
   ]
 }
