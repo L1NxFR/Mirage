@@ -15,10 +15,15 @@ weights share a fast memory tier backed by a larger, slower tier.
 
 ## Run the two-tier DRAM model
 
-The upstream directories in this branch are source references. Performance
-tables, benchmark datasets, workload traces, and media assets are excluded.
-For the full sweep, use the prepared AISim environment and performance tables
-on i163v. Run these commands there from the Mirage repository root.
+The sweep requires AISim's native extension and the performance tables for
+the selected hardware and backend. Use the tables from the pinned AISim
+revision listed below. They belong under
+`src/aisim/python/aisim/src/aisim_core/systems/data/` and are distributed
+separately from the source files in Mirage.
+
+Follow the [AISim development guide](aisim/DEVELOPMENT.md) to build the
+environment at `src/aisim/python/aisim/.venv`. From the Mirage repository
+root, install the extension and run the sweep.
 
 ```bash
 uv pip install --python src/aisim/python/aisim/.venv/bin/python -e src/two-tier-dram
@@ -46,15 +51,9 @@ integration tests.
 
 ## Source versions
 
-The AISim and Dynamo source files are selected from the pinned revisions below.
-The versions
-below come from the `two-tier-dram-replay` checkout on `i163v`, at Mirage
-commit `47622cc09bdf2abfeb7e447d6bc93dcb74512df4`.
+Mirage includes selected source files from these upstream revisions.
 
-| Component | Pinned revision | Source on i163v |
-| --- | --- | --- |
-| AISim | [c85b08623fc5fb8c6c6600619251d7fbf775bb1f](https://github.com/ai-dynamo/aisim/tree/c85b08623fc5fb8c6c6600619251d7fbf775bb1f) | Clean checkout at this commit. |
-| Dynamo | [b20fe6fe94021b854597965c7305931175e8f482](https://github.com/ai-dynamo/dynamo/tree/b20fe6fe94021b854597965c7305931175e8f482) | The server records this commit. Its source directory was empty, so the files come from the pinned upstream revision. |
-| Two-tier DRAM | `b4432aa2210d60bc0657efe8e635cdcd751e04ae` (Git tree) | Matches the tracked files in the server checkout. |
-
-KV trace is an additional tool from this Mirage worktree.
+| Component | Upstream revision |
+| --- | --- |
+| AISim | [`c85b08623fc5`](https://github.com/ai-dynamo/aisim/tree/c85b08623fc5fb8c6c6600619251d7fbf775bb1f) |
+| Dynamo | [`b20fe6fe9402`](https://github.com/ai-dynamo/dynamo/tree/b20fe6fe94021b854597965c7305931175e8f482) |

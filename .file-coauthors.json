@@ -2339,5 +2339,8 @@
   "dashboard/site/content/Attachments/two-tier-dram-replay.html": [
     "Claude",
     "Codex"
+  ],
+  "src/two-tier-dram/README.md": [
+    "Codex"
   ]
 }
