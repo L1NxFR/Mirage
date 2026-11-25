@@ -34,7 +34,7 @@ class WithAisim(unittest.TestCase):
         self.assertEqual(type(resolve_runner_factory("two_tier_dram")).__name__, "TwoTierRunnerFactory")
         self.assertIn("two_tier_dram.two_tier_dram", resolve_config_adapters(["two_tier_dram.two_tier_dram"]))
 
-    def test_exi_spec_carries_the_figure_bandwidth_into_aisim(self):
+    def test_exi_spec_carries_the_preset_bandwidth_into_aisim(self):
         p = profile()
         self.assertEqual(p.compute_bandwidth, 18e12)
         handle = EngineHandle.compile(MODEL, "exi_3ddram", BACKEND, database_mode="SOL", systems_path=SYSTEMS,
@@ -66,12 +66,12 @@ class WithAisim(unittest.TestCase):
         self.assertFalse(hybrid["consistent"])
         self.assertIn("Hybrid experiment", hybrid["label"])
 
-    def test_the_official_model_does_not_fit_one_card_of_the_figure(self):
+    def test_the_official_model_does_not_fit_a_single_reference_device(self):
         from two_tier_dram.config import TwoTierConfig
         from two_tier_dram.model import simulate
 
         p = profile()
-        self.assertGreater(p.full_weights_bytes, 512e9)  # beyond even the largest LPDDR option in the figure
+        self.assertGreater(p.full_weights_bytes, 512e9)  # beyond even the largest modeled LPDDR capacity
         result = simulate(TwoTierConfig.from_mapping({"hardware": "exi_figure", "base_weights": "layer_rotation"}), p, 2)
         self.assertIn("infeasible on a single device", result["error"])
 

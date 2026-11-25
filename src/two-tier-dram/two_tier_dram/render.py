@@ -5,6 +5,10 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+# Only these categories are published. Older traces may contain free-form notes.
+INPUT_CATEGORIES = ("Reference preset", "Unconfirmed", "Capacity variant", "Assumption",
+                    "Legacy assumption", "Scenario override", "AISim")
+
 TEMPLATE = Path(__file__).with_name("template.html")
 SWEEP_KEYS = ("name", "title", "basis", "feasible", "error", "cold_ms", "steady", "tail_from", "steps", "tail_token_ms",
               "tail_compute_ms", "tail_wait_base_ms", "tail_wait_experts_ms", "tail_wait_kv_ms", "tail_bytes",
@@ -18,8 +22,14 @@ def page_entry(item: dict) -> dict:
     request = next((r for r in trace["requests"] if "snapshots" in r), None)
     if request is None:
         raise ValueError(f"{item.get('title', 'trace')}: no request with a full trace (need trace_detail=full and 2+ tokens)")
+    hardware = trace["config"]["hardware"]
+    categories = {key: next((label for label in INPUT_CATEGORIES if value.startswith(label)), "Configured input")
+                  for key, value in hardware["sources"].items()}
+    config = {key: value for key, value in trace["config"].items() if key != "trace_dir"}
+    config["hardware"] = {**hardware, "sources": categories}
+    engine = {key: trace["aisim"][key] for key in ("model", "hardware", "backend", "database_mode")}
     return {"title": item["title"], "summary": item.get("summary", ""), "basis": item.get("basis", ""),
-            "aisim": trace["aisim"], "config": trace["config"],
+            "aisim": engine, "config": config,
             "request": {k: request[k] for k in ("request_id", "input_tokens", "native_itl_ms", "retimed_steps", "decode_start_ms")},
             **{k: request[k] for k in ("profile", "compute_basis", "error", "feasible", "infeasible", "metrics", "per_step",
                                        "events", "snapshots", "compute_segments", "link_segments", "jobs")}}

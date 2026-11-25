@@ -1,6 +1,6 @@
 # Two-tier DRAM decode model for AISim
 
-This out-of-tree extension models prefetching and hot KV caching across two memory tiers. It implements the memory system described in the project's initial design study. AISim loads the `two_tier_dram` stack and configuration section through Python entry points.
+This out-of-tree extension models prefetching and hot KV caching across two memory tiers. AISim loads the `two_tier_dram` stack and configuration section through Python entry points.
 
 ```sh
 aisim predict --stack two_tier_dram --config CONFIG.yaml --output-dir OUT
@@ -14,33 +14,33 @@ This release records the research prototype at `9c92314`. Hardware calibration a
 - When the cache can hold only one layer's experts, prefetches can fill all slots with entries protected from eviction. A subsequent demand read can fail the capacity check.
 - The tier 2 capacity check counts the initial KV cache. It does not account for KV growth during decode.
 
-The development version marker introduced no simulation changes. A review of `9c92314` reran all 35 tests and reproduced these three issues in additional boundary checks. The version-only commit did not rerun the tests or experiments. The prefetch comparison needs to be repeated after the fixes.
+Repeat the prefetch comparison after correcting the cache behavior described above.
 
 ## Hardware inputs
 
-All reported results are simulations. Four assumptions limit their interpretation as estimates for EXI-3DDRAM hardware. The official DeepSeek-V4-Pro weights occupy 806.6 GB, exceeding even the 512 GB maximum LPDDR capacity shown for one card. Counterfactual runs continue with an infeasibility flag. The model also uses synthetic cross-step overlap for routed experts and top-k KV entries, assumed copy efficiency and transfer overhead, and an uncalibrated AISim roofline for compute.
+All reported results are simulations. Four assumptions limit their interpretation as estimates for EXI-3DDRAM hardware. The official DeepSeek-V4-Pro weights occupy 806.6 GB, exceeding even the 512 GB upper bound considered for a single card. Counterfactual runs continue with an infeasibility flag. The model also uses synthetic cross-step overlap for routed experts and top-k KV entries, assumed copy efficiency and transfer overhead, and an uncalibrated AISim roofline for compute.
 
-Specify quantities with units, for example `"36 GB"`, `"2.2 TB/s"`, or `"10 us"`. The configuration parser converts them to bytes, bytes per second, and seconds. One GB is 10⁹ bytes, one GiB is 2³⁰ bytes, and one Tb/s is 1.25 × 10¹¹ bytes/s. Each hardware field records its source. The replay uses color to distinguish sources.
+Specify quantities with units, for example `"36 GB"`, `"2.2 TB/s"`, or `"10 us"`. The configuration parser converts them to bytes, bytes per second, and seconds. One GB is 10⁹ bytes, one GiB is 2³⁰ bytes, and one Tb/s is 1.25 × 10¹¹ bytes/s. The replay distinguishes preset inputs from assumptions and scenario overrides.
 
-| Parameter | `exi_figure` preset | Source |
+| Parameter | `exi_figure` preset | Interpretation |
 | --- | --- | --- |
-| Tier 1 capacity (`tier1_capacity`) | 36 GB | EXI-3DDRAM architecture table |
-| Tier 1 read bandwidth for compute (`tier1_bandwidth`) | 18 TB/s | Architecture table, zHBM / 3D DRAM |
-| Tier 2 capacity (`tier2_capacity`) | 128 GB | Architecture table default, range 64–512 GB |
+| Tier 1 capacity (`tier1_capacity`) | 36 GB | Reference capacity |
+| Tier 1 read bandwidth for compute (`tier1_bandwidth`) | 18 TB/s | Reference read bandwidth (zHBM / 3D DRAM) |
+| Tier 2 capacity (`tier2_capacity`) | 128 GB | Reference capacity, with a range of 64–512 GB |
 | Nominal tier 2 bandwidth (`tier2_bandwidth`) | 2.2 TB/s | Upper end of the 1.1–2.2 TB/s range for LPDDR6 |
 | Copy efficiency (`copy_efficiency`) | 1.0 | Assumes an ideal copy |
-| Fixed overhead per transfer (`transfer_overhead`) | 0 s | Assumed value, unspecified in the table |
-| Inter-card bandwidth (`interconnect_bandwidth`) | 1.6 TB/s, both directions combined | Marked “Ask” in the table. Unconfirmed and unused at TP1. |
+| Fixed overhead per transfer (`transfer_overhead`) | 0 s | Idealized assumption |
+| Inter-card bandwidth (`interconnect_bandwidth`) | 1.6 TB/s, both directions combined | Unconfirmed and unused at TP1 |
 | Scratch space (`scratch`) | 4 GB | Assumed allowance for activations and temporary storage |
 
 Tier 1 read bandwidth determines compute time through `mem_bw` in `systems/exi_3ddram.yaml`. It also sets the upper bound on tier 1 contention. All transfers share a single link with an effective copy bandwidth equal to the nominal tier 2 bandwidth multiplied by copy efficiency. The single-card model records inter-card bandwidth for reference.
 
 Two other presets support comparisons.
 
-- `exi_96gb_explore` uses the hardware table values with a 96 GB tier 1. This larger tier comes from the design study. The replay and sweep label it separately from the 36 GB configuration.
+- `exi_96gb_explore` changes tier 1 capacity from 36 GB to 96 GB while keeping the other reference parameters.
 - `legacy_64gbps` reproduces the assumptions in `e86bfad` for historical comparison. It uses a 96 GB tier 1, a fictitious 2048 GB tier 2 to fit the 1579 GB model, a 64 GB/s link, 10 µs per transfer, and B200 compute times. Its hardware assumptions have been withdrawn.
 
-The architecture table leaves effective copy bandwidth, internal interconnect limits, and fixed transfer overhead open. The entries “>24 TB/s” and “150 GB+ per Compute Tile” are marked “Ask” and are unused. BF16, INT8, and FP32 throughput and direct compute access to tier 2 are also unspecified. The system specification records FP4 at 6.13 PFLOP/s and FP8 at 2.95 PFLOP/s. Neither peak constrains the batch-one decode workload below.
+Effective copy bandwidth, internal interconnect limits, and fixed transfer overhead remain uncalibrated. BF16, INT8, and FP32 throughput and direct compute access to tier 2 are also unspecified. The system specification records FP4 at 6.13 PFLOP/s and FP8 at 2.95 PFLOP/s. Neither peak constrains the batch-one decode workload below.
 
 ## Compute baselines
 
@@ -59,11 +59,11 @@ The architecture table leaves effective copy bandwidth, internal interconnect li
 | `nvidia/DeepSeek-V4-Pro-NVFP4` | nvfp4 | 902 GB | 870 GB | 32 GB |
 | `sgl-project/DeepSeek-V4-Pro-FP8` (previous workload) | fp8_block | 1579 GB | 1547 GB | 32 GB |
 
-The design study's capacity table gives 732 GB total and 720 GB of routed experts at 4 bits per expert weight. Accounting for one scale byte per 32 mxfp4 values gives 4.25 bits per weight. This would turn 720 GB into about 765 GB, close to AISim's 774 GB. The earlier FP8 workload roughly doubled expert storage.
+One scale byte per 32 mxfp4 values gives 4.25 bits per weight. For example, 720 GB of packed 4-bit expert weights would occupy approximately 765 GB with this scaling overhead, compared with AISim's estimate of 774 GB. The earlier FP8 workload roughly doubled expert storage.
 
 Even the official model exceeds both the 128 GB default and the 512 GB maximum tier 2 capacity of one EXI card. The model has no multi-card sharding. The default `tier2_capacity_check: enforce` reports an infeasible run and stops. The `counterfactual` setting continues and marks every result infeasible.
 
-With 4 GB reserved for scratch space, the 36 GB tier 1 cannot hold all the approximately 32 GB of non-expert weights. The hardware-table configuration therefore uses `base_weights: layer_rotation`. The 96 GB configuration can keep those weights resident.
+With 4 GB reserved for scratch space, the 36 GB tier 1 cannot hold all the approximately 32 GB of non-expert weights. The 36 GB reference configuration therefore uses `base_weights: layer_rotation`. The 96 GB configuration can keep those weights resident.
 
 ## Policies
 
@@ -80,7 +80,7 @@ Each (layer, expert) pair occupies one slot. The cache fills before it evicts an
 
 ## Outputs
 
-`trace.json` records hardware inputs and their sources, the compute baseline, feasibility, aggregate metrics, and per-step statistics. Each step reports compute and wait times, bytes transferred by type, link utilization, expert and KV hit rates, evictions, cache occupancy, and tier 1 usage. With `trace_detail: full`, the trace also includes events and snapshots at event boundaries.
+`trace.json` records hardware inputs and how they were configured, the compute baseline, feasibility, aggregate metrics, and per-step statistics. Each step reports compute and wait times, bytes transferred by type, link utilization, expert and KV hit rates, evictions, cache occupancy, and tier 1 usage. With `trace_detail: full`, the trace also includes events and snapshots at event boundaries.
 
 Step 1 is the cold start. Subsequent steps are labeled as filling until the first eviction and evicting afterward for the cross-step cache. The model reports a steady-state value only if the last six steps are past filling and vary by at most 5%. The remaining cases report that steady state was not reached.
 
@@ -95,7 +95,7 @@ uv pip install --python src/aisim/python/aisim/.venv/bin/python -e src/two-tier-
 python3 src/two-tier-dram/scenarios.py
 ```
 
-Each scenario runs one AISim prediction. The full experiment took about three minutes in the recorded run and produced `output/sweep.md`, `output/sweep.json`, and `output/two-tier-dram-replay.html` under this component. The sweep checks that increasing bandwidth does not increase latency, increasing overhead does not reduce latency, a sufficiently fast link approaches native AISim timing, the legacy configuration reproduces its earlier values, and infeasible configurations are reported.
+Each scenario runs one AISim prediction. The sweep writes `output/sweep.md`, `output/sweep.json`, and `output/two-tier-dram-replay.html` under this component. The sweep checks that increasing bandwidth does not increase latency, increasing overhead does not reduce latency, a sufficiently fast link approaches native AISim timing, the legacy configuration reproduces its earlier values, and infeasible configurations are reported.
 
 Run the full test suite in the same environment.
 
@@ -106,7 +106,7 @@ cd src/two-tier-dram
 
 The suite includes 28 standalone model tests and seven AISim integration tests. Model tests cover units, link timing, capacity failures, cache growth and eviction, eviction protection, and steady-state detection.
 
-## Recorded results (2026-11-23)
+## Simulation results
 
 The main sweep used the official DeepSeek-V4-Pro model with a 200K-token context, one request, and 32 decode steps. Expert overlap was 0.5 and top-k overlap was 0.75 by default. These are counterfactual single-card comparisons. The legacy row uses its original FP8 workload and fictitious tier 2 capacity.
 
@@ -125,7 +125,7 @@ The generated `output/sweep.md` includes comparisons of transfer overhead, prefe
 2. **At 96 GB, non-expert weights stay resident.** Experts account for approximately 5.6 GB/token. Fetching experts after routing serializes fetching and compute. Token time is about 2.13 ms of compute plus 2.54 ms of expert transfer, leaving the link busy 54% of the time.
 3. **Cross-step LRU reuse reduces token time.** Releasing experts after each layer increases token time from 15.6 to 18.4 ms at 36 GB and from 4.7 to 7.6 ms at 96 GB.
 4. **Hot top-k KV has little effect in this workload.** Toggling it changes token time by at most 0.01 ms. KV traffic is only a few MB/token, but each CSA layer issues one KV transfer. With a 10 µs fixed overhead, these transfers contribute 0.3 ms/token.
-5. **Previous-step expert prefetch showed no gain in the recorded runs.** With LRU, last step's experts were still cached and the prefetcher issued zero requests. Without cross-step caching, the 36 GB result rose from 18.4 to 21.0 ms. At roughly 50% accuracy, prefetch increased expert traffic by 44%. A layer took 0.035 ms to compute while fetching six experts took 0.09 ms, so most prefetches arrived late. The prefetch limitations above warrant repeating this comparison after the fixes.
+5. **Previous-step expert prefetch showed no gain in these configurations.** With LRU, last step's experts were still cached and the prefetcher issued zero requests. Without cross-step caching, the 36 GB result rose from 18.4 to 21.0 ms. At roughly 50% accuracy, prefetch increased expert traffic by 44%. A layer took 0.035 ms to compute while fetching six experts took 0.09 ms, so most prefetches arrived late. The prefetch limitations above warrant repeating this comparison after the fixes.
 6. **Fixed overhead scales with transfer count.** Each token required about 153 transfers at 36 GB and 92 at 96 GB. A 10 µs overhead added about 1.5 and 0.9 ms/token, respectively. A 100 µs overhead added about 15 and 9 ms/token.
 7. **The compute baseline matters more at 96 GB.** B200 and EXI-SOL times differed by 0.1 ms at the link-bound 36 GB setting and by 2.9 ms at 96 GB (7.56 vs. 4.67 ms).
 8. **Tier 1 contention has a separate upper bound.** At 36 GB, the effective copy bandwidth is 12% of tier 1 bandwidth, giving at most about 0.26 ms/token of additional compute time during overlaps. The table excludes this bound.
@@ -134,18 +134,18 @@ The generated `output/sweep.md` includes comparisons of transfer overhead, prefe
 
 | Path | Purpose |
 | --- | --- |
-| `two_tier_dram/config.py` | Unit conversion, hardware presets and sources, policies, and model profile types |
+| `two_tier_dram/config.py` | Unit conversion, hardware presets, policies, and model profile types |
 | `two_tier_dram/model.py` | Memory accounting, link scheduling, per-layer state machine, per-step statistics, and steady-state detection |
 | `two_tier_dram/profile.py` | Reads model geometry, byte counts, per-operator latency, and compute-side tier 1 bandwidth from AISim |
 | `two_tier_dram/runner.py`, `two_tier_dram/adapter.py` | AISim stack and configuration section |
 | `two_tier_dram/render.py`, `two_tier_dram/template.html` | Replay page |
-| `systems/exi_3ddram.yaml` | AISim system specification for EXI-3DDRAM with sources for each field |
+| `systems/exi_3ddram.yaml` | AISim system specification for EXI-3DDRAM used to price operators |
 | `scenarios.py` | Scenario catalog, consistency checks, comparison table, and replay generation |
 
 ## Modeling limits
 
 - The simulation is open loop. Two-tier stalls do not feed back into AISim scheduling. Requests must decode without overlap, and each request starts with a cold cache.
-- The model covers one card at TP1 and EP1. The hardware-table configuration cannot fit this workload on one card. Multi-card sharding is unimplemented.
+- The model covers one card at TP1 and EP1. The 36 GB reference configuration cannot fit this workload on one card. Multi-card sharding is unimplemented.
 - Per-layer compute time divides AISim's aggregate operator latency evenly across the layers.
 - Link timing uses bandwidth and fixed overhead. Effective bandwidth does not vary with access size. Tier 1 contention between copy and compute has an upper bound only.
 - A preempted transfer pays its fixed overhead once, including when it resumes.

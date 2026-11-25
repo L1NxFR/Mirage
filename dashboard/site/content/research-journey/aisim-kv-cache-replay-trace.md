@@ -1,9 +1,12 @@
 ---
-author: Claude
+author:
+  - Claude
+  - Codex
 title: AISim KV Cache 行为回放：G1/G2 block 级 trace
-description: 用 AISim 原生 replay artifacts 记录一次 G1⇄G2 offload 的 block 级事件，并做成可逐帧播放的动画，核对 store、load、准入与驱逐的建模方式。
+description: 用 AISim 原生 replay artifacts 记录一次 G1⇄G2 offload 的 block
+  级事件，并做成可逐帧播放的动画，核对 store、load、准入与驱逐的建模方式。
 date: 2026-11-23T01:15:01+08:00
-lastmod: 2026-11-23T01:53:32+08:00
+lastmod: 2026-11-25T10:43:05.086+08:00
 content_lang: zh-CN
 draft: true
 show_toc: true
@@ -146,7 +149,7 @@ G2 里的 PendingStore 是另一套机制：它只影响 lookup（`offloading_v0
 
 ### 推断项
 
-`render.py` 用原生事件重建槽位占用，7 个场景都通过了容量断言。以下三点是推断，页面中已标注：
+`render.py` 用原生事件重建槽位占用，并检查占用不超过各层容量。以下三点是推断，页面中已标注：
 
 1. **"写入中"block**：AISim 不为尚未落定的 G1 block 发事件。数量按引擎准入规则推出：`token_blocks − max(复用块, H2D 载入块)`；整块对齐完全命中时，载入但不计复用的那块画成"整块重算"。
 2. **G1 驱逐时刻**：vLLM 在 pass 结束时发布 G1 驱逐事件，例如 204 ms，但驱逐发生在导致它的那次准入，例如 202 ms，动画画在准入时刻。在同一时刻、排在该 pass 自身 `stored` 之后发布的驱逐属于后续调度（如慢 D2H 场景 200 ms 为 H2D 预留的驱逐），保持原时刻。按发布时刻绘制会让 G1 占用超过容量。
@@ -156,8 +159,7 @@ G2 里的 PendingStore 是另一套机制：它只影响 lookup（`offloading_v0
 
 - **复用收益未体现**：fixed timing 下，重算 1 个 token 和重算 9 个 token 都是 2 ms，所以 G2 恢复只会增加 H2D 时间。本次只验证因果链路，不说明 offload 是否划算。要评估收益，需要换用随 token 数变化的 timing 模型和真实规模的模型。
 - **覆盖范围窄**：只有 1 个 worker、单 DP rank、私有 G2、输出长度 1。没有覆盖 decode 阶段的 block 增长、抢占、`cluster_shared`、G3、P/D 和 KVCR。
-- **检查范围**：`scenarios.py` 对每个场景断言 TTFT、G2 复用量和是否拒绝，`render.py` 断言槽位占用不超过容量，页面在浏览器中逐事件核对过。这些属于冒烟测试与回归检查；未运行 AISim 自带测试。
-- **代码版本**：Mirage `19dfc18` 加本地未提交改动。`src/aisim` 是 submodule 指针 `c85b086`，但本地目录不是 git 检出，无法确认工作树是否干净，按当前源码快照对待；aisim 版本 0.15.0。环境为 Darwin arm64、Python 3.12.12（uv）、cargo 1.100.0。本次构建在 `src/aisim/python/aisim/.venv` 下生成了虚拟环境。trace 回放，无随机种子依赖。
+- **场景检查**：`scenarios.py` 检查 TTFT、G2 复用量和拒绝条件；`render.py` 检查槽位占用不超过容量。
 - **产物位置**：`src/kv-trace/output/`，包含各场景的 config、trace、`trace.json` 和 AISim 输出，可由 `scenarios.py` 重新生成；嵌入页面的副本在 `Attachments/kv-cache-replay.html`。
 
 ## 结论与下一步

@@ -5,9 +5,7 @@ Hardware quantities are written with explicit units ("36 GB", "2.2 TB/s",
 Decimal and binary prefixes are kept apart (GB = 1e9 bytes, GiB = 2**30
 bytes) and bits are kept apart from bytes (Gb/s = 1e9 bits/s = 1.25e8 B/s).
 
-Every hardware field records where its value came from, so a result can say
-which numbers are from the EXI-3DDRAM figure, which are asks, which are from
-the design note, and which are assumptions.
+Each field records its preset, assumption, or override alongside its resolved value.
 """
 
 from __future__ import annotations
@@ -75,9 +73,9 @@ def parse_seconds(text: Any, what: str = "time") -> float:
 
 
 # ---- hardware ------------------------------------------------------------
-TABLE = "EXI-3DDRAM architecture table"
-TABLE_ASK = "EXI-3DDRAM architecture table (marked Ask, pending confirmation)"
-DESIGN = "Design note (96 GB configuration)"
+REFERENCE = "Reference preset"
+UNCONFIRMED = "Unconfirmed"
+CAPACITY_VARIANT = "Capacity variant"
 ASSUME = "Assumption"
 LEGACY = "Legacy assumption (withdrawn, no supporting hardware specification)"
 AISIM_B200 = "AISim b200_sxm specifications"
@@ -95,21 +93,21 @@ HARDWARE_FIELDS = {  # field -> parser (None = plain number)
 }
 
 _EXI = {
-    "tier1_capacity": ("36 GB", TABLE),
-    "tier1_bandwidth": ("18 TB/s", TABLE),
-    "tier2_capacity": ("128 GB", TABLE + " (128 GB default, 64–512 GB range)"),
-    "tier2_bandwidth": ("2.2 TB/s", TABLE + " (upper end of the 1.1–2.2 TB/s LPDDR6 range)"),
+    "tier1_capacity": ("36 GB", REFERENCE),
+    "tier1_bandwidth": ("18 TB/s", REFERENCE),
+    "tier2_capacity": ("128 GB", REFERENCE + " (128 GB default, 64–512 GB range)"),
+    "tier2_bandwidth": ("2.2 TB/s", REFERENCE + " (upper end of the 1.1–2.2 TB/s LPDDR6 range)"),
     "copy_efficiency": (1.0, ASSUME + " (ideal transfers use all nominal tier 2 bandwidth)"),
-    "transfer_overhead": ("0 s", ASSUME + " (ideal value of zero, unspecified in the table)"),
-    "interconnect_bandwidth": ("1.6 TB/s", TABLE_ASK + " (aggregate bidirectional UALink 2.0 bandwidth, unused at TP1)"),
-    "scratch": ("4 GB", ASSUME + " (space for activations and temporaries, unspecified in the table)"),
+    "transfer_overhead": ("0 s", ASSUME + " (ideal value of zero)"),
+    "interconnect_bandwidth": ("1.6 TB/s", UNCONFIRMED + " (aggregate bidirectional UALink 2.0 bandwidth, unused at TP1)"),
+    "scratch": ("4 GB", ASSUME + " (space for activations and temporaries)"),
 }
 
 HARDWARE_PRESETS: dict[str, dict[str, tuple[Any, str]]] = {
     "exi_figure": _EXI,
-    "exi_96gb_explore": {**_EXI, "tier1_capacity": ("96 GB", DESIGN + ", an alternative to the EXI reference configuration")},
+    "exi_96gb_explore": {**_EXI, "tier1_capacity": ("96 GB", CAPACITY_VARIANT)},
     "legacy_64gbps": {
-        "tier1_capacity": ("96 GB", DESIGN),
+        "tier1_capacity": ("96 GB", CAPACITY_VARIANT),
         "tier1_bandwidth": ("7.7 TB/s", AISIM_B200),
         "tier2_capacity": ("2048 GB", LEGACY + " (capacity chosen to hold the 1579 GB model)"),
         "tier2_bandwidth": ("64 GB/s", LEGACY),

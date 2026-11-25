@@ -2373,5 +2373,11 @@
   ],
   "src/two-tier-dram/two_tier_dram/template.html": [
     "Codex"
+  ],
+  "src/two-tier-dram/systems/exi_3ddram.yaml": [
+    "Codex"
+  ],
+  "src/two-tier-dram/two_tier_dram/render.py": [
+    "Codex"
   ]
 }

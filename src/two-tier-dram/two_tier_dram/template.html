@@ -104,8 +104,8 @@
   .banner.bad { background:#fee2e2; color:#7f1d1d; border:1px solid #fca5a5; }
   .banner.hybrid { background:#fff7ed; color:#7c2d12; border:1px solid #fdba74; }
   .banner.ok { background:#ecfdf5; color:#065f46; border:1px solid #a7f3d0; }
-  .chip.s-table { background:#e0f2fe; color:#075985; } .chip.s-ask { background:#fef9c3; color:#713f12; }
-  .chip.s-design { background:#ede9fe; color:#4c1d95; } .chip.s-assume { background:#f3f4f6; color:#374151; box-shadow:inset 0 0 0 1px #9ca3af; }
+  .chip.s-reference { background:#e0f2fe; color:#075985; } .chip.s-unconfirmed { background:#fef9c3; color:#713f12; }
+  .chip.s-variant { background:#ede9fe; color:#4c1d95; } .chip.s-assume { background:#f3f4f6; color:#374151; box-shadow:inset 0 0 0 1px #9ca3af; }
   .chip.s-legacy { background:#fee2e2; color:#7f1d1d; } .chip.s-override { background:#fff1c2; color:#7a4b00; box-shadow:inset 0 0 0 1px #f0b429; font-weight:600; }
   .policy { font-size:12px; background:#f8fafc; border:1px solid var(--line); border-radius:6px; padding:3px 8px; }
   .cachebox { display:grid; grid-template-columns:auto 1fr auto; gap:4px 10px; align-items:center; font-size:12px; margin:6px 0 2px; }
@@ -214,8 +214,15 @@ const HW = [['tier1_capacity', 'Tier 1 capacity', 'B'], ['tier1_bandwidth', 'Tie
   ['interconnect_bandwidth', 'Inter-card bandwidth', 'B/s'], ['scratch', 'scratch', 'B']];
 const unit = (v, u) => u === 'B' ? (v >= 1e12 ? (v / 1e12).toFixed(2) + ' TB' : (v / 1e9).toFixed(v < 10e9 ? 2 : 0) + ' GB')
   : u === 'B/s' ? (v >= 1e12 ? (v / 1e12).toFixed(2) + ' TB/s' : (v / 1e9).toFixed(0) + ' GB/s') : u === 's' ? (v * 1e6).toFixed(v * 1e6 < 10 ? 1 : 0) + ' µs' : v;
-const srcClass = s => /^scenario override/i.test(s) ? 's-override' : /legacy/i.test(s) ? 's-legacy' : /ask/i.test(s) ? 's-ask'
-  : /design (note|study)/i.test(s) ? 's-design' : /EXI|AISim/.test(s) ? 's-table' : 's-assume';
+const INPUT_CATEGORIES = [
+  ['Reference preset', 's-reference'], ['Unconfirmed', 's-unconfirmed'],
+  ['Capacity variant', 's-variant'], ['Assumption', 's-assume'],
+  ['Legacy assumption', 's-legacy'], ['Scenario override', 's-override'],
+  ['AISim', 's-reference'],
+];
+function inputCategory(value) {
+  return INPUT_CATEGORIES.find(([label]) => value?.startsWith(label)) || ['Configured input', ''];
+}
 const POLICY = { resident: 'All non-expert weights stay in tier 1', layer_rotation: 'Non-expert weights rotate by layer. The next layer is prefetched.',
   lru: 'Routed experts stay cached across steps. A full cache evicts the least recently used expert.', per_layer: 'Routed experts are released after each layer. No cross-step reuse.' };
 const PHASE_LABEL = { cold: 'Cold start', filling: 'Cache filling', evicting: 'Cache full, evicting', no_cache: 'No cross-step cache' };
@@ -339,9 +346,12 @@ function loadScenario(i) {
   LS = []; let cur = Array.from({ length: n }, () => [0, 0, c.base_weights === 'resident' ? 2 : 0]);
   for (const s of S.snapshots) { const ks = Object.keys(s.layers); if (ks.length) { cur = cur.slice(); for (const L of ks) cur[+L] = s.layers[L]; } LS.push(cur); }
   maxE = Math.max(1, ...LS.map(a => Math.max(...a.map(x => x[0])))); maxK = Math.max(1, ...LS.map(a => Math.max(...a.map(x => x[1]))));
-  const hwChips = HW.map(([key, name, u]) => `<span class="chip ${srcClass(hw.sources[key])}" title="Source: ${hw.sources[key]}. Configured as ${hw.written[key]}">${name} ${unit(hw[key], u)}</span>`).join('')
-    + `<span class="chip ${srcClass(hw.sources.copy_efficiency)}" title="Nominal tier 2 bandwidth × copy efficiency">Effective copy bandwidth ${unit(hw.copy_bandwidth, 'B/s')}</span>`;
-  const legend = '<span class="chip-note">Color by source: <span class="chip s-table">Architecture table / AISim spec</span> <span class="chip s-ask">Ask</span> <span class="chip s-design">Design study</span> <span class="chip s-assume">Assumption</span> <span class="chip s-legacy">Legacy assumption</span> <span class="chip s-override">Scenario override</span></span>';
+  const hwChips = HW.map(([key, name, u]) => {
+    const [label, color] = inputCategory(hw.sources[key]);
+    return `<span class="chip ${color}" title="${label}">${name} ${unit(hw[key], u)}</span>`;
+  }).join('') + `<span class="chip ${inputCategory(hw.sources.copy_efficiency)[1]}" title="Nominal tier 2 bandwidth × copy efficiency">Effective copy bandwidth ${unit(hw.copy_bandwidth, 'B/s')}</span>`;
+  const legend = '<span class="chip-note">Input categories: ' + INPUT_CATEGORIES.map(([label, color]) =>
+    `<span class="chip ${color}">${label}</span>`).join(' ') + '</span>';
   const src = [`AISim: ${S.aisim.model}`, `${S.aisim.hardware} · ${S.aisim.backend} · ${S.aisim.database_mode}`, `Expert quantization ${(p.source.moe_quant_mode || '').replace('MoEQuantMode.', '')}`,
     `Context: ${S.request.input_tokens.toLocaleString()} tokens`, `${n} layers (CSA ${p.layers.csa} / HCA ${p.layers.hca})`,
     `Per-layer attention ${ms(p.layers.first.attention_ms)} + MoE ${ms(p.layers.first.moe_ms)} ms`, `Native AISim ITL ${ms(m.native_token_ms)} ms`].map(x => `<span class="chip src">${x}</span>`).join('');

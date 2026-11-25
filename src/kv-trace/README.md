@@ -91,14 +91,3 @@ the configured capacity of each tier. Three display details require inference:
 The artifact path supports aggregated vLLM with one data-parallel rank. These
 scenarios use one output token per request and no pipeline parallelism. G2
 slot positions are illustrative. The model assigns no physical addresses.
-
-## Recorded run
-
-On November 23, 2026 (Beijing time), all seven scenarios passed their expected
-outcomes and capacity checks. The replay was checked event by event in a
-browser. The run used Mirage `19dfc18` with uncommitted changes and AISim
-0.15.0. Mirage recorded the AISim revision as `c85b086`. The local AISim
-source snapshot had no independent Git checkout metadata. The environment
-used Darwin arm64, Python 3.12.12 managed by uv, and Cargo 1.100.0. The fixed
-timing replay required no random seed. The upstream AISim test suite was not
-run for this experiment.

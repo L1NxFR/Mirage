@@ -39,16 +39,16 @@ class Units(unittest.TestCase):
         with self.assertRaises(ConfigError):
             parse_seconds("10 GB")
 
-    def test_exi_preset_matches_the_figure_and_records_sources(self):
+    def test_exi_preset_resolves_hardware_values_and_sources(self):
         hw = resolve_hardware("exi_figure", {})
         self.assertEqual((hw.tier1_capacity, hw.tier1_bandwidth, hw.tier2_capacity, hw.tier2_bandwidth),
                          (36e9, 18e12, 128e9, 2.2e12))
         self.assertEqual(hw.copy_bandwidth, 2.2e12)
-        self.assertIn("Ask", hw.sources["interconnect_bandwidth"])
+        self.assertIn("Unconfirmed", hw.sources["interconnect_bandwidth"])
         self.assertIn("Assumption", hw.sources["transfer_overhead"])
         explore = resolve_hardware("exi_96gb_explore", {})
         self.assertEqual(explore.tier1_capacity, 96e9)
-        self.assertIn("alternative to the EXI reference configuration", explore.sources["tier1_capacity"])
+        self.assertEqual("Capacity variant", explore.sources["tier1_capacity"])
 
     def test_copy_efficiency_derates_the_copy_bandwidth_only(self):
         hw = resolve_hardware("exi_figure", {"tier2_bandwidth": "1.1 TB/s", "copy_efficiency": 0.7})

@@ -39,7 +39,7 @@ COMPUTE = {
 BASIS_LABEL = {"exi_sol": "EXI-SOL (uncalibrated AISim analytical roofline)", "b200": "B200 compute baseline with an assumed two-tier memory system (hybrid experiment)"}
 
 # Policies per tier-1 configuration. 36 GB cannot hold the 32 GB of non-expert weights next to scratch,
-# so the figure configuration has to rotate them layer by layer; 96 GB keeps them resident.
+# so the 36 GB configuration has to rotate them layer by layer; 96 GB keeps them resident.
 CAP36 = {"hardware": "exi_figure", "base_weights": "layer_rotation", "tier2_capacity_check": "counterfactual"}
 CAP96 = {"hardware": "exi_96gb_explore", "base_weights": "resident", "tier2_capacity_check": "counterfactual"}
 LEGACY = {"hardware": "legacy_64gbps", "base_weights": "resident"}
@@ -53,11 +53,11 @@ def run_spec(name, title, two_tier, compute="exi_sol", model=OFFICIAL, steps=32,
 
 def catalog() -> list[dict]:
     runs = [
-        run_spec("exi36", "EXI reference, 36 GB at an ideal 2.2 TB/s", CAP36, steps=16, featured=True,
-                 summary="The EXI-3DDRAM reference specifies a 36 GB tier 1. This run uses the upper LPDDR6 bandwidth of 2.2 TB/s without transfer losses or fixed overhead. "
+        run_spec("exi36", "Reference preset, 36 GB at an ideal 2.2 TB/s", CAP36, steps=16, featured=True,
+                 summary="The reference preset uses a 36 GB tier 1. This run uses the upper LPDDR6 bandwidth of 2.2 TB/s without transfer losses or fixed overhead. "
                          "The 32 GB of non-expert weights cannot stay resident and rotate by layer. Routed experts use a cross-step LRU cache."),
-        run_spec("exi96", "Design study, 96 GB at an ideal 2.2 TB/s", CAP96, steps=16, featured=True,
-                 summary="The design study increases tier 1 to 96 GB and keeps the other EXI parameters. Non-expert weights stay resident and experts use a cross-step LRU cache."),
+        run_spec("exi96", "Capacity variant, 96 GB at an ideal 2.2 TB/s", CAP96, steps=16, featured=True,
+                 summary="This capacity variant increases tier 1 to 96 GB and keeps the other EXI parameters. Non-expert weights stay resident and experts use a cross-step LRU cache."),
         run_spec("hybrid36", "Hybrid B200 compute with 36 GB EXI memory", CAP36, compute="b200", steps=8, featured=True,
                  summary="This sensitivity run combines AISim compute times for b200_sxm with the EXI memory configuration to isolate the effect of the compute baseline."),
         run_spec("legacy", "Legacy comparison at 64 GB/s (withdrawn assumption)", LEGACY, compute="b200", model=FP8, steps=8, featured=True,

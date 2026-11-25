@@ -5,7 +5,7 @@ author:
 title: "[Agent] 初期目标：两级 DRAM 下的预取与热 KV 缓存"
 description: 两级 DRAM 的数据放置、容量预算与 AISim 回放结果：36 GB 下非专家权重轮换主导，96 GB 下专家搬运主导。
 date: 2026-11-23T00:07:53+08:00
-lastmod: 2026-11-23T12:14:28+08:00
+lastmod: 2026-11-25T10:42:08.278+08:00
 content_lang: zh-CN
 draft: true
 weight: 0
@@ -33,7 +33,7 @@ weight: 0
 | Indexer KV | LPDDR 保存各层数据；随下一层权重一起预取到一级 DRAM |
 | 普通注意力 KV | LPDDR 保存完整数据；indexer 选出 top-k 后，未命中的 KV 按需取入一级 DRAM |
 | 热 KV 缓存 | 一级 DRAM 中的软件管理缓存，保留已取入的 KV 供后续 decode step 复用；预留额外 token 槽位 |
-| 激活与 GEMM 临时数据 | 使用一级 DRAM scratch 空间，按图示不写入 LPDDR |
+| 激活与 GEMM 临时数据 | 使用一级 DRAM scratch 空间，在模型中不写入 LPDDR |
 
 每层先执行 indexer，再将选中的缺失 KV 搬入一级，attention 等待数据到达。下一层权重和 indexer KV 可在当前层计算时预取；预取、按需读取与写回共用复制链路。
 
@@ -41,7 +41,7 @@ weight: 0
 
 时序图表示依赖关系，长度不表示耗时。热 KV 缓存保留跨 decode step 可复用的副本；首次取入算未命中，收益取决于后续 top-k 重合度和淘汰策略。新增 KV 在一级生成后回写 LPDDR。
 
-原图设定 top-k = 2048；本次回放采用 AISim DeepSeek-V4-Pro 配置的 `index_topk = 1024`。两者需要分开比较。
+容量估算设定 top-k = 2048；本次回放采用 AISim DeepSeek-V4-Pro 配置的 `index_topk = 1024`。两者需要分开比较。
 
 ### 权重轮换与跨步专家缓存
 
@@ -60,7 +60,7 @@ weight: 0
 
 ## 设计容量表
 
-Model/Capacity Trend (V4 Pro-256K/1M context)，一级采用 96 GB。下表保留原始估算，单位为 GB；BS 的全局／每卡口径尚未说明。
+下表估算 V4 Pro 在 256K 和 1M 上下文中的内存需求，一级采用 96 GB，数值单位为 GB；BS 的全局／每卡口径尚未说明。
 
 | 项目                                    | BS=8，GPU=1，256K | BS=1，GPU=1，256K | BS=8，GPU=1，1M | BS=144，GPU=8，1M |
 | ------------------------------------- | --------------: | --------------: | ------------: | --------------: |
@@ -69,14 +69,14 @@ Model/Capacity Trend (V4 Pro-256K/1M context)，一级采用 96 GB。下表保�
 | Cold Expert (20%)                     |              18 |            2.25 |            18 |             144 |
 | KV Cache                              |             9.6 |             1.2 |          38.5 |             692 |
 | Hot KV Cache，HCA + indexer + top-k KV |            2.12 |            0.27 |          8.47 |             153 |
-| Level1 Memory per card，原表结果           |            74.3 |              19 |            83 |              84 |
-| Level2 Memory per card，原表结果           |             741 |             733 |           770 |             178 |
+| Level1 Memory per card，估算值           |            74.3 |              19 |            83 |              84 |
+| Level2 Memory per card，估算值           |             741 |             733 |           770 |             178 |
 
 二级按 732 GB 模型加完整 KV 计算。四列直接复算为 741.6、733.2、770.5、178 GB；最后一列使用 `(732 + 692) / 8`，前提是权重和 KV 均匀分片且没有额外副本。
 
 8 GPU 列中，Hot Expert 与 Hot KV 合计 82.25 GB/卡，表内其余权重约 1.75 GB/卡。96 GB 与表内 84 GB 相差 12 GB，运行时还需核对预取缓冲、激活、scratch 和通信缓冲是否包含在内。
 
-原表尚缺少几项计算依据：732 GB 的权重组成与量化元数据；Hot 70% 和 Cold 20% 的分母及剩余 10%；HCA、Indexer KV 与 top-k KV 是否重叠；各项分片和复制方式。Routed Weights 也需区分唯一驻留字节与累计访问量。表中 GPU 数和 BS 同时变化，无法单独衡量增加 GPU 的容量收益。
+上述估算尚缺少几项计算依据：732 GB 的权重组成与量化元数据；Hot 70% 和 Cold 20% 的分母及剩余 10%；HCA、Indexer KV 与 top-k KV 是否重叠；各项分片和复制方式。Routed Weights 也需区分唯一驻留字节与累计访问量。表中 GPU 数和 BS 同时变化，无法单独衡量增加 GPU 的容量收益。
 
 ## AISim 扩展
 
@@ -88,29 +88,29 @@ AISim 原有 G1/G2 卸载在请求接纳时加载可复用的 KV 前缀。两级
 
 上述对比对应 AISim 的主机前缀卸载路径。实现参考为 `host_offload/tier.rs`、`scheduler/vllm/host_offload.rs` 和 `offload_transfer.rs`；DSV4 的 top-k 计算位于 `perfmodel/perf_database/dsv4.rs`。
 
-实现记录指向 i163v 的 `~/Mirage/src/two-tier-dram`，分支 `two-tier-dram-replay`，提交 `9c92314`。扩展通过 entry point 注册 stack `two_tier_dram`，使用 `aisim predict --stack two_tier_dram` 运行，用法见远端目录 README。
+实现位于 `src/two-tier-dram`。扩展通过 entry point 注册 stack `two_tier_dram`，使用 `aisim predict --stack two_tier_dram` 运行，用法见组件 README。
 
 ### 硬件输入
 
-| 参数 | EXI 图示配置 | 来源 |
+| 参数 | 模型配置 | 取值说明 |
 | --- | --- | --- |
-| 一级容量 | 36 GB | EXI-3DDRAM 架构表 |
-| 一级读带宽（计算读一级） | 18 TB/s | 架构表（zHBM / 3D DRAM） |
-| 二级容量 | 128 GB | 架构表默认值；范围 64–512 GB |
-| 二级标称带宽 | 2.2 TB/s（对照 1.1 TB/s） | 架构表 LPDDR6 1.1–2.2 TB/s |
-| 复制效率（有效复制带宽 = 二级标称带宽 × 效率） | 1.0（对照 0.7） | 假设，表中未给出 |
-| 每次传输固定开销 | 0（扫描 1、10、100 µs） | 假设，表中未给出 |
-| 卡间带宽 | 1.6 TB/s，双向合计 | 架构表，Ask，未确定；单卡模型不使用 |
-| 计算峰值 | FP8 2.95 PF、FP4 6.13 PF（675 W） | 架构表 |
+| 一级容量 | 36 GB | 基准预设 |
+| 一级读带宽（计算读一级） | 18 TB/s | 基准预设（3D DRAM） |
+| 二级容量 | 128 GB | 预设默认值；范围 64–512 GB |
+| 二级标称带宽 | 2.2 TB/s（对照 1.1 TB/s） | LPDDR6 参数区间 1.1–2.2 TB/s |
+| 复制效率（有效复制带宽 = 二级标称带宽 × 效率） | 1.0（对照 0.7） | 实验假设 |
+| 每次传输固定开销 | 0（扫描 1、10、100 µs） | 实验假设 |
+| 卡间带宽 | 1.6 TB/s，双向合计 | 未确认的参数，单卡模型不使用 |
+| 计算峰值 | FP8 2.95 PF、FP4 6.13 PF（675 W） | 基准预设 |
 | scratch | 4 GB | 假设 |
 
-四类带宽分别配置；带单位的输入在入口换算为 bytes、bytes/s 和 seconds。GB 与 GiB、TB/s 与 Tb/s 分开解析。96 GB 一级使用独立预设 `exi_96gb_explore`。`>24 TB/s` 与 `150 GB+ per Compute Tile` 属于 Ask，未用于实验。
+四类带宽分别配置；带单位的输入在入口换算为 bytes、bytes/s 和 seconds。GB 与 GiB、TB/s 与 Tb/s 分开解析。96 GB 一级使用独立预设 `exi_96gb_explore`。`>24 TB/s` 与 `150 GB+ per Compute Tile` 均为未确认的参数，未用于实验。
 
 EXI-SOL 使用 AISim 逐算子的计算／访存 roofline。本次单请求 decode 的非零算子时间受内存带宽限制，相对 B200 的比例为 18 / 7.7。另保留 B200 计算配合两级内存的混合对照。
 
 ### 模型与容量预算
 
-回放采用 `deepseek-ai/DeepSeek-V4-Pro`，路由专家量化模式为 `w4a8_mxfp4_mxfp8`。产物中的权重为 805.685 GB，其中路由专家约 773.698 GB，非专家权重约 31.987 GB；200K 上下文 KV 为 0.910 GB，二级总需求约 806.6 GB。旧实验采用 FP8 版本，记录的权重约 1579 GB。原表 732 GB 与本次模型清单尚未逐项对齐，不能只凭量化位宽解释差额。
+回放采用 `deepseek-ai/DeepSeek-V4-Pro`，路由专家量化模式为 `w4a8_mxfp4_mxfp8`。产物中的权重为 805.685 GB，其中路由专家约 773.698 GB，非专家权重约 31.987 GB；200K 上下文 KV 为 0.910 GB，二级总需求约 806.6 GB。旧实验采用 FP8 版本，记录的权重约 1579 GB。容量估算中的 732 GB 与本次模型清单尚未逐项对齐，不能只凭量化位宽解释差额。
 
 36 GB 一级中，31.987 GB 非专家权重加 4 GB scratch 已占约 35.987 GB。另需约 0.125 GB 常驻 KV，以及至少 0.198 GB 的一层路由专家，因此全部常驻配置失败。当前对照采用逐层轮换非专家权重；96 GB 配置可容纳它们常驻。
 
@@ -118,9 +118,9 @@ EXI-SOL 使用 AISim 逐算子的计算／访存 roofline。本次单请求 deco
 
 ### 行为回放
 
-页面包含 EXI 36 GB、96 GB 探索、B200 混合和旧假设四个回放场景，以及 40 个运行条目，其中两项为容量失败检查。EXI 动画各回放 16 步，主要参数对照各运行 32 步。页面显示参数来源、缓存占用／上限、淘汰数、逐步命中率和阶段。
+页面包含 EXI 36 GB、96 GB 探索、B200 混合和旧假设四个回放场景，以及 40 个运行条目，其中两项为容量失败检查。EXI 动画各回放 16 步，主要参数对照各运行 32 步。页面显示各项参数与假设、缓存占用／上限、淘汰数、逐步命中率和阶段。
 
-{{< embed-html src="../Attachments/two-tier-dram-replay.html" title="两级 DRAM decode 行为回放（EXI-3DDRAM 输入，4 个场景 + 40 次运行对照）" height="1400" >}}
+{{< embed-html src="../Attachments/two-tier-dram-replay.html" title="两级 DRAM decode 行为回放（两级内存预设，4 个场景 + 40 次运行对照）" height="1400" >}}
 
 ## 对照结果
 
@@ -169,17 +169,13 @@ EXI-SOL 使用 AISim 逐算子的计算／访存 roofline。本次单请求 deco
 
 复制写入与计算读取对一级带宽的争用尚未建模。
 
-## 验证记录与下一步
-
-提交 `9c92314` 的交付报告记录 35 项测试通过：28 项模型测试覆盖单位、链路计时、容量不足、缓存积累与淘汰、专家保护和逐层释放；7 项集成测试覆盖 EXI 参数传入、权重清单、混合实验识别与容量检查。报告还记录了旧配置复现、带宽与开销单调性、极快链路退化和缓存开关检查。
-
-本次文档核对使用嵌入回放中的配置、权重清单、容量报错和 40 个运行条目，并静态检查本地 AISim 的相关代码；未重跑远端测试。
+## 下一步
 
 下一阶段先确定权重与 KV 的多卡分片，建立可容纳完整模型的配置，再用真实路由统计评估缓存和预取。硬件侧需补齐有效复制带宽、每次传输开销、内部互连限制及计算是否可直接读取二级，并加入一级读写争用。96 GB 场景需延长回放，确认长期表现。
 
 ### 旧假设对照
 
-提交 `e86bfad` 使用 FP8 模型、B200 计算、一级 96 GB、二级 2048 GB、64 GB/s 复制带宽和 10 µs/次开销。2048 GB 是为容纳模型而设置的探索容量。下表保留旧结果，适用范围仅为这组配置。当前回放中前三步为 385.48 / 202.60 / 184.01 ms。
+旧配置使用 FP8 模型、B200 计算、一级 96 GB、二级 2048 GB、64 GB/s 复制带宽和 10 µs/次开销。2048 GB 是为容纳模型而设置的探索容量。下表保留旧结果，适用范围仅为这组配置。当前回放中前三步为 385.48 / 202.60 / 184.01 ms。
 
 | 场景 | 改动 | 两级每 token (ms) | 观察 |
 | --- | --- | --- | --- |
@@ -195,4 +191,4 @@ EXI-SOL 使用 AISim 逐算子的计算／访存 roofline。本次单请求 deco
 
 ## 运行依赖
 
-树外扩展使用 AISim 环境，无需安装 Dynamo。后续采用 Dynamo Router、Planner 或 `--stack dynamo` 时再配置对应依赖。环境记录见 [i163v AISim 基础环境与运行](../../system-implementation/agent-i163v-aisim-environment/)。
+树外扩展使用 AISim 环境，无需安装 Dynamo。后续采用 Dynamo Router、Planner 或 `--stack dynamo` 时再配置对应依赖。
