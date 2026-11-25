@@ -89,6 +89,8 @@ def config_for(workload: dict, trace_file: Path, two_tier: dict | None) -> dict:
     if two_tier is not None:
         kv_cache["two_tier_dram"] = two_tier
     return {
+        # Host-side only: building the model profile can take over the default 60 s when many runs start at once.
+        "execution": {"resources": {"initialization_timeout_seconds": 300}},
         "traffic": {"source": {"type": "trace", "format": "mooncake", "block_size": 65536, "paths": [str(trace_file)]},
                     "load": {"type": "trace_timestamps"}},
         "engine": {
