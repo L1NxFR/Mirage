@@ -69,6 +69,7 @@ Ordinary serif prose with **sans-serif bold**, <b>HTML bold</b> and ***bold ital
         actual = datetime.fromisoformat(row.time['datetime'].replace('Z', '+00:00'))
         assert actual == expected
         assert actual.strftime('%H:%M') in row.time.get_text(), row.time
+        assert row.time['title'] == '最后更新：' + expected.astimezone(ZoneInfo('Asia/Shanghai')).strftime('%Y-%m-%d %H:%M CST'), row.time
     build('workspace')
     check_local(before)
     assert modified(read('meetings/no-lastmod')) == datetime.fromisoformat(before.replace('Z', '+00:00'))
