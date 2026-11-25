@@ -10,7 +10,8 @@
     "Codex"
   ],
   "dashboard/README.md": [
-    "Codex"
+    "Codex",
+    "Claude"
   ],
   "dashboard/layouts/_partials/footer.html": [
     "Codex"
@@ -73,10 +74,12 @@
     "Codex"
   ],
   "dashboard/scripts/verify-document-updates.py": [
-    "Codex"
+    "Codex",
+    "Claude"
   ],
   "dashboard/scripts/verify-navigation-search.py": [
-    "Codex"
+    "Codex",
+    "Claude"
   ],
   "dashboard/scripts/verify-reading-layout.py": [
     "Codex"
@@ -157,7 +160,8 @@
     "Codex"
   ],
   "dashboard/site/layouts/_partials/journal-updated.html": [
-    "Codex"
+    "Codex",
+    "Claude"
   ],
   "dashboard/site/layouts/_partials/meta.html": [
     "Codex"

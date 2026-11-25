@@ -285,6 +285,12 @@ python3 scripts/verify-attachments.py
 python3 scripts/verify-timeline.py
 ```
 
+除 `verify-timeline.py` 和 `verify-paper-cards.py` 外，`scripts/verify-*.py` 依赖 Beautiful Soup（`beautifulsoup4`）。系统 Python 未安装它时，可用 uv 临时提供，例如：
+
+```sh
+uv run --no-project --with beautifulsoup4 python scripts/verify-navigation-search.py
+```
+
 这些命令检查 Dashboard，不验证 `src/` 中未来添加的项目实现。中文化验收与实际运行结果见 [中文版记录](site/content/system-implementation/agent-chinese-template.md)。
 
 项目概览、相关工作、研究、实验与会议记录的页眉导航、栏目标题、列表、正文、摘要和元信息统一使用无衬线字体，英文文档同样适用。正文与摘要的加粗保留橙色强调；代码保留等宽字体，数学公式保留专用字体。

@@ -42,7 +42,7 @@ Ordinary serif prose with **sans-serif bold**, <b>HTML bold</b> and ***bold ital
     missing.write_text('---\ntitle: No lastmod\ncontent_lang: en-US\ndate: 2026-11-12\ndraft: false\n---\nA **bold** phrase.\n')
     chinese = content / 'meetings/chinese.md'
     chinese.write_text('---\ntitle: 中文排版\ncontent_lang: zh-CN\ndraft: false\n---\n普通正文与**加粗正文**。\n')
-    current_year = datetime.now(ZoneInfo('Europe/Paris')).year
+    current_year = datetime.now(ZoneInfo('Asia/Shanghai')).year
     for year in [current_year, current_year - 1]:
         (content / f'meetings/year-{year}.md').write_text(f'---\ntitle: Year {year}\ndate: {year}-02-03\nlastmod: {year}-02-03T04:05:06Z\ndraft: false\n---\n')
     before, after = '2026-11-15T01:02:03Z', '2026-11-15T01:02:29Z'
@@ -83,9 +83,9 @@ Ordinary serif prose with **sans-serif bold**, <b>HTML bold</b> and ***bold ital
         page = read(f'meetings/year-{year}')
         expected = '02-03' if year == current_year else f'{year}-02-03'
         assert page.select_one('.document-meta-created time').get_text() == expected
-        assert page.select_one('.document-meta-modified time').get_text().startswith(expected + ' 04:05')
+        assert page.select_one('.document-meta-modified time').get_text().startswith(expected + ' 12:05')
         row = next(item for item in read('meetings').select('.journal-entry') if item.a.get_text(strip=True) == f'Year {year}')
-        assert row.time.get_text() == expected + ' 04:05'
+        assert row.time.get_text() == expected + ' 12:05'
 
     assert modified(read('meetings/updated')) == datetime(2026, 11, 13, 10, tzinfo=timezone.utc), 'Published explicit timestamps stay stable across copies/checkouts'
     assert modified(read('meetings/no-lastmod')) == datetime.fromisoformat(before.replace('Z', '+00:00'))
