@@ -1993,16 +1993,20 @@
     "Claude"
   ],
   "src/kv-trace/render.py": [
-    "Claude"
+    "Claude",
+    "Codex"
   ],
   "src/kv-trace/template.html": [
-    "Claude"
+    "Claude",
+    "Codex"
   ],
   "src/kv-trace/README.md": [
-    "Claude"
+    "Claude",
+    "Codex"
   ],
   "src/kv-trace/scenarios.py": [
-    "Claude"
+    "Claude",
+    "Codex"
   ],
   "src/kv-trace/_hook/sitecustomize.py": [
     "Claude"
@@ -2341,6 +2345,33 @@
     "Codex"
   ],
   "src/two-tier-dram/README.md": [
+    "Codex"
+  ],
+  "src/dynamo/README.md": [
+    "Codex"
+  ],
+  "src/dynamo/components/src/dynamo/planner/plugins/proto/v1/plugin.proto": [
+    "Codex"
+  ],
+  "src/two-tier-dram/scenarios.py": [
+    "Codex"
+  ],
+  "src/two-tier-dram/tests/test_aisim.py": [
+    "Codex"
+  ],
+  "src/two-tier-dram/tests/test_model.py": [
+    "Codex"
+  ],
+  "src/two-tier-dram/two_tier_dram/config.py": [
+    "Codex"
+  ],
+  "src/two-tier-dram/two_tier_dram/model.py": [
+    "Codex"
+  ],
+  "src/two-tier-dram/two_tier_dram/runner.py": [
+    "Codex"
+  ],
+  "src/two-tier-dram/two_tier_dram/template.html": [
     "Codex"
   ]
 }

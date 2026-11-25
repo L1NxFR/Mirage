@@ -45,10 +45,10 @@ class Units(unittest.TestCase):
                          (36e9, 18e12, 128e9, 2.2e12))
         self.assertEqual(hw.copy_bandwidth, 2.2e12)
         self.assertIn("Ask", hw.sources["interconnect_bandwidth"])
-        self.assertIn("假设", hw.sources["transfer_overhead"])
+        self.assertIn("Assumption", hw.sources["transfer_overhead"])
         explore = resolve_hardware("exi_96gb_explore", {})
         self.assertEqual(explore.tier1_capacity, 96e9)
-        self.assertIn("不是 EXI 图示配置", explore.sources["tier1_capacity"])
+        self.assertIn("alternative to the EXI reference configuration", explore.sources["tier1_capacity"])
 
     def test_copy_efficiency_derates_the_copy_bandwidth_only(self):
         hw = resolve_hardware("exi_figure", {"tier2_bandwidth": "1.1 TB/s", "copy_efficiency": 0.7})
@@ -115,21 +115,21 @@ class Capacity(unittest.TestCase):
 
     def test_tier1_too_small_returns_error_with_a_trace(self):
         result = simulate(cfg(tier1_capacity="1 GB", scratch="0.1 GB"), P)
-        self.assertIn("一级 DRAM", result["error"])
+        self.assertIn("Tier 1 DRAM", result["error"])
         self.assertEqual(result["events"][-1]["kind"], "capacity_error")
         self.assertTrue(result["snapshots"])
         self.assertFalse(result["feasible"])
 
     def test_tier2_too_small_stops_when_enforced(self):
         result = simulate(cfg(tier2_capacity="1 GB"), P)
-        self.assertIn("二级 DRAM", result["error"])
+        self.assertIn("Tier 2 DRAM", result["error"])
         self.assertEqual(result["metrics"]["token_ms"], [])
 
     def test_tier2_too_small_runs_but_is_marked_infeasible_when_counterfactual(self):
         result = simulate(cfg(tier2_capacity="1 GB", tier2_capacity_check="counterfactual"), P)
         self.assertIsNone(result["error"])
         self.assertFalse(result["feasible"])
-        self.assertIn("单卡不可行", result["infeasible"][0])
+        self.assertIn("infeasible on a single device", result["infeasible"][0])
         self.assertEqual(len(result["metrics"]["token_ms"]), 3)
 
 
@@ -168,7 +168,7 @@ class ExpertCache(unittest.TestCase):
 
     def test_cache_smaller_than_one_layer_is_rejected(self):
         result = simulate(cfg(expert_cache_capacity=f"{(P.experts_per_token - 1) * P.expert_bytes:.0f} B"), P)
-        self.assertIn("放不下一层的路由专家", result["error"])
+        self.assertIn("cannot hold one layer's routed experts", result["error"])
 
     def test_cache_smaller_than_one_step_never_hits(self):
         one_step = len(P.layers) * P.experts_per_token * P.expert_bytes

@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>AISim KV Cache 行为回放</title>
+<title>AISim KV Cache Replay</title>
 <style>
   :root { --bg:#fafafa; --card:#fff; --ink:#1d2330; --mute:#6b7280; --line:#e5e7eb; --accent:#4f7cff; }
   * { box-sizing:border-box; }
@@ -87,18 +87,18 @@
 </head>
 <body>
 <div class="wrap">
-  <h1>AISim KV Cache 行为回放（G1 HBM ⇄ G2 Host DRAM）</h1>
-  <div class="sub">AISim 原生 replay artifacts + requests.jsonl；虚拟时间（ms），长空闲在时间轴上被压缩。</div>
+  <h1>AISim KV Cache Replay (G1 HBM ⇄ G2 host DRAM)</h1>
+  <div class="sub">Source: AISim replay artifacts and requests.jsonl. The timeline shows virtual time in milliseconds and compresses long idle periods.</div>
   <div class="pick" id="tabs"></div>
   <div class="scn" id="scn"></div>
   <div class="grid">
     <section class="card">
       <div class="controls">
-        <button id="prev" title="上一个事件">⏮</button>
-        <button id="play">▶ 播放</button>
-        <button id="next" title="下一个事件">⏭</button>
-        <input type="range" id="slider" min="0" max="1000" step="any" value="0" aria-label="时间">
-        <select id="speed" aria-label="速度"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option></select>
+        <button id="prev" title="Previous event">⏮</button>
+        <button id="play">▶ Play</button>
+        <button id="next" title="Next event">⏭</button>
+        <input type="range" id="slider" min="0" max="1000" step="any" value="0" aria-label="Time">
+        <select id="speed" aria-label="Speed"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option></select>
         <span class="clock" id="clock">t = 0 ms</span>
       </div>
       <div class="tier"><b>G1 · GPU HBM</b><span id="g1cap"></span></div>
@@ -108,29 +108,29 @@
       <div class="tier"><b>G2 · Host DRAM</b><span id="g2cap"></span></div>
       <div class="slots" id="g2"></div>
       <div class="legend">
-        <span><i style="background:repeating-linear-gradient(45deg,#bbb 0 4px,#fff 4px 8px);border:1px solid #888"></i>写入中（推断）</span>
-        <span><i style="background:repeating-linear-gradient(-45deg,#999 0 4px,#fff 4px 8px);border:1px solid #555"></i>整块重算</span>
-        <span><i style="box-shadow:inset 0 0 0 2px #b91c1c"></i>被栅栏挡住</span>
-        <span><i style="background:#666"></i>活跃</span>
-        <span><i style="background:#ddd;border:1px solid #888"></i>缓存·可驱逐</span>
-        <span><i style="border:1.5px dashed #888"></i>预留（H2D 目标 / PendingStore）</span>
-        <span><i style="background:#ccc;border:2px solid #555"></i>pinned（H2D 源）</span>
-        <span>▮▮▯▯ = block 内已填 token</span>
+        <span><i style="background:repeating-linear-gradient(45deg,#bbb 0 4px,#fff 4px 8px);border:1px solid #888"></i>Writing (inferred)</span>
+        <span><i style="background:repeating-linear-gradient(-45deg,#999 0 4px,#fff 4px 8px);border:1px solid #555"></i>Full-block recomputation</span>
+        <span><i style="box-shadow:inset 0 0 0 2px #b91c1c"></i>Waiting on fence</span>
+        <span><i style="background:#666"></i>Active</span>
+        <span><i style="background:#ddd;border:1px solid #888"></i>Cached, evictable</span>
+        <span><i style="border:1.5px dashed #888"></i>Reserved (H2D destination or PendingStore)</span>
+        <span><i style="background:#ccc;border:2px solid #555"></i>Pinned (H2D source)</span>
+        <span>▮▮▯▯ = 2 of 4 token slots filled</span>
       </div>
     </section>
     <section class="card">
-      <h2>当前时刻发生了什么</h2>
+      <h2>Events at the current time</h2>
       <ul class="notes" id="notes"></ul>
     </section>
     <section class="card full">
-      <h2>请求时间线：灰=排队，黄=等待 H2D，红=已准入但被栅栏挡住，彩色=prefill，竖线=当前时刻</h2>
+      <h2>Request timeline · Gray: queued · Yellow: waiting for H2D · Red: admitted, waiting on a fence · Request color: prefill · Vertical line: current time</h2>
       <div class="reqs" id="reqs"></div>
       <div class="reqs"><div></div><div class="axis" id="axis"></div><div></div></div>
-      <div class="warn">推断项：① "写入中"block AISim 不发事件，按引擎准入规则 token_blocks − max(复用块, H2D 载入块) 推出；② vLLM 的 G1 驱逐在 pass 结束时发布，这里画在导致它的那次准入；③ 传输条只在字节真正流动的区间（结束时刻 − 字节/带宽）推进，此前是排队或等栅栏。其余状态均来自原生事件，槽位占用经过容量断言。</div>
+      <div class="warn">Three details are inferred from native events. The number of blocks being written is token_blocks − max(reused blocks, H2D-loaded blocks). G1 evictions reported at pass end appear at the admission that caused them. Transfer bars advance from completion time − bytes / bandwidth until completion. Earlier time is spent in the queue or waiting on a fence. The renderer checks that neither tier exceeds capacity.</div>
     </section>
     <section class="card full">
-      <details><summary>原始事件（kv_events + host_offload_events）</summary>
-        <table id="raw"><thead><tr><th>t (ms)</th><th>来源</th><th>事件</th><th>请求</th><th>block</th><th>completes_at</th></tr></thead><tbody></tbody></table>
+      <details><summary>Raw events (kv_events and host_offload_events)</summary>
+        <table id="raw"><thead><tr><th>t (ms)</th><th>Source</th><th>Event</th><th>Request</th><th>block</th><th>completes_at</th></tr></thead><tbody></tbody></table>
       </details>
     </section>
   </div>
@@ -167,18 +167,18 @@ function toTime(d) {
   return keyTimes[keyTimes.length - 1];
 }
 const pct = t => (toDisp(t) / D * 100) + '%';
-const STATE = { writing: '写入中', recompute: '整块重算', active: '活跃', cached: '缓存·可驱逐', reserved: 'H2D 目标', pending: 'PendingStore', resident: 'Resident', pinned: 'pinned·H2D 源' };
+const STATE = { writing: 'Writing', recompute: 'Full-block recomputation', active: 'Active', cached: 'Cached, evictable', reserved: 'H2D destination', pending: 'PendingStore', resident: 'Resident', pinned: 'Pinned, H2D source' };
 const fmt = t => (Math.abs(t - Math.round(t)) < 1e-6 ? Math.round(t) : t.toFixed(1));
 
 function slotHTML(s, t, prog) {
-  if (!s) return '<div class="slot"><span class="st" style="color:#bbb">空</span></div>';
+  if (!s) return '<div class="slot"><span class="st" style="color:#bbb">Empty</span></div>';
   const c = S.owner_color[s.owner] || '#888', bs = S.cfg.block_size;
   const r = S.requests.find(r => r.label === s.owner);
   const fenced = s.state === 'writing' && r && r.compute_start != null && t < r.compute_start;
   const partial = s.tokens < bs;
   let st = STATE[s.state] || s.state;
-  if (fenced) st = '请求被栅栏挡住';
-  else if (s.state === 'writing' && partial) st = `未写满·不落定`;
+  if (fenced) st = 'Request waiting on fence';
+  else if (s.state === 'writing' && partial) st = `Partial, unsealed`;
   const fill = prog != null ? `<div class="fill" style="width:${prog * 100}%;background:${c}"></div>` : '';
   const tok = `<span class="tok" style="color:${s.state === 'active' ? '#fff' : c}">${Array.from({ length: bs }, (_, i) => `<i class="${i < s.tokens ? 'on' : ''}"></i>`).join('')}</span>`;
   return `<div class="slot ${s.state}${partial && s.state === 'writing' ? ' partial' : ''}${fenced ? ' fenced' : ''}" style="--c:${c}" title="${s.label} · ${s.tokens}/${bs} token · ${st}">${fill}<span class="lbl">${s.label}</span>${tok}<span class="st">${st}</span></div>`;
@@ -194,38 +194,38 @@ function render() {
   const live = snap.transfers.filter(x => t < x.end);
   const progOf = (dir, label) => { const x = live.find(x => x.dir === dir && x.blocks.includes(label)); return x ? progress(x, t) : null; };
   $('g1').innerHTML = snap.g1.map(s => slotHTML(s, t, s && s.state === 'reserved' ? progOf('H2D', s.label) : null)).join('');
-  $('g2').innerHTML = snap.g2.length ? snap.g2.map(s => slotHTML(s, t, s && s.state === 'pending' ? (progOf('D2H', s.label) ?? 0) : null)).join('') : '<span class="ph">未配置 G2</span>';
+  $('g2').innerHTML = snap.g2.length ? snap.g2.map(s => slotHTML(s, t, s && s.state === 'pending' ? (progOf('D2H', s.label) ?? 0) : null)).join('') : '<span class="ph">G2 disabled</span>';
   const used = a => a.filter(Boolean).length, c = S.cfg;
-  $('g1cap').textContent = `${used(snap.g1)}/${c.g1_blocks} block · 每 block ${c.block_size} token = ${c.block_size * c.bytes_per_token / 1e6} MB`;
+  $('g1cap').textContent = `${used(snap.g1)}/${c.g1_blocks} blocks · ${c.block_size} tokens per block = ${c.block_size * c.bytes_per_token / 1e6} MB`;
   $('g2cap').textContent = `${used(snap.g2)}/${c.g2_blocks} block · D2H ${c.d2h_gbps} GB/s · H2D ${c.h2d_gbps} GB/s`;
   for (const dir of ['D2H', 'H2D']) {
     const el = $(dir.toLowerCase()), xs = live.filter(x => x.dir === dir), x = xs[0];
     const bar = el.querySelector('.bar'), txt = el.querySelector('.txt');
     el.classList.toggle('busy', !!x && t >= x.start); el.classList.toggle('wait', !!x && t < x.start);
-    const name = dir === 'D2H' ? 'D2H（G1 → G2 store）' : 'H2D（G2 → G1 load）';
-    if (!x) { bar.style.width = '0'; txt.textContent = `${name} 空闲`; continue; }
+    const name = dir === 'D2H' ? 'D2H (G1 → G2 store)' : 'H2D (G2 → G1 load)';
+    if (!x) { bar.style.width = '0'; txt.textContent = `${name} idle`; continue; }
     const p = progress(x, t);
     bar.style.width = (p * 100) + '%'; bar.style.background = dir === 'D2H' ? '#21a179' : '#f08a24';
-    const more = xs.length > 1 ? ` · 另有 ${xs.length - 1} 个排队` : '';
+    const more = xs.length > 1 ? ` · ${xs.length - 1} more queued` : '';
     txt.textContent = t < x.start
-      ? `${dir} ${x.blocks.join(', ')} 已排队，${fmt(x.start)} ms 才开始传（链路忙或目标 block 被栅栏占用）${more}`
-      : `${dir} ${x.blocks.join(', ')} · ${(x.bytes / 1e6).toFixed(1)} MB · ${fmt(x.start)}→${fmt(x.end)} ms（${Math.round(p * 100)}%）· 耗时 = 字节 / 带宽${more}`;
+      ? `${dir} ${x.blocks.join(', ')} queued until ${fmt(x.start)} ms (link busy or destination fenced)${more}`
+      : `${dir} ${x.blocks.join(', ')} · ${(x.bytes / 1e6).toFixed(1)} MB · ${fmt(x.start)}→${fmt(x.end)} ms (${Math.round(p * 100)}%) · duration = bytes / bandwidth${more}`;
   }
   $('notes').innerHTML = snap.notes.length
-    ? `<li style="color:var(--mute)">t = ${fmt(snap.t)} ms 的事件：</li>` + snap.notes.map(n => `<li><span class="op">${n.op}</span>${n.text}${n.blocks.length ? ` <b>[${n.blocks.join(', ')}]</b>` : ''}</li>`).join('')
-    : '<li style="color:var(--mute)">尚无事件。点 ⏭ 逐个事件前进，或 ▶ 播放。</li>';
+    ? `<li style="color:var(--mute)">Events at ${fmt(snap.t)} ms</li>` + snap.notes.map(n => `<li><span class="op">${n.op}</span>${n.text}${n.blocks.length ? ` <b>[${n.blocks.join(', ')}]</b>` : ''}</li>`).join('')
+    : '<li style="color:var(--mute)">No events yet. Select ⏭ to step forward or ▶ to play.</li>';
   S.requests.forEach(r => { const el = $('ph-' + r.label); if (el) el.textContent = phaseAt(r, t); });
   document.querySelectorAll('.cursor').forEach(c => c.style.left = pct(t));
   document.querySelectorAll('#raw tbody tr').forEach(tr => { const rt = +tr.dataset.t; tr.className = rt < (snap.t ?? -1) ? 'past' : rt === snap.t ? 'now' : ''; });
 }
 function phaseAt(r, t) {
-  if (t < r.arrival) return '未到达';
-  if (r.status === 'rejected') return '被拒绝';
+  if (t < r.arrival) return 'Not arrived';
+  if (r.status === 'rejected') return 'Rejected';
   const h = h2dOf(r);
-  if (t < r.admit) return h && t >= h.queued ? '等待 H2D' : '排队';
-  if (t < r.compute_start) return '已准入·栅栏';
+  if (t < r.admit) return h && t >= h.queued ? 'Waiting for H2D' : 'Queued';
+  if (t < r.compute_start) return 'Admitted, fenced';
   if (t < r.first_token) return 'prefill';
-  return `完成 · TTFT ${fmt(r.ttft)} ms`;
+  return `Complete · TTFT ${fmt(r.ttft)} ms`;
 }
 const h2dOf = r => S.transfers.find(x => x.dir === 'H2D' && x.queued >= r.arrival && r.admit != null && x.end <= r.admit && x.blocks.some(b => r.seq.some(h => S.labels[h] === b)));
 
@@ -237,20 +237,20 @@ function loadScenario(i) {
   const changed = Object.fromEntries((S.changes || []).map(x => [x.param, x]));
   const chip = (text, param, unit = '') => {
     const x = changed[param];
-    return x ? `<span class="chip changed" title="AISim 参数 ${param}：基线 ${x.base} → 本场景 ${x.value}">${text} <s>${x.base}</s> → ${x.value}${unit}</span>`
+    return x ? `<span class="chip changed" title="AISim parameter ${param}: baseline ${x.base} → scenario ${x.value}">${text} <s>${x.base}</s> → ${x.value}${unit}</span>`
              : `<span class="chip" title="${param}">${text} ${{'kv_cache.capacity.blocks': c.g1_blocks, 'kv_cache.host_offload.num_host_blocks': c.g2_blocks,
                  'kv_cache.host_offload.d2h_bandwidth_gbps': c.d2h_gbps, 'kv_cache.host_offload.h2d_bandwidth_gbps': c.h2d_gbps, 'scheduler.max_sequences': c.max_seqs}[param]}${unit}</span>`;
   };
   const known = ['kv_cache.capacity.blocks', 'kv_cache.host_offload.num_host_blocks', 'kv_cache.host_offload.d2h_bandwidth_gbps', 'kv_cache.host_offload.h2d_bandwidth_gbps', 'scheduler.max_sequences'];
-  const extra = (S.changes || []).filter(x => !known.includes(x.param)).map(x => `<span class="chip changed" title="AISim 参数 ${x.param}">${x.param} <s>${x.base}</s> → ${x.value}</span>`);
-  $('scn').innerHTML = `<b>${S.title}</b>${S.summary}${S.finding ? `<div class="find">观察：${S.finding}</div>` : ''}
+  const extra = (S.changes || []).filter(x => !known.includes(x.param)).map(x => `<span class="chip changed" title="AISim parameter ${x.param}">${x.param} <s>${x.base}</s> → ${x.value}</span>`);
+  $('scn').innerHTML = `<b>${S.title}</b>${S.summary}${S.finding ? `<div class="find">Result: ${S.finding}</div>` : ''}
     <div class="chips">${[chip('G1', known[0], ' block'), chip('G2', known[1], ' block'), chip('D2H', known[2], ' GB/s'), chip('H2D', known[3], ' GB/s'), chip('max_seqs', known[4]),
-      ...extra, `<span class="chip">block ${c.block_size} token</span>`, `<span class="chip">prefill ${c.prefill_ms} ms（fixed）</span>`,
-      S.exit ? `<span class="chip">aisim 退出码 ${S.exit}</span>` : '',
-      `<span class="chip-note">${(S.changes || []).length ? '黄色 = 本场景相对基线改动的 AISim 参数' : '基线参数'}</span>`].join('')}</div>`;
+      ...extra, `<span class="chip">block ${c.block_size} token</span>`, `<span class="chip">prefill ${c.prefill_ms} ms (fixed)</span>`,
+      S.exit ? `<span class="chip">aisim exit code ${S.exit}</span>` : '',
+      `<span class="chip-note">${(S.changes || []).length ? 'Yellow marks AISim settings that differ from the baseline' : 'Baseline settings'}</span>`].join('')}</div>`;
   $('reqs').innerHTML = S.requests.map(r => {
     const segs = [];
-    if (r.status === 'rejected') segs.push(`<div class="rej" style="left:${pct(r.arrival)}" title="被拒绝"></div>`);
+    if (r.status === 'rejected') segs.push(`<div class="rej" style="left:${pct(r.arrival)}" title="Rejected"></div>`);
     else {
       segs.push(`<div class="seg" style="left:${pct(r.arrival)};width:calc(${pct(r.admit)} - ${pct(r.arrival)});background:#d1d5db"></div>`);
       const h = h2dOf(r);
@@ -258,7 +258,7 @@ function loadScenario(i) {
       if (r.compute_start > r.admit) segs.push(`<div class="seg" style="left:${pct(r.admit)};width:calc(${pct(r.compute_start)} - ${pct(r.admit)});background:#fca5a5"></div>`);
       segs.push(`<div class="seg" style="left:${pct(r.compute_start)};width:calc(${pct(r.first_token)} - ${pct(r.compute_start)});background:${r.color}"></div>`);
     }
-    const tip = (r.relation ? `${r.relation.text}（共享前 ${r.relation.shared_blocks} 个 block）· ` : '') + (r.status === 'rejected' ? '被拒绝' : `TTFT ${fmt(r.ttft)} ms · G1 复用 ${r.g1_reused} / G2 复用 ${r.host_reused} token`);
+    const tip = (r.relation ? `${r.relation.text} (first ${r.relation.shared_blocks} blocks shared) · ` : '') + (r.status === 'rejected' ? 'Rejected' : `TTFT ${fmt(r.ttft)} ms · reused tokens: G1 ${r.g1_reused}, G2 ${r.host_reused}`);
     const rel = r.relation ? `<div class="rel">↳ ${r.relation.text}</div>` : '';
     return `<div><b style="color:${r.color}">${r.label}</b>${rel}</div><div class="gantt" title="${r.input} token · ${tip}">${segs.join('')}<div class="cursor"></div></div><div class="ph" id="ph-${r.label}"></div>`;
   }).join('');
@@ -279,17 +279,17 @@ function tick(now) {
   if (!playing) return;
   const dt = (now - last) / 1000; last = now;
   let v = +$('slider').value + dt * speed * 1000 / D * 2.5;
-  if (v >= 1000) { v = 1000; playing = false; $('play').textContent = '▶ 播放'; }
+  if (v >= 1000) { v = 1000; playing = false; $('play').textContent = '▶ Play'; }
   exactT = null; $('slider').value = v; render();
   if (playing) requestAnimationFrame(tick);
 }
 function postHeight() { if (window.parent !== window) window.parent.postMessage({ kvReplayHeight: document.documentElement.scrollHeight }, '*'); }
 new ResizeObserver(postHeight).observe(document.body);
-$('play').onclick = () => { playing = !playing; $('play').textContent = playing ? '⏸ 暂停' : '▶ 播放'; if (playing) { if (+$('slider').value >= 1000) { $('slider').value = 0; exactT = null; } last = performance.now(); requestAnimationFrame(tick); } };
+$('play').onclick = () => { playing = !playing; $('play').textContent = playing ? '⏸ Pause' : '▶ Play'; if (playing) { if (+$('slider').value >= 1000) { $('slider').value = 0; exactT = null; } last = performance.now(); requestAnimationFrame(tick); } };
 $('prev').onclick = () => step(-1); $('next').onclick = () => step(1);
 $('slider').oninput = () => { exactT = null; render(); }; $('speed').onchange = e => speed = +e.target.value;
 document.addEventListener('keydown', e => { if (e.key === 'ArrowRight') step(1); else if (e.key === 'ArrowLeft') step(-1); else if (e.key === ' ') { e.preventDefault(); $('play').click(); } });
-$('tabs').innerHTML = DATA.map((s, i) => `<button class="tab${s.title.startsWith('极端') ? ' edge' : ''}" data-i="${i}">${s.title.replace(/^极端：/, '')}</button>`).join('');
+$('tabs').innerHTML = DATA.map((s, i) => `<button class="tab${s.title.startsWith('Edge case: ') ? ' edge' : ''}" data-i="${i}">${s.title.replace(/^Edge case: /, '')}</button>`).join('');
 document.querySelectorAll('.tab').forEach(b => b.onclick = () => loadScenario(+b.dataset.i));
 const start = Math.max(0, DATA.findIndex(s => s.slug === params.get('scenario')));
 loadScenario(start);

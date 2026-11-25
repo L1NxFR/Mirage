@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>两级 DRAM decode 行为回放（AISim 扩展）</title>
+<title>Two-tier DRAM decode replay</title>
 <style>
   :root { --bg:#fafafa; --card:#fff; --ink:#1d2330; --mute:#6b7280; --line:#e5e7eb; --accent:#4f7cff;
           --base:#f08a24; --exp:#f59e0b; --kv:#4f7cff; --static:#93c5fd; --fixed:#9ca3af; --wb:#21a179; --miss:#d64545; --pre:#fdba74; }
@@ -119,31 +119,31 @@
 </head>
 <body>
 <div class="wrap">
-  <h1>两级 DRAM decode 行为回放（AISim 扩展 · --stack two_tier_dram · EXI-3DDRAM 输入）</h1>
-  <div class="sub">AISim 提供负载、token 时间线、模型几何、字节数和逐算子计算时间；扩展在每个 decode step 内逐层重计时。虚拟时间（ms）。</div>
+  <h1>Two-tier DRAM decode replay</h1>
+  <div class="sub">AISim supplies the workload, token timeline, model geometry, byte counts, and per-operator compute times. The two_tier_dram stack recalculates each decode step layer by layer using EXI-3DDRAM inputs. Times are simulated milliseconds.</div>
   <div class="pick" id="tabs"></div>
   <div class="scn" id="scn"></div>
   <div class="grid">
     <section class="card">
       <div class="controls">
-        <button id="prev" title="上一个事件">⏮</button>
-        <button id="play">▶ 播放</button>
-        <button id="next" title="下一个事件">⏭</button>
-        <button id="nextlayer" title="跳到下一层">下一层 ⏩</button>
-        <button id="nextstep" title="跳到下一个 decode step">下一 step ⏭⏭</button>
-        <input type="range" id="slider" min="0" max="1000" step="any" value="0" aria-label="时间">
-        <select id="speed" aria-label="速度"><option value="0.25">0.25×</option><option value="1" selected>1×</option><option value="4">4×</option></select>
+        <button id="prev" title="Previous event">⏮</button>
+        <button id="play">▶ Play</button>
+        <button id="next" title="Next event">⏭</button>
+        <button id="nextlayer" title="Jump to the next layer">Next layer ⏩</button>
+        <button id="nextstep" title="Jump to the next decode step">Next step ⏭⏭</button>
+        <input type="range" id="slider" min="0" max="1000" step="any" value="0" aria-label="Time">
+        <select id="speed" aria-label="Speed"><option value="0.25">0.25×</option><option value="1" selected>1×</option><option value="4">4×</option></select>
         <span class="clock" id="clock">t = 0 ms</span>
       </div>
       <div class="status" id="status"></div>
       <div class="tier t1">
-        <h3>一级 DRAM<span id="t1cap"></span></h3>
+        <h3>Tier 1 DRAM<span id="t1cap"></span></h3>
         <div class="capbar" id="capbar"></div>
         <div class="caplegend" id="caplegend"></div>
         <div class="cachebox" id="cachebox"></div>
         <div class="sect" id="striplabel"></div>
         <div class="strip" id="strip"></div>
-        <div class="sect" id="curlabel">当前层</div>
+        <div class="sect" id="curlabel">Current layer</div>
         <div class="detail" id="experts"></div>
         <div class="detail" id="kvdetail" style="margin-top:4px"></div>
       </div>
@@ -152,46 +152,46 @@
         <div class="queue" id="queue"></div>
       </div>
       <div class="tier t2">
-        <h3>二级 DRAM<span id="t2cap"></span></h3>
+        <h3>Tier 2 DRAM<span id="t2cap"></span></h3>
         <div id="t2body" style="font-size:12px"></div>
       </div>
     </section>
     <section class="card">
-      <h2>当前时刻发生了什么</h2>
+      <h2>Events at the current time</h2>
       <ul class="notes" id="notes"></ul>
     </section>
     <section class="card full">
-      <h2 id="stephead">逐 step 概览</h2>
+      <h2 id="stephead">Decode steps</h2>
       <div id="stepchart"></div>
       <div class="legend">
-        <span><i style="background:#10b981"></i>计算</span><span><i class="p-wait_base"></i>等非专家权重</span><span><i class="p-wait_experts"></i>等专家</span><span><i class="p-wait_kv"></i>等 top-k KV</span>
-        <span><i style="background:#111827;height:2px"></i>专家命中率（右轴）</span><span><i style="background:#f59e0b;height:2px"></i>专家缓存占用 / 上限（右轴）</span>
-        <span>背景：灰 = 冷启动，黄 = 缓存填充，白 = 缓存已满、开始淘汰；绿框 = 判定的稳态窗口</span>
+        <span><i style="background:#10b981"></i>Compute</span><span><i class="p-wait_base"></i>Wait for non-expert weights</span><span><i class="p-wait_experts"></i>Wait for experts</span><span><i class="p-wait_kv"></i>Wait for top-k KV</span>
+        <span><i style="background:#111827;height:2px"></i>Expert hit rate (right axis)</span><span><i style="background:#f59e0b;height:2px"></i>Expert cache occupancy / capacity (right axis)</span>
+        <span>Gray marks the cold start, yellow marks cache fill, and white marks eviction after the cache fills. The green outline marks the steady-state window.</span>
       </div>
     </section>
     <section class="card full">
-      <h2>时间线：AISim 原生的 decode step、两级 DRAM 下的逐层计算、共享链路。虚线是 step 边界，竖线是当前时刻</h2>
+      <h2>Decode timeline. Dashed lines mark step boundaries. The vertical cursor shows the current time.</h2>
       <div class="tl">
-        <div class="name">AISim 原生</div><div class="gantt" id="g-native"></div>
-        <div class="name">两级计算</div><div class="gantt" id="g-compute"></div>
-        <div class="name">共享链路</div><div class="gantt" id="g-link"></div>
+        <div class="name">Native AISim</div><div class="gantt" id="g-native"></div>
+        <div class="name">Two-tier compute</div><div class="gantt" id="g-compute"></div>
+        <div class="name">Shared link</div><div class="gantt" id="g-link"></div>
         <div></div><div class="axis" id="axis"></div>
       </div>
       <div class="legend">
-        <span><i class="p-native"></i>AISim 原生 step</span><span><i class="p-attention"></i>attention</span><span><i class="p-moe"></i>MoE</span><span><i class="p-tail"></i>logits 等</span>
-        <span><i class="p-wait_experts"></i>等专家</span><span><i class="p-wait_kv"></i>等 top-k KV</span><span><i class="p-wait_base"></i>等非专家权重</span>
-        <span><i class="k-demand_expert"></i>按需取专家</span><span><i class="k-prefetch_expert"></i>预取专家</span><span><i class="k-demand_kv"></i>按需取 KV</span>
-        <span><i class="k-demand_base"></i>按需取权重</span><span><i class="k-prefetch_base"></i>预取权重</span><span><i class="k-writeback"></i>写回</span>
+        <span><i class="p-native"></i>Native AISim step</span><span><i class="p-attention"></i>attention</span><span><i class="p-moe"></i>MoE</span><span><i class="p-tail"></i>Logits and output</span>
+        <span><i class="p-wait_experts"></i>Wait for experts</span><span><i class="p-wait_kv"></i>Wait for top-k KV</span><span><i class="p-wait_base"></i>Wait for non-expert weights</span>
+        <span><i class="k-demand_expert"></i>Demand expert load</span><span><i class="k-prefetch_expert"></i>Expert prefetch</span><span><i class="k-demand_kv"></i>Demand KV load</span>
+        <span><i class="k-demand_base"></i>Demand weight load</span><span><i class="k-prefetch_base"></i>Weight prefetch</span><span><i class="k-writeback"></i>Writeback</span>
       </div>
-      <div class="warn">口径：AISim 一个算子只给所有层的合计时间，这里按层数均摊。top-k 条目和路由专家由合成的重合度参数生成，AISim 没有选中集合。两级时延是事后重计时，不反馈给 AISim 的调度；单请求下与闭环等价。复制写入一级与计算读一级之间的带宽争用没有计入，只给出上界。一级占用、“数据到达前不计算”和链路带宽在运行时断言。</div>
+      <div class="warn">AISim reports total operator time across layers. The replay distributes that time evenly. It generates top-k entries and routed experts from the overlap settings because AISim does not expose the selected sets. The extension recomputes latency after scheduling. For a single request this gives the same timing as closed-loop scheduling. The model reports a separate upper bound on contention between tier 1 writes and compute reads. Runtime checks enforce tier 1 capacity, data arrival before compute, and link bandwidth.</div>
     </section>
     <section class="card full">
-      <h2>全部对照运行（每次都是一次 AISim 预测，32 个 decode step；统计窗口 = 判定的稳态窗口；未判定稳态时取缓存满后的全部 step 并标出波动，不称为稳态）</h2>
+      <h2>Scenario comparisons. Each sweep scenario runs one AISim prediction with 32 decode steps. Results use the steady-state window when available. Otherwise they report the mean and variation across steps after the cache fills.</h2>
       <div class="scroll" style="max-height:420px"><table class="sweep" id="sweep"></table></div>
     </section>
     <section class="card full">
-      <details><summary>事件日志</summary><div class="scroll">
-        <table id="raw"><thead><tr><th>t (ms)</th><th>step</th><th>层</th><th>事件</th><th>说明</th></tr></thead><tbody></tbody></table>
+      <details><summary>Event log</summary><div class="scroll">
+        <table id="raw"><thead><tr><th>t (ms)</th><th>step</th><th>Layer</th><th>Event</th><th>Description</th></tr></thead><tbody></tbody></table>
       </div></details>
     </section>
   </div>
@@ -206,19 +206,19 @@ const GB = 1e9;
 const ms = t => t >= 100 ? t.toFixed(1) : t >= 1 ? t.toFixed(2) : t.toFixed(3);
 const gb = b => b >= 0.1 * GB ? (b / GB).toFixed(1) + ' GB' : b >= 1e6 ? (b / 1e6).toFixed(1) + ' MB' : (b / 1e3).toFixed(1) + ' KB';
 const pct = t => (t / T * 100) + '%';
-const PHASE = { wait_base: '等非专家权重', wait_kv: '等 top-k KV', attention: 'attention', wait_experts: '等专家', moe: 'MoE', tail: 'logits 等', idle: '空闲', failed: '容量不足，已停止' };
+const PHASE = { wait_base: 'Wait for non-expert weights', wait_kv: 'Wait for top-k KV', attention: 'attention', wait_experts: 'Wait for experts', moe: 'MoE', tail: 'Logits and output', idle: 'Idle', failed: 'Stopped: insufficient capacity' };
 const KCOLOR = { demand_base: 'var(--base)', prefetch_base: 'var(--pre)', demand_kv: 'var(--kv)', demand_expert: 'var(--miss)', prefetch_expert: '#fca5a5', writeback: 'var(--wb)' };
-const CAP = [['fixed', 'scratch + 全局权重', 'var(--fixed)'], ['base', '非专家权重', 'var(--base)'], ['static_kv', '常驻 KV', 'var(--static)'], ['experts', '专家缓存', 'var(--exp)'], ['hot_kv', '热 top-k KV', 'var(--kv)'], ['dirty', '脏 KV', 'var(--wb)']];
-const HW = [['tier1_capacity', '一级容量', 'B'], ['tier1_bandwidth', '一级读带宽（计算）', 'B/s'], ['tier2_capacity', '二级容量', 'B'],
-  ['tier2_bandwidth', '二级标称带宽', 'B/s'], ['copy_efficiency', '复制效率', ''], ['transfer_overhead', '每次传输固定开销', 's'],
-  ['interconnect_bandwidth', '卡间带宽', 'B/s'], ['scratch', 'scratch', 'B']];
+const CAP = [['fixed', 'Scratch + global weights', 'var(--fixed)'], ['base', 'Non-expert weights', 'var(--base)'], ['static_kv', 'Resident KV', 'var(--static)'], ['experts', 'Expert cache', 'var(--exp)'], ['hot_kv', 'Hot top-k KV', 'var(--kv)'], ['dirty', 'Dirty KV', 'var(--wb)']];
+const HW = [['tier1_capacity', 'Tier 1 capacity', 'B'], ['tier1_bandwidth', 'Tier 1 read bandwidth (compute)', 'B/s'], ['tier2_capacity', 'Tier 2 capacity', 'B'],
+  ['tier2_bandwidth', 'Nominal tier 2 bandwidth', 'B/s'], ['copy_efficiency', 'Copy efficiency', ''], ['transfer_overhead', 'Fixed overhead per transfer', 's'],
+  ['interconnect_bandwidth', 'Inter-card bandwidth', 'B/s'], ['scratch', 'scratch', 'B']];
 const unit = (v, u) => u === 'B' ? (v >= 1e12 ? (v / 1e12).toFixed(2) + ' TB' : (v / 1e9).toFixed(v < 10e9 ? 2 : 0) + ' GB')
   : u === 'B/s' ? (v >= 1e12 ? (v / 1e12).toFixed(2) + ' TB/s' : (v / 1e9).toFixed(0) + ' GB/s') : u === 's' ? (v * 1e6).toFixed(v * 1e6 < 10 ? 1 : 0) + ' µs' : v;
-const srcClass = s => s.startsWith('场景覆盖') ? 's-override' : s.includes('旧假设') ? 's-legacy' : s.includes('Ask') ? 's-ask' : s.includes('EXI') ? 's-table'
-  : s.includes('研究记录') ? 's-design' : s.includes('AISim') ? 's-table' : 's-assume';
-const POLICY = { resident: '非专家权重：全部常驻一级', layer_rotation: '非专家权重：逐层轮换（当前层 + 预取下一层）',
-  lru: '路由专家：跨 step 的 LRU 缓存（用完不释放，满了按 LRU 淘汰）', per_layer: '路由专家：逐层释放（层结束即移出一级，无跨步复用）' };
-const PHASE_LABEL = { cold: '冷启动', filling: '缓存填充', evicting: '缓存已满·淘汰中', no_cache: '无跨步缓存' };
+const srcClass = s => /^scenario override/i.test(s) ? 's-override' : /legacy/i.test(s) ? 's-legacy' : /ask/i.test(s) ? 's-ask'
+  : /design (note|study)/i.test(s) ? 's-design' : /EXI|AISim/.test(s) ? 's-table' : 's-assume';
+const POLICY = { resident: 'All non-expert weights stay in tier 1', layer_rotation: 'Non-expert weights rotate by layer. The next layer is prefetched.',
+  lru: 'Routed experts stay cached across steps. A full cache evicts the least recently used expert.', per_layer: 'Routed experts are released after each layer. No cross-step reuse.' };
+const PHASE_LABEL = { cold: 'Cold start', filling: 'Cache filling', evicting: 'Cache full, evicting', no_cache: 'No cross-step cache' };
 
 function jobProgress(id, t) {
   let f = 0;
@@ -236,49 +236,49 @@ function render() {
   const t = exactT ?? T * $('slider').value / 1000, c = S.config, hw = c.hardware, p = S.profile, k = snapIndex(t), snap = S.snapshots[k], state = LS[k];
   $('clock').textContent = `t = ${ms(t)} ms`;
   const cp = snap.compute, ph = cp.phase, kinds = p.layers.kinds;
-  const where = cp.step == null ? (ph === 'failed' ? '已停止' : (k > 0 ? 'decode 完成，链路收尾' : '未开始'))
-    : `decode step ${cp.step + 1}/${S.request.retimed_steps}` + (cp.layer == null ? '' : ` · 第 ${cp.layer}/${p.layers.count - 1} 层（${kinds[cp.layer] === 'C' ? 'CSA 稀疏' : 'HCA'}）`);
+  const where = cp.step == null ? (ph === 'failed' ? 'Stopped' : (k > 0 ? 'Decode complete, finishing transfers' : 'Not started'))
+    : `decode step ${cp.step + 1}/${S.request.retimed_steps}` + (cp.layer == null ? '' : ` · Layer ${cp.layer}/${p.layers.count - 1} (${kinds[cp.layer] === 'C' ? 'sparse CSA' : 'HCA'})`);
   const pills = (c.base_weights === 'layer_rotation' ? ['wait_base'] : []).concat(['wait_kv', 'attention', 'wait_experts', 'moe', 'tail']);
-  $('status').innerHTML = `<b>计算</b><span>${where}</span>` + pills.map(x => `<span class="pill ${x.startsWith('wait') ? 'wait' : x}${ph === x ? ' on' : ''}">${PHASE[x]}</span>`).join('') + (ph === 'failed' ? '<span class="chip bad">容量不足</span>' : '');
+  $('status').innerHTML = `<b>Compute</b><span>${where}</span>` + pills.map(x => `<span class="pill ${x.startsWith('wait') ? 'wait' : x}${ph === x ? ' on' : ''}">${PHASE[x]}</span>`).join('') + (ph === 'failed' ? '<span class="chip bad">Insufficient capacity</span>' : '');
   const used = Object.values(snap.tier1).reduce((a, b) => a + b, 0), cap = hw.tier1_capacity;
-  $('t1cap').textContent = `已用 ${(used / GB).toFixed(1)} / ${(cap / GB).toFixed(0)} GB · 计算读带宽 ${unit(hw.tier1_bandwidth, 'B/s')}`;
+  $('t1cap').textContent = `Used ${(used / GB).toFixed(1)} / ${(cap / GB).toFixed(0)} GB · Compute read bandwidth ${unit(hw.tier1_bandwidth, 'B/s')}`;
   $('capbar').innerHTML = CAP.map(([key, , col]) => `<i style="width:${snap.tier1[key] / cap * 100}%;background:${col}"></i>`).join('');
-  $('caplegend').innerHTML = CAP.map(([key, name, col]) => `<span><i style="background:${col}"></i>${name} ${gb(snap.tier1[key])}</span>`).join('') + `<span>空闲 ${gb(Math.max(cap - used, 0))}</span>`;
+  $('caplegend').innerHTML = CAP.map(([key, name, col]) => `<span><i style="background:${col}"></i>${name} ${gb(snap.tier1[key])}</span>`).join('') + `<span>Free ${gb(Math.max(cap - used, 0))}</span>`;
   const ch = snap.cache, perLayer = c.expert_cache === 'per_layer';
-  const stepRate = ch.step_lookups ? `${ch.step_hits}/${ch.step_lookups}（${Math.round(ch.step_hits / ch.step_lookups * 100)}%）` : '—';
-  $('cachebox').innerHTML = `<b>专家缓存</b><div class="cbar"><i style="width:${ch.slots ? ch.experts / ch.slots * 100 : 0}%"></i></div>
-    <span>${ch.experts} / ${ch.slots} 个（${gb(ch.experts * p.expert_bytes)} / ${gb(ch.slots * p.expert_bytes)}）</span>
-    <span></span><span>${perLayer ? `逐层释放累计 <b>${ch.released}</b> 个` : `累计 LRU 淘汰 <b>${ch.evicted}</b> 个`} · 本 step 专家命中 <b>${stepRate}</b> · 热 top-k KV ${ch.kv.toLocaleString()} / ${ch.kv_cap.toLocaleString()} 条</span><span></span>
-    ${!perLayer && ch.experts >= ch.slots && ch.slots ? '<span class="cnote">缓存已满：占用不再增长，但累计淘汰数仍在增加，说明内容在被替换（容量不变 ≠ 内容不变）。</span>' : ''}`;
-  $('striplabel').textContent = `${p.layers.count} 层概览：橙柱 = 该层已缓存的专家数（每层共 ${p.experts_per_layer} 个，每 token 路由 ${p.experts_per_token} 个），蓝柱 = 该层已缓存的 top-k KV 条数（仅 CSA 层，蓝框）；灰底 = 非专家权重不在一级，斜纹 = 取入中`;
+  const stepRate = ch.step_lookups ? `${ch.step_hits}/${ch.step_lookups} (${Math.round(ch.step_hits / ch.step_lookups * 100)}%)` : '—';
+  $('cachebox').innerHTML = `<b>Expert cache</b><div class="cbar"><i style="width:${ch.slots ? ch.experts / ch.slots * 100 : 0}%"></i></div>
+    <span>${ch.experts} / ${ch.slots} experts (${gb(ch.experts * p.expert_bytes)} / ${gb(ch.slots * p.expert_bytes)})</span>
+    <span></span><span>${perLayer ? `Experts released after layers: <b>${ch.released}</b>` : `Total LRU evictions: <b>${ch.evicted}</b>`} · Expert hits this step <b>${stepRate}</b> · Hot top-k KV ${ch.kv.toLocaleString()} / ${ch.kv_cap.toLocaleString()} entries</span><span></span>
+    ${!perLayer && ch.experts >= ch.slots && ch.slots ? '<span class="cnote">The cache is full. Occupancy stays constant while evictions replace entries.</span>' : ''}`;
+  $('striplabel').textContent = `${p.layers.count} layers. Orange bars show cached experts (${p.experts_per_layer} per layer, ${p.experts_per_token} routed per token). Blue bars show cached top-k KV entries in CSA layers (blue outline). Gray means non-expert weights are outside tier 1. Hatching means they are loading.`;
   $('strip').innerHTML = state.map((s, L) => {
     const cls = ['lc', kinds[L] === 'C' ? 'csa' : '', L === cp.layer ? 'cur' : '', s[2] === 0 ? 'nobase' : s[2] === 1 ? 'loadbase' : ''].join(' ');
-    return `<div class="${cls}" title="L${L} ${kinds[L] === 'C' ? 'CSA' : 'HCA'} · 专家 ${s[0]} · top-k KV ${s[1]}${s[2] === 0 ? ' · 非专家权重不在一级' : s[2] === 1 ? ' · 非专家权重取入中' : ''}"><b class="e" style="height:${s[0] / maxE * 100}%"></b><b class="k" style="height:${s[1] / maxK * 100}%"></b></div>`;
+    return `<div class="${cls}" title="L${L} ${kinds[L] === 'C' ? 'CSA' : 'HCA'} · Experts ${s[0]} · top-k KV ${s[1]}${s[2] === 0 ? ' · Non-expert weights outside tier 1' : s[2] === 1 ? ' · Loading non-expert weights' : ''}"><b class="e" style="height:${s[0] / maxE * 100}%"></b><b class="k" style="height:${s[1] / maxK * 100}%"></b></div>`;
   }).join('');
   const d = snap.detail || {};
-  $('curlabel').textContent = cp.layer == null ? '当前层' : `第 ${cp.layer} 层：路由到的专家，以及 top-k KV`;
+  $('curlabel').textContent = cp.layer == null ? 'Current layer' : `Layer ${cp.layer}: routed experts and top-k KV`;
   $('experts').innerHTML = (d.experts && d.experts.length) ? d.experts.map(e => {
     const loading = e.state === 'loading', f = loading && e.job != null ? jobProgress(e.job, t) : null;
-    return `<div class="ex ${loading ? 'loading' : e.was === 'hit' ? 'hit' : ''}" title="e${e.id} · ${loading ? '取入中' : e.was === 'hit' ? '命中缓存' : '已取入'}">${f != null ? `<div class="fill" style="width:${f * 100}%"></div>` : ''}<span>e${e.id} ${loading ? `取入 ${Math.round((f || 0) * 100)}%` : e.was === 'hit' ? '命中' : '已到'}</span></div>`;
-  }).join('') : '<span style="color:#b6bcc8">尚未路由</span>';
+    return `<div class="ex ${loading ? 'loading' : e.was === 'hit' ? 'hit' : ''}" title="e${e.id} · ${loading ? 'loading' : e.was === 'hit' ? 'cache hit' : 'loaded'}">${f != null ? `<div class="fill" style="width:${f * 100}%"></div>` : ''}<span>e${e.id} ${loading ? `loading ${Math.round((f || 0) * 100)}%` : e.was === 'hit' ? 'hit' : 'ready'}</span></div>`;
+  }).join('') : '<span style="color:#b6bcc8">Waiting for routing</span>';
   if (d.kv) {
     const f = d.kv.job != null ? jobProgress(d.kv.job, t) : 1, tot = d.kv.topk;
-    $('kvdetail').innerHTML = `<div class="kvbar"><i style="width:${d.kv.hits / tot * 100}%;background:var(--kv)"></i><i style="width:${d.kv.missing / tot * f * 100}%;background:#93c5fd"></i><div class="txt">top-k ${tot} 条：命中 ${d.kv.hits}，缺失 ${d.kv.missing}${d.kv.missing ? `（取入 ${Math.round(f * 100)}%）` : ''}</div></div>`;
-  } else $('kvdetail').innerHTML = cp.layer != null && kinds[cp.layer] === 'H' ? '<span style="color:var(--mute)">HCA 层读取全部压缩 KV（常驻一级），没有 top-k</span>' : '';
+    $('kvdetail').innerHTML = `<div class="kvbar"><i style="width:${d.kv.hits / tot * 100}%;background:var(--kv)"></i><i style="width:${d.kv.missing / tot * f * 100}%;background:#93c5fd"></i><div class="txt">Top-k KV: ${tot} entries, ${d.kv.hits} hits, ${d.kv.missing} missing${d.kv.missing ? ` (loading ${Math.round(f * 100)}%)` : ''}</div></div>`;
+  } else $('kvdetail').innerHTML = cp.layer != null && kinds[cp.layer] === 'H' ? '<span style="color:var(--mute)">HCA layers read the full compressed KV cache from tier 1. No top-k selection.</span>' : '';
   const act = snap.link.active != null && S.jobs[snap.link.active], lane = $('lane'), live = act && (act.end == null || t < act.end - 1e-9);
   lane.classList.toggle('busy', !!live);
   if (live) {
     const f = jobProgress(act.id, t);
     lane.querySelector('.bar').style.cssText = `width:${f * 100}%;background:${KCOLOR[act.kind]}`;
-    lane.querySelector('.txt').textContent = `共享链路（有效 ${unit(hw.copy_bandwidth, 'B/s')}）：${act.label} · ${gb(act.bytes)}（${Math.round(f * 100)}%）`;
-  } else { lane.querySelector('.bar').style.width = '0'; lane.querySelector('.txt').textContent = `共享链路（有效 ${unit(hw.copy_bandwidth, 'B/s')}）：空闲`; }
-  $('queue').innerHTML = snap.link.queue.length ? '排队：' + snap.link.queue.map(id => `<span class="q k-${S.jobs[id].kind}">${S.jobs[id].label}</span>`).join('') : `<span>${c.link_policy === 'fifo' ? '队列为空（FIFO，不抢占）' : '队列为空（按需读取优先，可抢占预取与写回）'}</span>`;
+    lane.querySelector('.txt').textContent = `Shared link (${unit(hw.copy_bandwidth, 'B/s')} effective): ${act.label} · ${gb(act.bytes)} (${Math.round(f * 100)}%)`;
+  } else { lane.querySelector('.bar').style.width = '0'; lane.querySelector('.txt').textContent = `Shared link (${unit(hw.copy_bandwidth, 'B/s')} effective): Idle`; }
+  $('queue').innerHTML = snap.link.queue.length ? 'Queued: ' + snap.link.queue.map(id => `<span class="q k-${S.jobs[id].kind}">${S.jobs[id].label}</span>`).join('') : `<span>${c.link_policy === 'fifo' ? 'Queue empty (non-preemptive FIFO)' : 'Queue empty (demand reads can preempt prefetches and writebacks)'}</span>`;
   const full = p.full_weights_bytes + p.full_kv_bytes;
-  $('t2cap').textContent = `完整数据 ${(full / GB).toFixed(0)} GB / 二级 ${(hw.tier2_capacity / GB).toFixed(0)} GB` + (full > hw.tier2_capacity ? ' · 放不下' : '');
-  $('t2body').innerHTML = `全部权重 <b>${(p.full_weights_bytes / GB).toFixed(1)} GB</b>（路由专家 ${(p.experts_per_layer * p.layers.count * p.expert_bytes / GB).toFixed(0)} GB = ${p.layers.count} 层 × ${p.experts_per_layer} 个 × ${gb(p.expert_bytes)}）· 该请求的完整 KV <b>${gb(p.full_kv_bytes)}</b> · 新 token 已写回 <b>${snap.tier2.synced_tokens}</b> 个，一级中未写回的脏 KV ${gb(snap.tier2.dirty_bytes)}`;
+  $('t2cap').textContent = `Total data ${(full / GB).toFixed(0)} GB / Tier 2 capacity ${(hw.tier2_capacity / GB).toFixed(0)} GB` + (full > hw.tier2_capacity ? ' · exceeds capacity' : '');
+  $('t2body').innerHTML = `All weights <b>${(p.full_weights_bytes / GB).toFixed(1)} GB</b> (routed experts: ${(p.experts_per_layer * p.layers.count * p.expert_bytes / GB).toFixed(0)} GB = ${p.layers.count} layers × ${p.experts_per_layer} experts × ${gb(p.expert_bytes)}) · Full request KV <b>${gb(p.full_kv_bytes)}</b> · New tokens written back: <b>${snap.tier2.synced_tokens}</b>. Dirty KV still in tier 1: ${gb(snap.tier2.dirty_bytes)}`;
   const notes = S.events.slice(snap.n0, snap.n1);
-  $('notes').innerHTML = notes.length ? `<li style="color:var(--mute)">t = ${ms(snap.t)} ms：</li>` + notes.map(n => `<li><span class="op ${n.kind}">${n.kind}</span>${n.text}</li>`).join('')
-    : `<li style="color:var(--mute)">t = ${ms(snap.t)} ms 没有新事件。点 ⏭ 逐个事件前进，“下一层”跳到下一层，或 ▶ 播放。</li>`;
+  $('notes').innerHTML = notes.length ? `<li style="color:var(--mute)">t = ${ms(snap.t)} ms: </li>` + notes.map(n => `<li><span class="op ${n.kind}">${n.kind}</span>${n.text}</li>`).join('')
+    : `<li style="color:var(--mute)">t = ${ms(snap.t)} ms. No new events. Use ⏭ to advance one event, Next layer to skip ahead, or ▶ to play.</li>`;
   document.querySelectorAll('.cursor').forEach(el => el.style.left = pct(t));
   const cur = document.getElementById('stepcursor');
   if (cur) { const st = cp.step ?? (k > 0 ? S.per_step.length - 1 : 0); cur.setAttribute('x', STEPX(st)); }
@@ -287,7 +287,7 @@ function render() {
 let STEPX = () => 0;
 function stepChart() {
   const rows = S.per_step, W = 1000, H = 190, L = 46, R = 46, B = 26, Tp = 8, n = rows.length;
-  if (!n) { $('stepchart').innerHTML = '<p style="color:var(--mute)">没有完成的 step。</p>'; return; }
+  if (!n) { $('stepchart').innerHTML = '<p style="color:var(--mute)">No completed steps.</p>'; return; }
   const bw = (W - L - R) / n, maxMs = Math.max(...rows.map(r => r.token_ms)) * 1.08, y = v => Tp + (H - Tp - B) * (1 - v / maxMs);
   const yr = v => Tp + (H - Tp - B) * (1 - v);
   STEPX = i => L + i * bw;
@@ -302,7 +302,7 @@ function stepChart() {
       g += `<rect x="${x + bw * 0.15}" y="${y(acc + v)}" width="${bw * 0.7}" height="${y(acc) - y(acc + v)}" fill="${col}"><title>step ${r.step} · ${key.replace('_ms', '')} ${ms(v)} ms</title></rect>`;
       acc += v;
     }
-    g += `<rect x="${x}" y="${Tp}" width="${bw}" height="${H - Tp - B}" fill="transparent"><title>step ${r.step}（${PHASE_LABEL[r.phase]}）：${ms(r.token_ms)} ms；计算 ${ms(r.compute_ms)}，等权重 ${ms(r.wait_base_ms)}，等专家 ${ms(r.wait_experts_ms)}，等 KV ${ms(r.wait_kv_ms)}；搬运 ${gb(r.link_total_bytes)}，链路利用率 ${Math.round((r.link_utilization || 0) * 100)}%；专家命中 ${r.expert_hits}/${r.expert_lookups}，本步淘汰 ${r.evicted_experts}，缓存 ${r.cache_experts}/${r.cache_slots}</title></rect>`;
+    g += `<rect x="${x}" y="${Tp}" width="${bw}" height="${H - Tp - B}" fill="transparent"><title>step ${r.step} (${PHASE_LABEL[r.phase]}): ${ms(r.token_ms)} ms. Compute ${ms(r.compute_ms)}, Weight wait ${ms(r.wait_base_ms)}, Wait for experts ${ms(r.wait_experts_ms)}, KV wait ${ms(r.wait_kv_ms)}. Transferred ${gb(r.link_total_bytes)}, Link utilization ${Math.round((r.link_utilization || 0) * 100)}%. Expert hits ${r.expert_hits}/${r.expert_lookups}, Evictions this step ${r.evicted_experts}, Cache ${r.cache_experts}/${r.cache_slots}</title></rect>`;
     if (n <= 40) g += `<text x="${x + bw / 2}" y="${H - 10}" font-size="11" text-anchor="middle" fill="#6b7280">${r.step}</text>`;
   });
   const line = (key, col, f) => `<polyline fill="none" stroke="${col}" stroke-width="2" points="${rows.map((r, i) => `${L + (i + 0.5) * bw},${yr(f(r))}`).join(' ')}"/>`;
@@ -311,23 +311,23 @@ function stepChart() {
   if (st.reached) g += `<rect x="${L + (st.from_step - 1) * bw}" y="${Tp}" width="${(n - st.from_step + 1) * bw}" height="${H - Tp - B}" fill="none" stroke="#10b981" stroke-width="2.5"/>`;
   for (let v = 0; v <= 1; v += 0.5) g += `<text x="${W - R + 4}" y="${yr(v) + 4}" font-size="11" fill="#6b7280">${v * 100}%</text>`;
   for (const v of [0, maxMs / 2, maxMs / 1.08]) g += `<text x="${L - 4}" y="${y(v) + 4}" font-size="11" text-anchor="end" fill="#6b7280">${ms(v)}</text>`;
-  g += `<text x="${L}" y="${H - 1}" font-size="11" fill="#6b7280">decode step（ms/token，左轴）</text>`;
+  g += `<text x="${L}" y="${H - 1}" font-size="11" fill="#6b7280">Decode step (ms/token, left axis)</text>`;
   g += `<rect id="stepcursor" x="${L}" y="${Tp}" width="${bw}" height="${H - Tp - B}" fill="none" stroke="#e11d48" stroke-width="1.5"/>`;
   $('stepchart').innerHTML = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${g}</svg>`;
   const phases = {}; rows.forEach(r => phases[r.phase] = (phases[r.phase] || []).concat(r.step));
-  const spans = Object.entries(phases).map(([ph, s]) => `${PHASE_LABEL[ph]} step ${s[0]}${s.length > 1 ? '–' + s[s.length - 1] : ''}`).join('，');
-  $('stephead').textContent = `逐 step 概览（${n} 个 decode step）：${spans}。` + (st.reached ? `判定稳态：自 step ${st.from_step}，${ms(st.token_ms)} ms/token，专家命中 ${Math.round(st.expert_hit_rate * 100)}%。`
-    : `未判定稳态（${st.reason}），不报告稳态值。`);
+  const spans = Object.entries(phases).map(([ph, s]) => `${PHASE_LABEL[ph]} step ${s[0]}${s.length > 1 ? '–' + s[s.length - 1] : ''}`).join(', ');
+  $('stephead').textContent = `Decode steps (${n}): ${spans}. ` + (st.reached ? `Steady state from step ${st.from_step}, ${ms(st.token_ms)} ms/token, expert hit rate ${Math.round(st.expert_hit_rate * 100)}%. `
+    : `Steady state not reached (${st.reason}).`);
 }
 
 function sweepTable() {
   const rows = DATA.sweep;
-  if (!rows.length) { $('sweep').innerHTML = '<tr><td>无</td></tr>'; return; }
+  if (!rows.length) { $('sweep').innerHTML = '<tr><td>No runs</td></tr>'; return; }
   const f = (v, d = 2) => v == null ? '—' : v.toFixed(d), pc = v => v == null ? '—' : Math.round(v * 100) + '%';
-  $('sweep').innerHTML = '<tr><th>运行</th><th>计算基线</th><th>可行</th><th>冷启动 ms</th><th>稳态 / 统计窗口</th><th>窗口均值 ms/token</th><th>计算</th><th>等权重</th><th>等专家</th><th>等 KV</th><th>搬运 GB/token</th><th>字节/带宽 ms</th><th>链路利用</th><th>专家命中</th><th>累计淘汰</th></tr>'
-    + rows.map(r => r.error ? `<tr class="bad"><td>${r.title}</td><td>${r.basis}</td><td colspan="13" style="text-align:left">不可行：${r.error}</td></tr>`
-      : `<tr${r.feasible ? '' : ' title="单卡二级容量不可行，反事实运行"'}><td>${r.title}</td><td>${r.basis === 'exi_sol' ? 'EXI-SOL' : 'B200（混合）'}</td><td>${r.hardware_preset === 'legacy_64gbps' ? '旧假设·虚构容量' : r.feasible ? '是' : '否·反事实'}</td><td>${f(r.cold_ms)}</td>
-        <td>${r.steady.reached ? '自 step ' + r.steady.from_step : `未达到（step ${r.tail_from}–${r.steps}，波动 ${pc(r.tail_spread)}）`}</td><td><b>${f(r.tail_token_ms)}</b></td><td>${f(r.tail_compute_ms)}</td><td>${f(r.tail_wait_base_ms)}</td>
+  $('sweep').innerHTML = '<tr><th>Run</th><th>Compute baseline</th><th>Feasible</th><th>Cold start (ms)</th><th>Steady state / sample window</th><th>Window mean (ms/token)</th><th>Compute</th><th>Weight wait</th><th>Wait for experts</th><th>KV wait</th><th>Transferred (GB/token)</th><th>Bytes / bandwidth (ms)</th><th>Link utilization</th><th>Expert hits</th><th>Total evictions</th></tr>'
+    + rows.map(r => r.error ? `<tr class="bad"><td>${r.title}</td><td>${r.basis}</td><td colspan="13" style="text-align:left">Infeasible: ${r.error}</td></tr>`
+      : `<tr${r.feasible ? '' : ' title="Counterfactual run: tier 2 capacity exceeded on one card"'}><td>${r.title}</td><td>${r.basis === 'exi_sol' ? 'EXI-SOL' : 'B200 (hybrid)'}</td><td>${r.hardware_preset === 'legacy_64gbps' ? 'Legacy, fictitious capacity' : r.feasible ? 'Yes' : 'No, counterfactual'}</td><td>${f(r.cold_ms)}</td>
+        <td>${r.steady.reached ? 'from step ' + r.steady.from_step : `Not reached (steps ${r.tail_from}–${r.steps}, variation ${pc(r.tail_spread)})`}</td><td><b>${f(r.tail_token_ms)}</b></td><td>${f(r.tail_compute_ms)}</td><td>${f(r.tail_wait_base_ms)}</td>
         <td>${f(r.tail_wait_experts_ms)}</td><td>${f(r.tail_wait_kv_ms, 3)}</td><td>${f(r.tail_bytes / 1e9)}</td><td>${f(r.tail_bytes_over_bw_ms)}</td><td>${pc(r.tail_link_util)}</td><td>${pc(r.tail_expert_hit_rate)}</td><td>${r.evicted_experts}</td></tr>`).join('');
 }
 
@@ -339,29 +339,29 @@ function loadScenario(i) {
   LS = []; let cur = Array.from({ length: n }, () => [0, 0, c.base_weights === 'resident' ? 2 : 0]);
   for (const s of S.snapshots) { const ks = Object.keys(s.layers); if (ks.length) { cur = cur.slice(); for (const L of ks) cur[+L] = s.layers[L]; } LS.push(cur); }
   maxE = Math.max(1, ...LS.map(a => Math.max(...a.map(x => x[0])))); maxK = Math.max(1, ...LS.map(a => Math.max(...a.map(x => x[1]))));
-  const hwChips = HW.map(([key, name, u]) => `<span class="chip ${srcClass(hw.sources[key])}" title="来源：${hw.sources[key]}；写作 ${hw.written[key]}">${name} ${unit(hw[key], u)}</span>`).join('')
-    + `<span class="chip ${srcClass(hw.sources.copy_efficiency)}" title="二级标称带宽 × 复制效率">有效复制带宽 ${unit(hw.copy_bandwidth, 'B/s')}</span>`;
-  const legend = '<span class="chip-note">颜色＝来源：<span class="chip s-table">架构表 / AISim 规格</span> <span class="chip s-ask">Ask</span> <span class="chip s-design">设计文档</span> <span class="chip s-assume">假设</span> <span class="chip s-legacy">旧假设</span> <span class="chip s-override">场景覆盖</span></span>';
-  const src = [`AISim：${S.aisim.model}`, `${S.aisim.hardware} · ${S.aisim.backend} · ${S.aisim.database_mode}`, `专家量化 ${(p.source.moe_quant_mode || '').replace('MoEQuantMode.', '')}`,
-    `上下文 ${S.request.input_tokens.toLocaleString()} token`, `${n} 层（CSA ${p.layers.csa} / HCA ${p.layers.hca}）`,
-    `每层 attention ${ms(p.layers.first.attention_ms)} + MoE ${ms(p.layers.first.moe_ms)} ms`, `AISim 原生 ITL ${ms(m.native_token_ms)} ms`].map(x => `<span class="chip src">${x}</span>`).join('');
-  const policy = `<span class="policy">${POLICY[c.base_weights]}</span> <span class="policy">${POLICY[c.expert_cache]}</span> <span class="policy">专家预取 ${c.expert_prefetch === 'last_step' ? '按上一步路由' : '关闭'}</span> <span class="policy">热 top-k KV ${c.hot_kv_entries ? '≤ ' + c.hot_kv_entries.toLocaleString() + ' 条' : '关闭'}</span> <span class="policy">专家重合度 ${c.expert_overlap} · top-k 重合度 ${c.topk_overlap}（合成）</span> <span class="policy">链路 ${c.link_policy === 'fifo' ? 'FIFO' : '按需优先'}</span>`;
-  const banners = (S.compute_basis.consistent ? `<div class="banner ok">计算基线：${S.basis}。${S.compute_basis.label}</div>` : `<div class="banner hybrid">${S.compute_basis.label}</div>`)
-    + S.infeasible.map(r => `<div class="banner bad">不可行：${r}。以下时延是反事实对照，不是该硬件能运行的结果。</div>`).join('')
-    + (S.error ? `<div class="banner bad">运行中止：${S.error}</div>` : '');
-  const rate = (h, l) => l ? `${h}/${l}（${Math.round(h / l * 100)}%）` : '—';
+  const hwChips = HW.map(([key, name, u]) => `<span class="chip ${srcClass(hw.sources[key])}" title="Source: ${hw.sources[key]}. Configured as ${hw.written[key]}">${name} ${unit(hw[key], u)}</span>`).join('')
+    + `<span class="chip ${srcClass(hw.sources.copy_efficiency)}" title="Nominal tier 2 bandwidth × copy efficiency">Effective copy bandwidth ${unit(hw.copy_bandwidth, 'B/s')}</span>`;
+  const legend = '<span class="chip-note">Color by source: <span class="chip s-table">Architecture table / AISim spec</span> <span class="chip s-ask">Ask</span> <span class="chip s-design">Design study</span> <span class="chip s-assume">Assumption</span> <span class="chip s-legacy">Legacy assumption</span> <span class="chip s-override">Scenario override</span></span>';
+  const src = [`AISim: ${S.aisim.model}`, `${S.aisim.hardware} · ${S.aisim.backend} · ${S.aisim.database_mode}`, `Expert quantization ${(p.source.moe_quant_mode || '').replace('MoEQuantMode.', '')}`,
+    `Context: ${S.request.input_tokens.toLocaleString()} tokens`, `${n} layers (CSA ${p.layers.csa} / HCA ${p.layers.hca})`,
+    `Per-layer attention ${ms(p.layers.first.attention_ms)} + MoE ${ms(p.layers.first.moe_ms)} ms`, `Native AISim ITL ${ms(m.native_token_ms)} ms`].map(x => `<span class="chip src">${x}</span>`).join('');
+  const policy = `<span class="policy">${POLICY[c.base_weights]}</span> <span class="policy">${POLICY[c.expert_cache]}</span> <span class="policy">Expert prefetch ${c.expert_prefetch === 'last_step' ? 'previous-step routing' : 'off'}</span> <span class="policy">Hot top-k KV ${c.hot_kv_entries ? '≤ ' + c.hot_kv_entries.toLocaleString() + ' entries' : 'off'}</span> <span class="policy">Expert overlap ${c.expert_overlap} · top-k overlap ${c.topk_overlap} (synthetic)</span> <span class="policy">Link policy: ${c.link_policy === 'fifo' ? 'FIFO' : 'demand first'}</span>`;
+  const banners = (S.compute_basis.consistent ? `<div class="banner ok">Compute baseline: ${S.basis}. ${S.compute_basis.label}</div>` : `<div class="banner hybrid">${S.compute_basis.label}</div>`)
+    + S.infeasible.map(r => `<div class="banner bad">Infeasible: ${r}. The latency below comes from a counterfactual simulation. This workload exceeds hardware capacity.</div>`).join('')
+    + (S.error ? `<div class="banner bad">Run stopped: ${S.error}</div>` : '');
+  const rate = (h, l) => l ? `${h}/${l} (${Math.round(h / l * 100)}%)` : '—';
   const st = m.steady;
   const metrics = m.token_ms.length ? [
-    `冷启动 ${ms(m.token_ms[0])} ms`, st.reached ? `稳态 ${ms(st.token_ms)} ms/token（自 step ${st.from_step}）` : `未达到稳态（${st.reason}）`,
-    `计算合计 ${ms(m.compute_ms)} ms`, `等权重 ${ms(m.wait_base_ms)}`, `等专家 ${ms(m.wait_experts_ms)}`, `等 KV ${ms(m.wait_kv_ms)} ms`,
-    `专家命中 ${rate(m.expert_hits, m.expert_lookups)}`, `KV 命中 ${rate(m.kv_hits, m.kv_lookups)}`,
-    `${c.expert_cache === 'per_layer' ? '逐层释放 ' + m.released_experts : '累计淘汰 ' + m.evicted_experts} 个专家`, `缓存 ${m.expert_cache_slots} 个（${gb(m.expert_cache_bytes)}）`,
-    `一级峰值 ${gb(m.peak_tier1_bytes)}`, `搬运 ${gb(m.link_total_bytes)}`, `链路利用率 ${Math.round((m.link_utilization || 0) * 100)}%`,
-    `复制与计算争用上界 ${ms(m.tier1_contention_bound_ms)} ms（未计入）`].map(x => `<span class="chip metric">${x}</span>`).join('') : '';
+    `Cold start ${ms(m.token_ms[0])} ms`, st.reached ? `Steady state ${ms(st.token_ms)} ms/token (from step ${st.from_step})` : `Steady state not reached (${st.reason})`,
+    `Total compute ${ms(m.compute_ms)} ms`, `Weight wait ${ms(m.wait_base_ms)}`, `Wait for experts ${ms(m.wait_experts_ms)}`, `KV wait ${ms(m.wait_kv_ms)} ms`,
+    `Expert hits ${rate(m.expert_hits, m.expert_lookups)}`, `KV hits ${rate(m.kv_hits, m.kv_lookups)}`,
+    `${c.expert_cache === 'per_layer' ? 'Released after layers ' + m.released_experts : 'Total evictions ' + m.evicted_experts} experts`, `Cache: ${m.expert_cache_slots} slots (${gb(m.expert_cache_bytes)})`,
+    `Peak tier 1 usage ${gb(m.peak_tier1_bytes)}`, `Transferred ${gb(m.link_total_bytes)}`, `Link utilization ${Math.round((m.link_utilization || 0) * 100)}%`,
+    `Copy/compute contention upper bound ${ms(m.tier1_contention_bound_ms)} ms (excluded from timing)`].map(x => `<span class="chip metric">${x}</span>`).join('') : '';
   $('scn').innerHTML = `<b>${S.title}</b>${S.summary}${banners}<div class="chips">${hwChips}${legend}</div><div class="chips">${policy}</div><div class="chips">${src}</div><div class="chips">${metrics}</div>`;
   const seg = (s, cls, title) => `<div class="seg ${cls}" style="left:${pct(s.t0)};width:${Math.max((s.t1 - s.t0) / T * 100, 0.02)}%" title="${title}"></div>`;
   let native = '';
-  for (let k = 0; k < S.request.retimed_steps; k++) native += seg({ t0: k * m.native_token_ms, t1: (k + 1) * m.native_token_ms - m.native_token_ms * 0.04 }, 'p-native', `AISim 原生 step ${k + 1} · ${ms(m.native_token_ms)} ms`);
+  for (let k = 0; k < S.request.retimed_steps; k++) native += seg({ t0: k * m.native_token_ms, t1: (k + 1) * m.native_token_ms - m.native_token_ms * 0.04 }, 'p-native', `Native AISim step ${k + 1} · ${ms(m.native_token_ms)} ms`);
   $('g-native').innerHTML = native + '<div class="cursor"></div>';
   $('g-compute').innerHTML = S.compute_segments.map(s => seg(s, 'p-' + s.phase, `step ${s.step + 1}${s.layer == null ? '' : ' · L' + s.layer} · ${PHASE[s.phase]} · ${ms(s.t0)}→${ms(s.t1)} ms`)).join('') + '<div class="cursor"></div>';
   $('g-link').innerHTML = S.link_segments.map(s => seg(s, 'k-' + s.kind, `${s.label} · ${ms(s.t0)}→${ms(s.t1)} ms`)).join('') + '<div class="cursor"></div>';
@@ -395,13 +395,13 @@ function tick(now) {
   if (!playing) return;
   const dt = (now - last) / 1000; last = now;
   let v = +$('slider').value + dt * speed * 1000 / 90;  // a full run takes 90 s at 1×
-  if (v >= 1000) { v = 1000; playing = false; $('play').textContent = '▶ 播放'; }
+  if (v >= 1000) { v = 1000; playing = false; $('play').textContent = '▶ Play'; }
   exactT = null; $('slider').value = v; render();
   if (playing) requestAnimationFrame(tick);
 }
 function postHeight() { if (window.parent !== window) window.parent.postMessage({ kvReplayHeight: document.documentElement.scrollHeight }, '*'); }
 new ResizeObserver(postHeight).observe(document.body);
-$('play').onclick = () => { playing = !playing; $('play').textContent = playing ? '⏸ 暂停' : '▶ 播放'; if (playing) { if (+$('slider').value >= 1000) { $('slider').value = 0; exactT = null; } last = performance.now(); requestAnimationFrame(tick); } };
+$('play').onclick = () => { playing = !playing; $('play').textContent = playing ? '⏸ Pause' : '▶ Play'; if (playing) { if (+$('slider').value >= 1000) { $('slider').value = 0; exactT = null; } last = performance.now(); requestAnimationFrame(tick); } };
 $('prev').onclick = () => step(-1); $('next').onclick = () => step(1); $('nextlayer').onclick = nextLayer; $('nextstep').onclick = nextStep;
 $('slider').oninput = () => { exactT = null; render(); }; $('speed').onchange = e => speed = +e.target.value;
 document.addEventListener('keydown', e => { if (e.key === 'ArrowRight') step(1); else if (e.key === 'ArrowLeft') step(-1); else if (e.key === ' ') { e.preventDefault(); $('play').click(); } });

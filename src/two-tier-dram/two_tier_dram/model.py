@@ -119,19 +119,19 @@ class TwoTierSim:
         p, cfg = self.p, self.cfg
         full = p.full_weights_bytes + p.full_kv_bytes
         if full > self.hw.tier2_capacity:
-            reason = (f"二级 DRAM 放不下完整权重与 KV：需要 {full / GB:.1f} GB，二级只有 {self.hw.tier2_capacity / GB:.1f} GB；"
-                      "单卡不可行（未实现多卡分片）")
+            reason = (f"Tier 2 DRAM cannot hold the full weights and KV cache. They require {full / GB:.1f} GB, but tier 2 has {self.hw.tier2_capacity / GB:.1f} GB. "
+                      "The model is infeasible on a single device. Multi-device sharding is unimplemented.")
             if cfg.tier2_capacity_check == "enforce":
                 raise CapacityError(reason)
             self.infeasible.append(reason)
-            self._event("infeasible", reason + "。按 tier2_capacity_check=counterfactual 继续运行，结果只作反事实对照")
+            self._event("infeasible", reason + " Continuing with tier2_capacity_check=counterfactual for comparison only.")
         need = p.experts_per_token * p.expert_bytes
         if self.expert_cap < need:
-            how = "全部常驻" if self.resident_base else "当前层 + 预取的下一层"
+            how = "all layers resident" if self.resident_base else "current layer and prefetched next layer"
             raise CapacityError(
-                f"一级 DRAM（{self.hw.tier1_capacity / GB:g} GB）放不下一层的路由专家：scratch 与全局权重 {self.fixed_bytes / GB:.1f} GB、"
-                f"常驻 KV {self.static_bytes / GB:.2f} GB、非专家权重（{how}）{self.base_reserved / GB:.1f} GB 之后，"
-                f"专家缓存只剩 {max(self.expert_left, 0) / GB:.2f} GB，一层需要 {need / GB:.2f} GB")
+                f"Tier 1 DRAM ({self.hw.tier1_capacity / GB:g} GB) cannot hold one layer's routed experts. Scratch and global weights use {self.fixed_bytes / GB:.1f} GB, "
+                f"resident KV uses {self.static_bytes / GB:.2f} GB, and non-expert weights ({how}) reserve {self.base_reserved / GB:.1f} GB. "
+                f"The expert cache has {max(self.expert_left, 0) / GB:.2f} GB left and one layer needs {need / GB:.2f} GB.")
 
     # ---- tier-1 ledger -------------------------------------------------
     def tier1(self) -> dict:
@@ -145,7 +145,7 @@ class TwoTierSim:
     def _check_tier1(self, what: str) -> None:
         used = sum(self.tier1().values())
         if used > self.hw.tier1_capacity + 1:
-            raise CapacityError(f"一级 DRAM 容量不足：{what} 后需要 {used / GB:.2f} GB，只有 {self.hw.tier1_capacity / GB:g} GB")
+            raise CapacityError(f"Tier 1 DRAM capacity exceeded after {what}. Required {used / GB:.2f} GB, available {self.hw.tier1_capacity / GB:g} GB.")
         self.peak_tier1 = max(self.peak_tier1, used)
 
     def _evict_experts_for(self, incoming: int) -> None:
@@ -158,7 +158,7 @@ class TwoTierSim:
         while len(self.experts) + incoming > self.expert_slots:
             victim = next((k for k, e in self.experts.items() if e["state"] == "resident" and not e["pinned"]), None)
             if victim is None:
-                raise CapacityError(f"专家缓存放不下：需要再放 {incoming} 个专家，缓存上限 {self.expert_cap / GB:.2f} GB，没有可淘汰的专家")
+                raise CapacityError(f"The {self.expert_cap / GB:.2f} GB expert cache needs room for {incoming} more experts and has no eviction candidates.")
             del self.experts[victim]
             self.expert_count[victim[0]] -= 1
             self._touched.add(victim[0])
@@ -197,7 +197,7 @@ class TwoTierSim:
         if best is self.active:
             return
         if self.active and not self.active["done"]:
-            self._event("link_preempt", f"链路让路：{self.active['label']} 暂停，让给 {best['label']}")
+            self._event("link_preempt", f"Link paused {self.active['label']} for {best['label']}")
         self._close_link_segment()
         self.active = best
         if best:
@@ -239,7 +239,7 @@ class TwoTierSim:
         eff = job["effect"]
         if "bundle" in eff:
             self.bundles[eff["bundle"]]["state"] = "resident"
-            self._event("base_arrive", f"第 {eff['bundle']} 层的非专家权重到达一级")
+            self._event("base_arrive", f"Non-expert weights for layer {eff['bundle']} arrived in tier 1")
         elif "kv" in eff:
             layer, entries = eff["kv"]
             self.kv_loading -= len(entries)
@@ -247,19 +247,19 @@ class TwoTierSim:
                 self.kv[(layer, entry)] = True
             self.kv_count[layer] += len(entries)
             self._touched.add(layer)
-            self._event("kv_arrive", f"第 {layer} 层缺失的 {len(entries)} 条 top-k KV 到达一级")
+            self._event("kv_arrive", f"The {len(entries)} missing top-k KV entries for layer {layer} arrived in tier 1")
         elif "experts" in eff:
             layer, ids = eff["experts"]
             for i in ids:
                 if (layer, i) in self.experts:
                     self.experts[(layer, i)]["state"] = "resident"
             self._touched.add(layer)
-            verb = "预取的" if job["cls"] == "prefetch" else "缺失的"
-            self._event("experts_arrive", f"第 {layer} 层{verb} {len(ids)} 个专家到达一级：" + ", ".join(f"e{i}" for i in ids))
+            verb = "prefetched" if job["cls"] == "prefetch" else "missing"
+            self._event("experts_arrive", f"Layer {layer}: {len(ids)} {verb} experts arrived in tier 1: " + ", ".join(f"e{i}" for i in ids))
         elif "writeback" in eff:
             self.dirty_bytes -= eff["writeback"]
             self.synced_tokens += 1
-            self._event("writeback_done", "新 token 的 KV 写回二级完成")
+            self._event("writeback_done", "KV writeback for the new token completed in tier 2")
         self._close_link_segment()
         self.active = None
         self._pick()
@@ -279,10 +279,10 @@ class TwoTierSim:
     def _fetch_bundle(self, layer: int, cls: str, role: str) -> dict:
         l = self.p.layers[layer]
         self.bundles[layer] = {"state": "loading", "role": role, "job": None}
-        self._check_tier1(f"为第 {layer} 层的非专家权重预留空间")
+        self._check_tier1(f"reserving space for layer {layer} non-expert weights")
         kind = "prefetch_base" if cls == "prefetch" else "demand_base"
-        verb = "预取" if cls == "prefetch" else "按需取"
-        job = self._enqueue(cls, kind, l.base_bytes + l.indexer_bytes, f"{verb} L{layer} 非专家权重", {"bundle": layer})
+        verb = "Prefetch" if cls == "prefetch" else "Fetch on demand:"
+        job = self._enqueue(cls, kind, l.base_bytes + l.indexer_bytes, f"{verb} L{layer} non-expert weights", {"bundle": layer})
         self.bundles[layer]["job"] = job["id"]
         self._touched.add(layer)
         return job
@@ -293,15 +293,15 @@ class TwoTierSim:
             return
         self._evict_experts_for(len(predicted))
         job = self._enqueue("prefetch", "prefetch_expert", len(predicted) * self.p.expert_bytes,
-                            f"预取 L{layer} 专家 ×{len(predicted)}", {"experts": (layer, predicted)})
+                            f"Prefetch {len(predicted)} experts for L{layer}", {"experts": (layer, predicted)})
         for i in predicted:
             self.experts[(layer, i)] = {"state": "loading", "pinned": False, "job": job["id"], "prefetched": True}
         self.expert_count[layer] += len(predicted)
         self.m["expert_prefetched"] += len(predicted)
         self._touched.add(layer)
-        self._check_tier1("为预取的专家预留空间")
+        self._check_tier1("reserving space for prefetched experts")
         self._touched.add(layer)
-        self._event("expert_prefetch", f"按上一步的路由预取第 {layer} 层的 {len(predicted)} 个专家")
+        self._event("expert_prefetch", f"Prefetching {len(predicted)} experts for layer {layer} using the previous step's routing")
 
     def _process(self, steps: int):
         p, cfg = self.p, self.cfg
@@ -317,13 +317,13 @@ class TwoTierSim:
                     bundle = self.bundles.get(layer)
                     if bundle is None:
                         job = self._fetch_bundle(layer, "demand", "current")
-                        self._event("base_miss", f"第 {layer} 层的非专家权重不在一级，按需取入，计算等待")
+                        self._event("base_miss", f"Compute waits for an on-demand fetch of layer {layer} non-expert weights")
                         yield ("wait", [job["id"]], "wait_base")
                     elif bundle["state"] == "loading":
                         job = self.jobs[bundle["job"]]
                         job["urgent"] = True
                         self.m["base_late"] += 1
-                        self._event("base_late", f"第 {layer} 层的权重预取没有按时完成，计算等待")
+                        self._event("base_late", f"Compute waits for the late layer {layer} weight prefetch")
                         self._pick()
                         yield ("wait", [job["id"]], "wait_base")
                     if self.bundles[layer]["state"] != "resident":
@@ -350,13 +350,13 @@ class TwoTierSim:
                     self.m["kv_lookups"] += len(picks)
                     self.m["kv_hits"] += hits
                     self.detail["kv"] = {"topk": len(picks), "hits": hits, "missing": len(missing), "job": None}
-                    self._event("topk", f"indexer 选出 top-k {len(picks)} 条：命中 {hits}，缺失 {len(missing)}")
+                    self._event("topk", f"Indexer selected {len(picks)} top-k entries ({hits} hits, {len(missing)} missing)")
                     if missing:
                         self._evict_kv_for(len(missing))
                         self.kv_loading += len(missing)
-                        self._check_tier1("为缺失的 top-k KV 预留空间")
+                        self._check_tier1("reserving space for missing top-k KV entries")
                         job = self._enqueue("demand", "demand_kv", len(missing) * p.kv_entry_bytes,
-                                            f"按需取 L{layer} top-k KV ×{len(missing)}", {"kv": (layer, missing)})
+                                            f"Fetch {len(missing)} top-k KV entries for L{layer} on demand", {"kv": (layer, missing)})
                         self.detail["kv"]["job"] = job["id"]
                         self._touched.add(layer)
                         yield ("wait", [job["id"]], "wait_kv")
@@ -391,16 +391,16 @@ class TwoTierSim:
                 if missing:
                     self._evict_experts_for(len(missing))
                     job = self._enqueue("demand", "demand_expert", len(missing) * p.expert_bytes,
-                                        f"按需取 L{layer} 专家 ×{len(missing)}", {"experts": (layer, missing)})
+                                        f"Fetch {len(missing)} experts for L{layer} on demand", {"experts": (layer, missing)})
                     for i in missing:
                         self.experts[(layer, i)] = {"state": "loading", "pinned": True, "job": job["id"]}
                     self.expert_count[layer] += len(missing)
                     waits.append(job["id"])
-                    self._check_tier1("为缺失的专家预留空间")
+                    self._check_tier1("reserving space for missing experts")
                 self._touched.add(layer)
                 self.detail["experts"] = [{"id": i, "was": "miss" if i in missing else "hit"} for i in routed]
-                self._event("route", f"router 选出专家 {', '.join(f'e{i}' for i in routed)}：命中 {hits}，"
-                                     f"缺失 {len(missing)}" + (f"，预取未到 {late}" if late else ""))
+                self._event("route", f"Router selected {', '.join(f'e{i}' for i in routed)}: {hits} hits, "
+                                     f"{len(missing)} missing" + (f", {late} late prefetches" if late else ""))
                 if waits:
                     self._pick()
                     yield ("wait", waits, "wait_experts")
@@ -426,8 +426,8 @@ class TwoTierSim:
                     del self.bundles[layer]
             yield ("delay", p.tail_ms, "tail")
             self.dirty_bytes += p.new_token_kv_bytes
-            self._check_tier1("写入新 token 的 KV")
-            self._enqueue("writeback", "writeback", p.new_token_kv_bytes, f"写回 step {step + 1} 新 token 的 KV",
+            self._check_tier1("writing KV for the new token")
+            self._enqueue("writeback", "writeback", p.new_token_kv_bytes, f"Write back KV for the new token at step {step + 1}",
                           {"writeback": p.new_token_kv_bytes})
             self.token_ms.append(self.now - step_start)
             self.step_marks.append({
@@ -437,8 +437,8 @@ class TwoTierSim:
                 "cache_experts": len(self.experts), "link_bytes": dict(self.m["link_bytes"]),
                 "link_busy_ms": self.link_busy_ms, "tier1_bytes": sum(self.tier1().values())})
             self.compute["layer"] = None
-            self._event("token", f"第 {step + 1} 个 decode step 完成：{self.now - step_start:.3f} ms"
-                                 f"（AISim 原生 {p.native_step_ms:.3f} ms）")
+            self._event("token", f"Decode step {step + 1} completed in {self.now - step_start:.3f} ms"
+                                 f" (native AISim time {p.native_step_ms:.3f} ms)")
         self.compute.update(step=None, layer=None, phase="idle")
         self.detail = {}
 
@@ -592,12 +592,12 @@ class TwoTierSim:
         """Steady state is claimed only if the last `window` steps vary by at most `tolerance` and none is cold or filling."""
         tail = per_step[-window:]
         if len(per_step) < window + 1 or any(r["phase"] in ("cold", "filling") for r in tail):
-            return {"reached": False, "reason": f"不足 {window} 个已过填充阶段的 step", "window": window}
+            return {"reached": False, "reason": f"Fewer than {window} steps after the cache filling phase", "window": window}
         times = [r["token_ms"] for r in tail]
         mean = sum(times) / len(times)
         spread = (max(times) - min(times)) / mean if mean else 0.0
         if spread > tolerance:
-            return {"reached": False, "reason": f"最后 {window} 个 step 的波动 {spread:.1%} 超过 {tolerance:.0%}", "window": window}
+            return {"reached": False, "reason": f"Variation of {spread:.1%} over the last {window} steps exceeds {tolerance:.0%}", "window": window}
         return {"reached": True, "from_step": tail[0]["step"], "window": window, "spread": round(spread, 6),
                 "token_ms": round(mean, 6),
                 "expert_hit_rate": round(sum(r["expert_hits"] for r in tail) / max(sum(r["expert_lookups"] for r in tail), 1), 6)}
@@ -628,7 +628,7 @@ class TwoTierSim:
         metrics = {
             "token_ms": [round(t, 6) for t in tokens],
             "mean_token_ms": round(sum(tokens) / len(tokens), 6) if tokens else None,
-            "steady": self.steady_state(per_step) if per_step else {"reached": False, "reason": "没有完成的 step"},
+            "steady": self.steady_state(per_step) if per_step else {"reached": False, "reason": "No completed steps"},
             "native_token_ms": round(p.native_step_ms, 6),
             "total_ms": round(self.now, 6), "compute_ms": round(compute_ms, 6),
             "wait_base_ms": round(m["wait_base_ms"], 6), "wait_kv_ms": round(m["wait_kv_ms"], 6),

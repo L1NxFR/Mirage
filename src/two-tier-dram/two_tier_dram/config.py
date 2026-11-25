@@ -75,13 +75,13 @@ def parse_seconds(text: Any, what: str = "time") -> float:
 
 
 # ---- hardware ------------------------------------------------------------
-TABLE = "EXI-3DDRAM 架构表"
-TABLE_ASK = "EXI-3DDRAM 架构表（Ask，未确定）"
-DESIGN = "研究记录《初期目标》96 GB 方案"
-ASSUME = "假设"
-LEGACY = "旧假设（无硬件依据，已撤回）"
-AISIM_B200 = "AISim b200_sxm 规格"
-OVERRIDE = "场景覆盖"
+TABLE = "EXI-3DDRAM architecture table"
+TABLE_ASK = "EXI-3DDRAM architecture table (marked Ask, pending confirmation)"
+DESIGN = "Design note (96 GB configuration)"
+ASSUME = "Assumption"
+LEGACY = "Legacy assumption (withdrawn, no supporting hardware specification)"
+AISIM_B200 = "AISim b200_sxm specifications"
+OVERRIDE = "Scenario override"
 
 HARDWARE_FIELDS = {  # field -> parser (None = plain number)
     "tier1_capacity": parse_bytes,
@@ -97,25 +97,25 @@ HARDWARE_FIELDS = {  # field -> parser (None = plain number)
 _EXI = {
     "tier1_capacity": ("36 GB", TABLE),
     "tier1_bandwidth": ("18 TB/s", TABLE),
-    "tier2_capacity": ("128 GB", TABLE + "：默认 128 GB，范围 64–512 GB"),
-    "tier2_bandwidth": ("2.2 TB/s", TABLE + "：LPDDR6 1.1–2.2 TB/s 的上端"),
-    "copy_efficiency": (1.0, ASSUME + "：理想复制，二级标称带宽全部可用"),
-    "transfer_overhead": ("0 s", ASSUME + "：表中未给出，理想为 0"),
-    "interconnect_bandwidth": ("1.6 TB/s", TABLE_ASK + "：UALink 2.0 双向合计；TP1 下未使用"),
-    "scratch": ("4 GB", ASSUME + "：激活与临时空间，表中未给出"),
+    "tier2_capacity": ("128 GB", TABLE + " (128 GB default, 64–512 GB range)"),
+    "tier2_bandwidth": ("2.2 TB/s", TABLE + " (upper end of the 1.1–2.2 TB/s LPDDR6 range)"),
+    "copy_efficiency": (1.0, ASSUME + " (ideal transfers use all nominal tier 2 bandwidth)"),
+    "transfer_overhead": ("0 s", ASSUME + " (ideal value of zero, unspecified in the table)"),
+    "interconnect_bandwidth": ("1.6 TB/s", TABLE_ASK + " (aggregate bidirectional UALink 2.0 bandwidth, unused at TP1)"),
+    "scratch": ("4 GB", ASSUME + " (space for activations and temporaries, unspecified in the table)"),
 }
 
 HARDWARE_PRESETS: dict[str, dict[str, tuple[Any, str]]] = {
     "exi_figure": _EXI,
-    "exi_96gb_explore": {**_EXI, "tier1_capacity": ("96 GB", DESIGN + "；不是 EXI 图示配置")},
+    "exi_96gb_explore": {**_EXI, "tier1_capacity": ("96 GB", DESIGN + ", an alternative to the EXI reference configuration")},
     "legacy_64gbps": {
         "tier1_capacity": ("96 GB", DESIGN),
         "tier1_bandwidth": ("7.7 TB/s", AISIM_B200),
-        "tier2_capacity": ("2048 GB", LEGACY + "：为装下 1579 GB 模型而虚构"),
+        "tier2_capacity": ("2048 GB", LEGACY + " (capacity chosen to hold the 1579 GB model)"),
         "tier2_bandwidth": ("64 GB/s", LEGACY),
         "copy_efficiency": (1.0, LEGACY),
         "transfer_overhead": ("10 us", LEGACY),
-        "interconnect_bandwidth": ("900 GB/s", AISIM_B200 + "：单向；TP1 下未使用"),
+        "interconnect_bandwidth": ("900 GB/s", AISIM_B200 + " (one-way bandwidth, unused at TP1)"),
         "scratch": ("4 GB", ASSUME),
     },
 }

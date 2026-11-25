@@ -90,9 +90,9 @@ def load(entry: dict) -> dict:
         if best:
             e, n = best
             if r["seq"] == e["seq"] and r["input"] == e["input"]:
-                r["relation"] = {"of": e["label"], "kind": "repeat", "text": f"重发 {e['label']}", "shared_blocks": n}
+                r["relation"] = {"of": e["label"], "kind": "repeat", "text": f"Repeat of {e['label']}", "shared_blocks": n}
             else:
-                r["relation"] = {"of": e["label"], "kind": "next_turn", "text": f"{e['label']} 的下一轮", "shared_blocks": n}
+                r["relation"] = {"of": e["label"], "kind": "next_turn", "text": f"Next turn after {e['label']}", "shared_blocks": n}
     by_uuid = {r["uuid"]: r for r in requests}
     by_label = {r["label"]: r for r in requests}
     pass_end = {r["first_token"]: r for r in requests if r["first_token"] is not None and r["admit"] < r["first_token"]}
@@ -113,14 +113,14 @@ def load(entry: dict) -> dict:
             continue
         if kind == "stored":
             stored_seen.add(t)
-            A.append((t, 10, "g1_seal", {"hashes": hs}, "G1 完整 block 落定，可被前缀命中"))
+            A.append((t, 10, "g1_seal", {"hashes": hs}, "Full G1 blocks are sealed and available for prefix hits."))
             continue
         r = pass_end.get(t)
         if r is not None and t not in stored_seen:
             A.append((r["admit"], 20, "g1_evict", {"hashes": hs},
-                      f"G1 LRU 驱逐，为 {r['label']} 腾空间（vLLM 在 {t:g} ms pass 结束时发布；画在准入时刻）"))
+                      f"G1 evicts LRU blocks to admit {r['label']}. vLLM reports the eviction at pass end ({t:g} ms). The replay shows it at admission."))
         else:
-            A.append((t, 20, "g1_evict", {"hashes": hs}, "G1 LRU 驱逐，为 H2D 目标预留腾空间"))
+            A.append((t, 20, "g1_evict", {"hashes": hs}, "G1 evicts LRU blocks to reserve H2D destinations."))
     for e in art["host_offload_events"]:
         ev, t = e["event"], e["observed_at_ms"]
         rl = by_uuid.get(e["request_id"], {}).get("label", "?")
@@ -130,37 +130,37 @@ def load(entry: dict) -> dict:
         if kind == "store_block_mappings":
             continue
         if kind == "evicted":
-            A.append((t, 21, "g2_evict", {"hashes": hs}, "G2 LRU 驱逐，给新的 store 腾空间"))
+            A.append((t, 21, "g2_evict", {"hashes": hs}, "G2 evicts LRU blocks to make room for a store."))
         elif kind == "store_prepared":
-            A.append((t, 22, "g2_reserve", {"hashes": hs}, f"{rl} 调度时选出完整 prompt block，在 G2 预留为 PendingStore"))
+            A.append((t, 22, "g2_reserve", {"hashes": hs}, f"The scheduler selects full prompt blocks for {rl} and reserves G2 slots in the PendingStore state."))
         elif kind == "capacity_retry":
-            why = "一次 store 的 block 数超过 G2 总容量，结构性放不下，跳过" if ev.get("structurally_unfittable") else "G2 暂时没有空间，稍后重试"
-            A.append((t, 22, "note", {"hashes": hs}, f"{rl} 的 store 失败：{why}（capacity_retry）"))
+            why = "the store exceeds total G2 capacity and is skipped" if ev.get("structurally_unfittable") else "G2 is temporarily full and the store can retry later"
+            A.append((t, 22, "note", {"hashes": hs}, f"Store failed for {rl} (capacity_retry): {why}."))
         elif kind == "store_submitted":
             A.append((t, 12, "d2h_start", {"hashes": hs, "end": ev["completes_at_ms"], "id": ev["transfer_id"]},
-                      f"pass 结束，提交 D2H {len(hs)}×1 MB，{ev['completes_at_ms']:g} ms 完成"))
+                      f"The pass ends and submits a D2H store of {len(hs)} × 1 MB. It completes at {ev['completes_at_ms']:g} ms."))
         elif kind == "store_completed":
-            A.append((t, 13, "g2_resident", {"hashes": hs, "id": ev["transfer_id"]}, "D2H 完成，G2 block 变为 Resident"))
+            A.append((t, 13, "g2_resident", {"hashes": hs, "id": ev["transfer_id"]}, "D2H completes and the G2 blocks become resident."))
         elif kind == "load_queued":
             A.append((t, 23, "h2d_start", {"hashes": hs, "end": ev["completes_at_ms"], "id": ev["transfer_id"], "req": rl},
-                      f"{rl} 在 G2 命中：先在 G1 预留目标 block，再排队 H2D，{ev['completes_at_ms']:g} ms 完成"))
+                      f"{rl} hits in G2, reserves destination blocks in G1, and queues an H2D load that completes at {ev['completes_at_ms']:g} ms."))
         elif kind == "load_completed":
-            A.append((t, 15, "h2d_done", {"hashes": hs, "id": ev["transfer_id"]}, "H2D 完成，预留 block 激活为 G1 命中"))
+            A.append((t, 15, "h2d_done", {"hashes": hs, "id": ev["transfer_id"]}, "H2D completes. The reserved blocks are now available for reuse in G1."))
         else:
             A.append((t, 22, "note", {"hashes": hs}, f"host_offload: {kind}"))
     for r in requests:
-        rel = f"，{r['relation']['text']}，共享前 {r['relation']['shared_blocks']} 个 block" if r["relation"] else ""
-        A.append((r["arrival"], 16, "arrive", {"req": r["label"]}, f"{r['label']} 到达（{r['input']} token{rel}；需要 {r['token_blocks']} 个 G1 block）"))
+        rel = f", {r['relation']['text']}, first {r['relation']['shared_blocks']} blocks shared" if r["relation"] else ""
+        A.append((r["arrival"], 16, "arrive", {"req": r["label"]}, f"{r['label']} arrives with {r['input']} tokens{rel}. It needs {r['token_blocks']} G1 blocks."))
         if r["status"] == "rejected":
             A.append((r["arrival"], 26, "reject", {"req": r["label"]},
-                      f"{r['label']} 被拒绝：需要 {r['token_blocks']} 个 block，G1 总共只有 {cfg['g1_blocks']} 个，永远无法准入"))
+                      f"G1 rejects {r['label']}. Its prompt needs {r['token_blocks']} blocks, exceeding total capacity ({cfg['g1_blocks']})."))
             continue
         A.append((r["admit"], 25, "admit", {"req": r["label"]}, ""))
         if r["compute_start"] > r["admit"]:
             A.append((r["compute_start"], 17, "compute", {"req": r["label"]},
-                      f"{r['label']} 栅栏解除，开始 prefill（准入后等了 {r['compute_start'] - r['admit']:g} ms：复用的 G1 block 仍是 D2H 的源）"))
+                      f"The fence clears for {r['label']} and prefill starts. D2H was reading the reused G1 blocks for {r['compute_start'] - r['admit']:g} ms after admission."))
         A.append((r["first_token"], 11, "finish", {"req": r["label"]},
-                  f"{r['label']} prefill 结束并输出（TTFT {r['ttft']:g} ms），未写满的 block 随请求释放"))
+                  f"{r['label']} finishes prefill and emits its token (TTFT {r['ttft']:g} ms). The request releases any partially filled blocks."))
     A.sort(key=lambda a: (a[0], a[1]))
 
     # ---- slot simulation ----
@@ -168,7 +168,7 @@ def load(entry: dict) -> dict:
     g2: list = [None] * cfg["g2_blocks"]
     transfers: dict[int, dict] = {}
     loaded: dict[str, list[str]] = {}  # request -> hashes restored by H2D
-    phase = {r["label"]: "未到达" for r in requests}
+    phase = {r["label"]: "Not arrived" for r in requests}
 
     def find(slots, key):
         return next((i for i, s in enumerate(slots) if s and s["key"] == key), None)
@@ -229,26 +229,26 @@ def load(entry: dict) -> dict:
                     put(g1, "G1", {"key": f"w:{r['label']}:{k}", "label": f"{r['label']}·b{k}", "owner": r["label"], "index": k,
                                    "tokens": min(bs, r["input"] - k * bs), "state": "writing"}, t)
                 fenced = r["compute_start"] > t
-                phase[r["label"]] = "已准入·栅栏" if fenced else "prefill"
-                parts = [f"复用 {reused_b} 个（G1 {r['g1_reused']} / G2 {r['host_reused']} token）"]
+                phase[r["label"]] = "Admitted, fenced" if fenced else "prefill"
+                parts = [f"reused blocks: {reused_b} (G1: {r['g1_reused']} tokens, G2: {r['host_reused']} tokens)"]
                 if loaded_b > reused_b:
-                    parts.append(f"H2D 载入的第 {loaded_b} 个 block 要整块重算（完全命中时必须重算最后一个 token）")
-                parts.append(f"新分配 {len(new)} 个")
-                note = f"{r['label']} 准入：需要 {r['token_blocks']} 个 block，" + "，".join(parts) + ("；但复用的 block 仍在被 D2H 读取，prefill 被栅栏挡住" if fenced else "；prefill 开始")
+                    parts.append(f"H2D block {loaded_b} requires full recomputation because a full prefix hit must recompute the last token")
+                parts.append(f"new allocations: {len(new)}")
+                note = f"{r['label']} admitted, {r['token_blocks']} blocks needed: " + ", ".join(parts) + (". Prefill waits for D2H to finish reading reused blocks." if fenced else ". Prefill starts.")
             elif op == "compute":
                 phase[p["req"]] = "prefill"
             elif op == "finish":
                 r = by_label[p["req"]]
-                phase[r["label"]] = "完成"
+                phase[r["label"]] = "Complete"
                 for k, s in enumerate(g1):
                     if s and s["owner"] == r["label"] and s["state"] == "writing":
                         g1[k] = None
                     elif s and s["key"] in r["seq"] and s["state"] in ("active", "recompute"):
                         s["state"] = "cached"
             elif op == "arrive":
-                phase[p["req"]] = "排队"
+                phase[p["req"]] = "Queued"
             elif op == "reject":
-                phase[p["req"]] = "被拒绝"
+                phase[p["req"]] = "Rejected"
             elif op == "g2_evict":
                 for h in p["hashes"]:
                     g2[need(g2, h, "G2", t)] = None
@@ -262,7 +262,7 @@ def load(entry: dict) -> dict:
                     g2[need(g2, h, "G2", t)]["state"] = "resident"
                 transfers.pop(p["id"], None)
             elif op == "h2d_start":
-                phase[p["req"]] = "等待 H2D"
+                phase[p["req"]] = "Waiting for H2D"
                 loaded[p["req"]] = p["hashes"]
                 for h in p["hashes"]:
                     g2[need(g2, h, "G2", t)]["state"] = "pinned"

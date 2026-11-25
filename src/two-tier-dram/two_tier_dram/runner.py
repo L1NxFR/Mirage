@@ -44,9 +44,9 @@ def compute_basis(cfg: TwoTierConfig, profile, hardware: str) -> dict:
     """Whether AISim priced compute with the same tier-1 bandwidth the two-tier memory assumes."""
     priced, assumed = profile.compute_bandwidth, cfg.hardware.tier1_bandwidth
     consistent = priced is not None and abs(priced - assumed) <= 0.01 * assumed
-    label = (f"一致：AISim 按 {hardware} 规格（一级读带宽 {priced / 1e12:g} TB/s）定价计算，与两级内存假设相同" if consistent else
-             f"混合实验：计算时间来自 AISim 的 {hardware}（读带宽 {priced / 1e12:g} TB/s），"
-             f"两级内存按 {cfg.hardware.preset}（一级 {assumed / 1e12:g} TB/s）假设；不是该硬件的预测")
+    label = (f"AISim computes latency using {hardware} with {priced / 1e12:g} TB/s of read bandwidth, consistent with the tier 1 assumption." if consistent else
+             f"Hybrid experiment combining AISim compute latency for {hardware} ({priced / 1e12:g} TB/s read bandwidth) "
+             f"with the {cfg.hardware.preset} memory configuration ({assumed / 1e12:g} TB/s at tier 1).")
     return {"consistent": consistent, "aisim_hardware": hardware, "priced_bandwidth": priced,
             "assumed_tier1_bandwidth": assumed, "label": label}
 

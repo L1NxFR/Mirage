@@ -36,7 +36,7 @@ COMPUTE = {
                 "systems_paths": [str(HERE / "systems"), "default"]},
     "b200": {"hardware": "b200_sxm"},
 }
-BASIS_LABEL = {"exi_sol": "EXI-SOL（AISim 解析 roofline，未校准）", "b200": "B200 计算基线 + 假设两级内存（混合实验）"}
+BASIS_LABEL = {"exi_sol": "EXI-SOL (uncalibrated AISim analytical roofline)", "b200": "B200 compute baseline with an assumed two-tier memory system (hybrid experiment)"}
 
 # Policies per tier-1 configuration. 36 GB cannot hold the 32 GB of non-expert weights next to scratch,
 # so the figure configuration has to rotate them layer by layer; 96 GB keeps them resident.
@@ -53,38 +53,38 @@ def run_spec(name, title, two_tier, compute="exi_sol", model=OFFICIAL, steps=32,
 
 def catalog() -> list[dict]:
     runs = [
-        run_spec("exi36", "EXI 图示 36 GB · 2.2 TB/s 理想", CAP36, steps=16, featured=True,
-                 summary="EXI-3DDRAM 图示容量：一级 36 GB，二级 LPDDR6 取 2.2 TB/s 上端且无折损、无固定开销。"
-                         "非专家权重 32 GB 放不下，必须逐层轮换；路由专家走跨步 LRU 缓存。"),
-        run_spec("exi96", "设计文档 96 GB · 2.2 TB/s 理想", CAP96, steps=16, featured=True,
-                 summary="原设计文档的 96 GB 一级方案（不是 EXI 图示配置），其余硬件同 EXI 图示。非专家权重常驻，专家走跨步 LRU 缓存。"),
-        run_spec("hybrid36", "混合：B200 计算 + EXI 36 GB", CAP36, compute="b200", steps=8, featured=True,
-                 summary="计算时间来自 AISim 的 b200_sxm，两级内存按 EXI 图示假设。用于说明计算基线的影响，不是 EXI 的预测。"),
-        run_spec("legacy", "旧假设对照：64 GB/s（已撤回）", LEGACY, compute="b200", model=FP8, steps=8, featured=True,
-                 summary="提交 e86bfad 的旧配置：FP8 模型、B200 计算、一级 96 GB、二级 2048 GB（虚构）、64 GB/s、10 µs。仅作历史对照。"),
+        run_spec("exi36", "EXI reference, 36 GB at an ideal 2.2 TB/s", CAP36, steps=16, featured=True,
+                 summary="The EXI-3DDRAM reference specifies a 36 GB tier 1. This run uses the upper LPDDR6 bandwidth of 2.2 TB/s without transfer losses or fixed overhead. "
+                         "The 32 GB of non-expert weights cannot stay resident and rotate by layer. Routed experts use a cross-step LRU cache."),
+        run_spec("exi96", "Design study, 96 GB at an ideal 2.2 TB/s", CAP96, steps=16, featured=True,
+                 summary="The design study increases tier 1 to 96 GB and keeps the other EXI parameters. Non-expert weights stay resident and experts use a cross-step LRU cache."),
+        run_spec("hybrid36", "Hybrid B200 compute with 36 GB EXI memory", CAP36, compute="b200", steps=8, featured=True,
+                 summary="This sensitivity run combines AISim compute times for b200_sxm with the EXI memory configuration to isolate the effect of the compute baseline."),
+        run_spec("legacy", "Legacy comparison at 64 GB/s (withdrawn assumption)", LEGACY, compute="b200", model=FP8, steps=8, featured=True,
+                 summary="Commit e86bfad used an FP8 model, B200 compute, a 96 GB tier 1, an assumed 2048 GB tier 2, 64 GB/s bandwidth, and 10 µs per transfer. This run reproduces that baseline."),
     ]
     for cap, base in (("36", CAP36), ("96", CAP96)):
         runs += [
-            run_spec(f"bw{cap}-2.2", f"{cap} GB · 2.2 TB/s 理想", base),
-            run_spec(f"bw{cap}-1.1", f"{cap} GB · 1.1 TB/s 理想", {**base, "tier2_bandwidth": "1.1 TB/s"}),
-            run_spec(f"bw{cap}-2.2x0.7", f"{cap} GB · 2.2 TB/s × 0.7（假设折损）", {**base, "copy_efficiency": 0.7}),
-            run_spec(f"bw{cap}-1.1x0.7", f"{cap} GB · 1.1 TB/s × 0.7（假设折损）", {**base, "tier2_bandwidth": "1.1 TB/s", "copy_efficiency": 0.7}),
-            run_spec(f"bw{cap}-64g", f"{cap} GB · 64 GB/s（旧假设带宽）", {**base, "tier2_bandwidth": "64 GB/s"}),
-            run_spec(f"bw{cap}-fast", f"{cap} GB · 链路 1 PB/s（对账）", {**base, "tier2_bandwidth": "1 PB/s"}),
+            run_spec(f"bw{cap}-2.2", f"{cap} GB at an ideal 2.2 TB/s", base),
+            run_spec(f"bw{cap}-1.1", f"{cap} GB at an ideal 1.1 TB/s", {**base, "tier2_bandwidth": "1.1 TB/s"}),
+            run_spec(f"bw{cap}-2.2x0.7", f"{cap} GB at 2.2 TB/s with 70% assumed efficiency", {**base, "copy_efficiency": 0.7}),
+            run_spec(f"bw{cap}-1.1x0.7", f"{cap} GB at 1.1 TB/s with 70% assumed efficiency", {**base, "tier2_bandwidth": "1.1 TB/s", "copy_efficiency": 0.7}),
+            run_spec(f"bw{cap}-64g", f"{cap} GB at the legacy bandwidth of 64 GB/s", {**base, "tier2_bandwidth": "64 GB/s"}),
+            run_spec(f"bw{cap}-fast", f"{cap} GB with a 1 PB/s link (native latency check)", {**base, "tier2_bandwidth": "1 PB/s"}),
         ]
-        runs += [run_spec(f"oh{cap}-{t.replace(' ', '')}", f"{cap} GB · 每次传输开销 {t}（假设）", {**base, "transfer_overhead": t})
+        runs += [run_spec(f"oh{cap}-{t.replace(' ', '')}", f"{cap} GB with {t} assumed overhead per transfer", {**base, "transfer_overhead": t})
                  for t in ("1 us", "10 us", "100 us")]
         runs += [
-            run_spec(f"pf{cap}", f"{cap} GB · 按上一步路由预取专家", {**base, "expert_prefetch": "last_step"}),
-            run_spec(f"pl{cap}", f"{cap} GB · 专家逐层释放（无跨步缓存）", {**base, "expert_cache": "per_layer"}),
-            run_spec(f"plpf{cap}", f"{cap} GB · 专家逐层释放 + 按上一步路由预取", {**base, "expert_cache": "per_layer", "expert_prefetch": "last_step"}),
-            run_spec(f"kv{cap}", f"{cap} GB · 关闭热 top-k KV", {**base, "hot_kv_entries": 0}),
-            *[run_spec(f"ov{cap}-{o}", f"{cap} GB · 专家重合度 {o}", {**base, "expert_overlap": o}) for o in (0.25, 0.75, 0.9)],
-            run_spec(f"b200{cap}", f"{cap} GB · B200 计算（混合）", base, compute="b200"),
+            run_spec(f"pf{cap}", f"{cap} GB with expert prefetch based on the previous step", {**base, "expert_prefetch": "last_step"}),
+            run_spec(f"pl{cap}", f"{cap} GB with per-layer expert release and no cross-step cache", {**base, "expert_cache": "per_layer"}),
+            run_spec(f"plpf{cap}", f"{cap} GB with per-layer expert release and previous-step prefetch", {**base, "expert_cache": "per_layer", "expert_prefetch": "last_step"}),
+            run_spec(f"kv{cap}", f"{cap} GB with hot top-k KV disabled", {**base, "hot_kv_entries": 0}),
+            *[run_spec(f"ov{cap}-{o}", f"{cap} GB with expert overlap {o}", {**base, "expert_overlap": o}) for o in (0.25, 0.75, 0.9)],
+            run_spec(f"b200{cap}", f"{cap} GB with B200 compute (hybrid)", base, compute="b200"),
         ]
     runs += [
-        run_spec("enforce36", "36 GB · 二级容量强制检查", {**CAP36, "tier2_capacity_check": "enforce"}, steps=2),
-        run_spec("resident36", "36 GB · 非专家权重常驻", {**CAP36, "base_weights": "resident"}, steps=2),
+        run_spec("enforce36", "36 GB with enforced tier 2 capacity", {**CAP36, "tier2_capacity_check": "enforce"}, steps=2),
+        run_spec("resident36", "36 GB with resident non-expert weights", {**CAP36, "base_weights": "resident"}, steps=2),
     ]
     return runs
 
@@ -161,22 +161,22 @@ def row(spec: dict, trace: dict) -> dict:
 
 
 CHECKS = [
-    ("旧配置的前 3 个 step 与 e86bfad 的结果一致", lambda R: R["legacy"]["token_ms"][:3] == LEGACY_OLD_TOKEN_MS),
-    ("二级强制检查时报单卡不可行", lambda R: R["enforce36"]["error"] and "单卡不可行" in R["enforce36"]["error"]),
-    ("36 GB 放不下常驻的非专家权重", lambda R: R["resident36"]["error"] and "一级 DRAM" in R["resident36"]["error"]),
-    ("EXI-SOL 运行的计算基线与两级内存一致，B200 运行被标为混合",
+    ("The first three legacy steps reproduce e86bfad", lambda R: R["legacy"]["token_ms"][:3] == LEGACY_OLD_TOKEN_MS),
+    ("Enforcing tier 2 capacity identifies an infeasible single-device configuration", lambda R: R["enforce36"]["error"] and "infeasible on a single device" in R["enforce36"]["error"]),
+    ("The 36 GB configuration cannot keep all non-expert weights resident", lambda R: R["resident36"]["error"] and "Tier 1 DRAM" in R["resident36"]["error"]),
+    ("The EXI-SOL compute baseline matches the memory configuration and the B200 run is marked as hybrid",
      lambda R: all(r["basis_consistent"] == (r["basis"] == "exi_sol") for r in R.values() if r["error"] is None
                    and r["name"] not in ("legacy",))),
-    *[(f"{c} GB：带宽越高不会越慢", lambda R, c=c: R[f"bw{c}-2.2"]["tail_token_ms"] <= R[f"bw{c}-1.1"]["tail_token_ms"]
+    *[(f"At {c} GB, increasing link bandwidth does not increase latency", lambda R, c=c: R[f"bw{c}-2.2"]["tail_token_ms"] <= R[f"bw{c}-1.1"]["tail_token_ms"]
        <= R[f"bw{c}-1.1x0.7"]["tail_token_ms"] <= R[f"bw{c}-64g"]["tail_token_ms"]
        and R[f"bw{c}-2.2"]["tail_token_ms"] <= R[f"bw{c}-2.2x0.7"]["tail_token_ms"]) for c in ("36", "96")],
-    *[(f"{c} GB：固定开销越大不会越快", lambda R, c=c: R[f"bw{c}-2.2"]["tail_token_ms"] <= R[f"oh{c}-1us"]["tail_token_ms"]
+    *[(f"At {c} GB, increasing fixed overhead does not reduce latency", lambda R, c=c: R[f"bw{c}-2.2"]["tail_token_ms"] <= R[f"oh{c}-1us"]["tail_token_ms"]
        <= R[f"oh{c}-10us"]["tail_token_ms"] <= R[f"oh{c}-100us"]["tail_token_ms"]) for c in ("36", "96")],
-    *[(f"{c} GB：链路 1 PB/s 时回到 AISim 原生时延（1% 内）",
+    *[(f"At {c} GB, a 1 PB/s link reproduces native AISim latency within 1%",
        lambda R, c=c: all(abs(t / R[f"bw{c}-fast"]["native_ms"] - 1) <= 0.01 for t in R[f"bw{c}-fast"]["token_ms"]))
       for c in ("36", "96")],
-    *[(f"{c} GB：专家逐层释放时没有专家命中", lambda R, c=c: R[f"pl{c}"]["tail_expert_hit_rate"] == 0) for c in ("36", "96")],
-    *[(f"{c} GB：关闭热 KV 时没有 KV 命中", lambda R, c=c: R[f"kv{c}"]["tail_kv_hit_rate"] == 0) for c in ("36", "96")],
+    *[(f"At {c} GB, releasing experts after each layer yields no expert cache hits", lambda R, c=c: R[f"pl{c}"]["tail_expert_hit_rate"] == 0) for c in ("36", "96")],
+    *[(f"At {c} GB, disabling hot KV yields no KV cache hits", lambda R, c=c: R[f"kv{c}"]["tail_kv_hit_rate"] == 0) for c in ("36", "96")],
 ]
 
 
@@ -185,16 +185,16 @@ def fmt(v, nd=2):
 
 
 def sweep_markdown(rows: list[dict]) -> str:
-    lines = ["| 运行 | 计算基线 | 可行 | 冷启动 ms | 稳态 | 统计窗口 ms/token | 其中计算 | 等权重 | 等专家 | 等 KV | 搬运 GB/token | 字节/带宽 ms | 链路利用率 | 专家命中 | 累计淘汰 |",
+    lines = ["| Run | Compute baseline | Feasible | Cold start (ms) | Steady state | Window mean (ms/token) | Compute (ms) | Weight wait (ms) | Expert wait (ms) | KV wait (ms) | Transfer (GB/token) | Bytes / bandwidth (ms) | Link utilization | Expert hit rate | Total evictions |",
              "| --- | --- | --- | ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |"]
     for r in rows:
         if r["error"]:
-            lines.append(f"| {r['title']} | {r['basis']} | 否：{r['error']} |" + " — |" * 12)
+            lines.append(f"| {r['title']} | {r['basis']} | No ({r['error']}) |" + " — |" * 12)
             continue
         st = r["steady"]
-        steady = (f"自 step {st['from_step']}" if st.get("reached")
-                  else f"未达到（step {r['tail_from']}–{r['steps']}，波动 {r['tail_spread']:.0%}）")
-        feasible = "旧假设（二级容量虚构）" if r["hardware_preset"] == "legacy_64gbps" else "是" if r["feasible"] else "否（反事实）"
+        steady = (f"From step {st['from_step']}" if st.get("reached")
+                  else f"Not reached (steps {r['tail_from']}–{r['steps']}, variation {r['tail_spread']:.0%})")
+        feasible = "Legacy assumption (hypothetical tier 2 capacity)" if r["hardware_preset"] == "legacy_64gbps" else "Yes" if r["feasible"] else "No (counterfactual)"
         lines.append(" | ".join([
             f"| {r['title']}", r["basis"], feasible, fmt(r["cold_ms"]), steady, fmt(r["tail_token_ms"]), fmt(r["tail_compute_ms"]),
             fmt(r["tail_wait_base_ms"]), fmt(r["tail_wait_experts_ms"]), fmt(r["tail_wait_kv_ms"]),

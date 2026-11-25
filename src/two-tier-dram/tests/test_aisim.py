@@ -64,7 +64,7 @@ class WithAisim(unittest.TestCase):
         self.assertTrue(compute_basis(cfg, profile(), "exi_3ddram")["consistent"])
         hybrid = compute_basis(cfg, profile("b200_sxm"), "b200_sxm")
         self.assertFalse(hybrid["consistent"])
-        self.assertIn("混合实验", hybrid["label"])
+        self.assertIn("Hybrid experiment", hybrid["label"])
 
     def test_the_official_model_does_not_fit_one_card_of_the_figure(self):
         from two_tier_dram.config import TwoTierConfig
@@ -73,7 +73,7 @@ class WithAisim(unittest.TestCase):
         p = profile()
         self.assertGreater(p.full_weights_bytes, 512e9)  # beyond even the largest LPDDR option in the figure
         result = simulate(TwoTierConfig.from_mapping({"hardware": "exi_figure", "base_weights": "layer_rotation"}), p, 2)
-        self.assertIn("单卡不可行", result["error"])
+        self.assertIn("infeasible on a single device", result["error"])
 
     def test_fast_link_reproduces_aisim_native_step_time(self):
         from two_tier_dram.config import TwoTierConfig

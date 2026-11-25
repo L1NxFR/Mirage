@@ -576,7 +576,7 @@ message ConstrainStageRequest
 // CONSTRAIN plugins return OverrideResult (same shape as ProposePlugin /
 // ReconcilePlugin), but with a hard restriction on `type`:
 //   * AT_LEAST and AT_MOST are valid (they tighten the constraint).
-//   * SET is silently dropped at runtime (v11 决议: register-time static
+//   * SET is silently dropped at runtime (v11 decision: register-time static
 //     rejection is infeasible because proto3 has no plugin-self-declared
 //     output-type metadata; orchestrator cannot know in advance whether
 //     a plugin will emit SET):
