@@ -21,13 +21,21 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 AISIM = HERE.parent / "aisim"
 CLI = AISIM / "python/aisim/.venv/bin/aisim"
+SYSTEMS = HERE.parent / "two-tier-dram" / "systems"  # exi_3ddram.yaml, shared with the stack implementation
+MODEL = "deepseek-ai/DeepSeek-V4-Pro"
 sys.path.insert(0, str(HERE))
 
 from render import write_page  # noqa: E402
 
-BASE_TWO_TIER = {"tier1_gb": 96.0, "link_gbps": 64.0, "link_overhead_ms": 0.01, "expert_overlap": 0.5,
-                 "topk_overlap": 0.75, "hot_kv_entries": 65536, "base_weights": "resident", "expert_prefetch": "none",
+# EXI-3DDRAM figure configuration (two_tier.py defaults): 36 GB tier 1, 128 GB LPDDR6 at 2.2 TB/s,
+# ideal copies, no per-transfer overhead. Its 36 GB cannot hold the 32 GB of non-expert weights next to
+# scratch, so they rotate layer by layer; 128 GB cannot hold the 805.7 GB model, so every run is an
+# explicit counterfactual. Sources per field: src/two-tier-dram/two_tier_dram/config.py (exi_figure).
+BASE_TWO_TIER = {"tier1_gb": 36.0, "tier2_gb": 128.0, "tier2_bandwidth_gbps": 2200.0, "copy_efficiency": 1.0,
+                 "link_overhead_ms": 0.0, "base_weights": "layer_prefetch", "tier2_capacity_check": "counterfactual",
+                 "expert_overlap": 0.5, "topk_overlap": 0.75, "hot_kv_entries": 65536, "expert_prefetch": "none",
                  "link_policy": "demand_first", "seed": 0, "trace_passes": 4}
+EXI96 = {"tier1_gb": 96.0, "base_weights": "resident"}
 
 # Four 16K-token requests 50 ms apart, 8 output tokens each; up to 4 decode together.
 STAGGERED = {"requests": [(0, 16384, 8), (50, 16384, 8), (100, 16384, 8), (150, 16384, 8)],
@@ -36,30 +44,39 @@ STAGGERED = {"requests": [(0, 16384, 8), (50, 16384, 8), (100, 16384, 8), (150, 
 TOGETHER = {"requests": [(0, 16384, 8)] * 4, "max_batched_tokens": 65536, "max_sequences": 4}
 
 SCENARIOS = [
-    {"slug": "baseline", "title": "基线：4 个请求错峰到达",
-     "summary": "4 个 16K token 的请求每 50 ms 到达一个，各输出 8 个 token；一级 96 GB，链路 64 GB/s。",
-     "finding": "R1 的 TTFT 24.7 s：一个 16K token 的 prefill 在每层几乎路由到全部 384 个专家，61 层 × 384 × 66 MB ≈ 1547 GB，64 GB/s 下约 24.2 s。max_batched_tokens 只够一个 prompt，4 个 prefill 各占一个 pass，各搬一遍全部专家；这些 pass 里还夹着已在 decode 的请求，所以 R1 的 ITL 也有 11.5 s。全部完成 109 s，原生 2.4 s。专家命中只有 0.4%：每次 prefill 都把缓存冲掉。",
+    {"slug": "exi36", "title": "EXI 36 GB：4 个请求错峰到达",
+     "summary": "EXI 图示配置：一级 36 GB（18 TB/s），二级 128 GB LPDDR6（2.2 TB/s），非专家权重逐层轮换。",
+     "finding": "全部完成 4.61 s，原生 2.97 s（+55%）。R1 的 TTFT 1078 ms = 原生 726 ms + 352 ms：16K token 的 prefill 每层几乎用到全部专家，整套路由专家 773.7 GB ÷ 2.2 TB/s ≈ 352 ms，4 个 prefill 各搬一遍。纯 decode 的 8 个 pass 合计 212 ms（原生 25.7 ms），其中 77 ms 在等轮换进来的非专家权重。复制总量 3785 GB；若复制写入与计算读取争用一级的 18 TB/s，最多再多 210 ms，未计入。",
      "workload": STAGGERED, "overrides": {}},
-    {"slug": "reconcile", "title": "对账：链路无限快",
-     "summary": "同一负载，链路 1e9 GB/s、每次传输开销 0。",
-     "finding": "4 个请求的 TTFT 与 AISim 原生完全一致（570 / 1681 / 2213 / 2192 ms），全部完成 2428.53 ms 对 2428.52 ms。两级模型在搬运代价趋零时不改变 AISim 的调度。",
-     "workload": STAGGERED, "overrides": {"link_gbps": 1e9, "link_overhead_ms": 0.0}},
-    {"slug": "fast-link", "title": "链路 512 GB/s",
-     "summary": "同一负载，链路带宽提高 8 倍。",
-     "finding": "全部完成从 109 s 降到 15.8 s，约为 1/7。剩下的部分里有约 2.4 s 是 AISim 本身的计算时间，不随链路变快。",
-     "workload": STAGGERED, "overrides": {"link_gbps": 512.0}},
-    {"slug": "batched-prefill", "title": "4 个请求同时到达、一个 pass 完成 prefill",
-     "summary": "4 个请求同时到达，max_batched_tokens 65536，让 4 个 prefill 共用一次专家搬运。",
-     "finding": "4 个 prompt 在一个 pass 里 prefill，专家只搬一遍：4 个请求的 TTFT 都是 26.3 s，全部完成 36.7 s，基线是 109 s。之后 4 个请求一起 decode，每步每层要用约 23 个专家，61 层合计超过专家缓存的约 900 个位置，命中 0，ITL 1.49 s。",
-     "workload": TOGETHER, "overrides": {}},
-    {"slug": "sticky-experts", "title": "专家路由更稳定",
-     "summary": "相邻 step 路由到同一专家的概率 0.5 → 0.9。",
-     "finding": "专家命中从 398 次升到 689 次，但全部完成时间几乎不变（108.8 s）：prefill 搬运全部专家占了绝大部分时间，decode 的命中改善被淹没。",
-     "workload": STAGGERED, "overrides": {"expert_overlap": 0.9}},
-    {"slug": "small-tier1", "title": "一级缩到 48 GB",
-     "summary": "专家缓存从约 906 个位置缩到约 179 个。",
-     "finding": "一层的 384 个专家放不进一级，MoE 分组执行。专家缓存只剩约 179 个位置，命中 0；专家挤占空间后热 top-k KV 也被淘汰，KV 命中从 113093 降到 56009。全部完成 109.5 s，只比基线慢 0.4%，因为瓶颈仍是 prefill 搬运全部专家。",
-     "workload": STAGGERED, "overrides": {"tier1_gb": 48.0}},
+    {"slug": "reconcile", "title": "对账：复制带宽无限",
+     "summary": "同一配置，二级带宽 1e9 GB/s、每次传输开销 0。",
+     "finding": "4 个请求的 TTFT 与 AISim 原生一致，全部完成 2971.635 ms 对 2971.631 ms。",
+     "workload": STAGGERED, "overrides": {"tier2_bandwidth_gbps": 1e9}},
+    {"slug": "exi96", "title": "EXI 96 GB 探索：非专家权重常驻",
+     "summary": "一级换成研究记录中的 96 GB 方案，非专家权重常驻，其余与 EXI 图示配置相同。",
+     "finding": "全部完成 4.48 s，只比 36 GB 快 3%。纯 decode pass 从 212 ms 降到 89 ms，不再等非专家权重；但含 prefill 的 pass 都要搬整套专家，这部分两种一级容量一样，占了大部分时间。专家命中从 310 次升到 3380 次。",
+     "workload": STAGGERED, "overrides": EXI96},
+    {"slug": "exi36-eff07", "title": "复制效率 0.7",
+     "summary": "有效复制带宽 = 2.2 TB/s × 0.7（假设折损）。",
+     "finding": "有效复制 1.54 TB/s：全部完成 5.32 s，每个 prefill 的专家搬运约 0.5 s。",
+     "workload": STAGGERED, "overrides": {"copy_efficiency": 0.7}},
+    {"slug": "exi36-1.1x07", "title": "LPDDR6 低端 1.1 TB/s × 0.7",
+     "summary": "二级标称带宽取架构表下端 1.1 TB/s，复制效率 0.7。",
+     "finding": "有效复制 0.77 TB/s：全部完成 7.70 s，每个 prefill 的专家搬运约 1.0 s。时延对复制带宽基本线性。",
+     "workload": STAGGERED, "overrides": {"tier2_bandwidth_gbps": 1100.0, "copy_efficiency": 0.7}},
+    {"slug": "exi36-overhead", "title": "每次传输 10 µs 开销",
+     "summary": "每次传输加 0.01 ms 固定开销（假设，表中未给出）。",
+     "finding": "全部完成只多 19 ms（4625 ms）。等 KV 从 0.26 ms 变成 5.7 ms：传输次数多但字节少的 top-k KV 对开销敏感，专家搬运以字节为主，不受影响。",
+     "workload": STAGGERED, "overrides": {"link_overhead_ms": 0.01}},
+    {"slug": "exi96-together", "title": "96 GB：4 个请求同时到达、一个 pass 完成 prefill",
+     "summary": "4 个请求同时到达，max_batched_tokens 65536，4 个 prefill 共用一次专家搬运。",
+     "finding": "4 个 prefill 合进一个 pass，整套专家只搬一遍：全部完成 3.37 s，原生 2.93 s（+15%），复制总量从 3316 GB 降到 960 GB。之后 batch 4 的 decode 每步约 16 ms。",
+     "workload": TOGETHER, "overrides": EXI96},
+    {"slug": "enforce", "title": "二级容量强制检查",
+     "summary": "tier2_capacity_check: enforce。805.7 GB 的模型放不进 128 GB 二级，运行应被拒绝。",
+     "finding": "运行被拒绝：805.7 GB 的权重放不进 128 GB 二级。其余场景都显式设为反事实，结果不可行。",
+     "workload": STAGGERED, "overrides": {"tier2_capacity_check": "enforce"},
+     "expect_failure": "tier 2 cannot hold the weights"},
 ]
 
 
@@ -75,9 +92,10 @@ def config_for(workload: dict, trace_file: Path, two_tier: dict | None) -> dict:
         "traffic": {"source": {"type": "trace", "format": "mooncake", "block_size": 65536, "paths": [str(trace_file)]},
                     "load": {"type": "trace_timestamps"}},
         "engine": {
-            "mode": "aggregated", "model": "sgl-project/DeepSeek-V4-Pro-FP8", "hardware": "b200_sxm", "backend": "vllm",
-            "context_length": 131072,
-            "ais_perf_model": {"estimation_mode": "op_level", "database_mode": "SOL"},
+            "mode": "aggregated", "model": MODEL, "hardware": "exi_3ddram", "backend": "vllm",
+            "backend_version": "0.30.0", "context_length": 131072,
+            # EXI-SOL: AISim's analytical roofline on the EXI system file (tier-1 18 TB/s, FP8/FP4 peaks).
+            "ais_perf_model": {"estimation_mode": "op_level", "database_mode": "SOL", "systems_paths": [str(SYSTEMS), "default"]},
             "workers": {"aggregated": {
                 "parallelism": {"replicas": 1, "tensor": 1, "attention_data": 1},
                 "scheduler": {"max_batched_tokens": workload["max_batched_tokens"], "max_sequences": workload["max_sequences"]},
@@ -89,7 +107,7 @@ def config_for(workload: dict, trace_file: Path, two_tier: dict | None) -> dict:
     }
 
 
-def run_aisim(folder: Path, workload: dict, two_tier: dict | None) -> dict:
+def run_aisim(folder: Path, workload: dict, two_tier: dict | None, expect_failure: str | None = None) -> dict:
     folder.mkdir(parents=True, exist_ok=True)
     trace_file = folder / "requests.mooncake.jsonl"
     trace_file.write_text("".join(
@@ -101,6 +119,9 @@ def run_aisim(folder: Path, workload: dict, two_tier: dict | None) -> dict:
                            "--capture-per-request", "--output-dir", str(folder / "aisim"), "--overwrite"],
                           cwd=AISIM, capture_output=True, text=True)
     (folder / "run.log").write_text(proc.stdout + proc.stderr)
+    if expect_failure is not None:
+        return {"failed": proc.returncode != 0, "matched": expect_failure in proc.stdout + proc.stderr,
+                "message": next((l for l in (proc.stdout + proc.stderr).splitlines() if expect_failure in l), "")}
     if proc.returncode != 0:
         raise SystemExit(f"{folder.name}: aisim exited {proc.returncode}; see {folder / 'run.log'}\n"
                          + "\n".join(proc.stderr.strip().splitlines()[-3:]))
@@ -141,6 +162,10 @@ def summarize(two_tier: dict, native: dict, trace: dict) -> dict:
         "kv_hits": last.get("kv_hits"), "kv_lookups": last.get("kv_lookups"),
         "wait_experts_ms": last.get("wait_experts_ms"), "wait_kv_ms": last.get("wait_kv_ms"),
         "max_batch": max((len(p["requests"]) for p in trace["passes"]), default=0),
+        "tier2_feasible": trace["header"].get("tier2_feasible"),
+        "link_gb": sum(last.get("link_bytes", {}).values()) / 1e9,
+        # Upper bound of the tier-1 time copies would steal from compute if writes and reads shared its bandwidth.
+        "tier1_contention_upper_ms": (sum(last.get("link_bytes", {}).values()) / tier1_bw * 1e3) if (tier1_bw := trace["header"]["config"]["profile"]["source"].get("tier1_bandwidth_bytes_per_s")) else None,
     }
 
 
@@ -154,14 +179,16 @@ def check(scenario: dict, s: dict) -> list[str]:
 
 
 RELATIONS = [
-    ("链路无限快时，闭环时间线与 AISim 原生一致（1% 以内）",
+    ("复制带宽无限时，闭环时间线与 AISim 原生一致（1% 以内）",
      lambda m: all(abs(a - b) <= 0.01 * b + 1e-6 for a, b in zip(m["reconcile"]["ttft_ms"], m["reconcile"]["native_ttft_ms"]))
      and abs(m["reconcile"]["makespan_ms"] - m["reconcile"]["native_makespan_ms"]) <= 0.01 * m["reconcile"]["native_makespan_ms"]),
-    ("链路更快时整体完成更早", lambda m: m["fast-link"]["makespan_ms"] < m["baseline"]["makespan_ms"]),
-    ("4 个 prefill 合并后整体完成更早", lambda m: m["batched-prefill"]["makespan_ms"] < m["baseline"]["makespan_ms"]),
-    ("专家路由更稳定时 ITL 更低", lambda m: m["sticky-experts"]["mean_itl_ms"] < m["baseline"]["mean_itl_ms"]),
-    ("一级变小时 ITL 更高", lambda m: m["small-tier1"]["mean_itl_ms"] > m["baseline"]["mean_itl_ms"]),
-    ("错峰到达时出现了多请求同批 decode", lambda m: m["baseline"]["max_batch"] >= 2),
+    ("复制效率 0.7 比 1.0 慢", lambda m: m["exi36-eff07"]["makespan_ms"] > m["exi36"]["makespan_ms"]),
+    ("1.1 TB/s × 0.7 比 2.2 TB/s × 0.7 慢", lambda m: m["exi36-1.1x07"]["makespan_ms"] > m["exi36-eff07"]["makespan_ms"]),
+    ("每次传输加开销后变慢", lambda m: m["exi36-overhead"]["makespan_ms"] > m["exi36"]["makespan_ms"]),
+    ("96 GB 常驻非专家权重比 36 GB 轮换快", lambda m: m["exi96"]["makespan_ms"] < m["exi36"]["makespan_ms"]),
+    ("同时到达合并 prefill 比错峰到达更早完成", lambda m: m["exi96-together"]["makespan_ms"] < m["exi96"]["makespan_ms"]),
+    ("所有反事实运行都标记为二级不可行", lambda m: all(v["tier2_feasible"] is False for v in m.values())),
+    ("错峰到达时出现了多请求同批 decode", lambda m: m["exi36"]["max_batch"] >= 2),
 ]
 
 
@@ -182,6 +209,12 @@ def main() -> int:
             natives[key] = run_aisim(out / f"native-{len(natives)}", scenario["workload"], None)
         folder = out / scenario["slug"]
         two_tier = {**copy.deepcopy(BASE_TWO_TIER), **scenario["overrides"], "trace_path": str(folder / "two-tier.jsonl")}
+        if "expect_failure" in scenario:
+            outcome = run_aisim(folder, scenario["workload"], two_tier, expect_failure=scenario["expect_failure"])
+            ok = outcome["failed"] and outcome["matched"]
+            failed |= not ok
+            print(f"{scenario['slug']}: " + (f"OK (rejected: {outcome['message'].strip()[-140:]})" if ok else f"MISMATCH expected failure, got {outcome}"))
+            continue
         result = run_aisim(folder, scenario["workload"], two_tier)
         trace = read_trace(folder / "two-tier.jsonl")
         s = summarize(result, natives[key], trace)

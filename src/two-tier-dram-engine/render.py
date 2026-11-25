@@ -51,7 +51,7 @@ def write_page(items: list[dict], out: Path) -> None:
             "profile": {**{k: v for k, v in profile.items() if k not in ("layers", "source")},
                         "kinds": "".join("C" if l["kind"] == "csa" else "H" for l in profile["layers"]),
                         "base_bytes_total": sum(l["base_bytes"] for l in profile["layers"]),
-                        "source": {k: profile["source"].get(k) for k in ("model", "hardware", "backend", "database_mode")}},
+                        "source": {k: profile["source"].get(k) for k in ("model", "hardware", "backend", "database_mode", "moe_quant_mode", "tier1_bandwidth_bytes_per_s")}},
             "passes": [compact(p) if i in keep else strip(p)
                        for i, p in enumerate(item["trace"]["passes"])],
         })
