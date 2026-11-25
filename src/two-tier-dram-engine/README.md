@@ -73,7 +73,7 @@ engine:
 | `trace_path` / `trace_passes` | 不写 / 200 | trace 文件；带逐层细节的 pass 数 |
 
 限制：
-- 只支持 vLLM、TP1，以及 DeepSeek-V4 一类模型。
+- 只支持 vLLM、每卡 TP1，以及 DeepSeek-V4 一类模型；专家并行要求 `moe_expert` 等于 `attention_data`。
 - 不能与 `host_offload`、`hicache`、`g3_offload`、`kvcr`、`state_cache` 或投机解码同时使用。
 
 ## 场景与回放
@@ -118,3 +118,26 @@ python3 src/two-tier-dram-engine/sweep.py --limit 6 --jobs 6 --out /tmp/sweep-sm
 - 左侧每个参数一组按钮；在当前组合下没算过的值显示为虚线，点击会跳到最近的已算点。
 - 全局：完成时间、TTFT、decode 步长、复制量；每个请求的时间线；完成时间和 decode 步长随一级容量、二级带宽的变化；锚点上其余参数逐个变化的影响。
 - 局部：每个 pass 的计算与等待构成；第一个 prefill pass 和稳态 decode pass 的逐层构成（附数据表）。
+
+## 专家并行
+
+```sh
+python3 src/two-tier-dram-engine/ep.py
+```
+
+`ep.py` 在 `parallelism: {attention_data: 8, moe_expert: 8}` 下运行 EXI-3DDRAM 卡组：
+- 每个 rank 是一张卡，持有非专家权重和 `e % 8 == rank` 的专家。
+- 每个 group pass，各 rank 为全组 token 取自己的专家；没有本地请求的 rank 也要取，group pass 等最慢的 rank。
+- 通信与计算由 AISim 原生 EP8 定价；rank 0 写 trace。
+
+所有两级运行都开启二级容量强制检查，没有反事实运行：每卡需要 128.7 GB，二级取 192 GB；另有一个 128 GB 运行，检查它被拒绝。
+
+参照是 AISim 原生 EP8 的同一负载。共 6 项检查：
+- 带宽无限时与原生一致；
+- 第一个 prefill 搬 96.7 GB；
+- 每卡 128.7 GB；
+- 128 GB 被拒绝；
+- 所有结果可行；
+- 1.1 TB/s × 0.8 比 2.2 TB/s 慢。
+
+结果写入 `output/ep/summary.json`。
