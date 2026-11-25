@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>两级 DRAM 闭环回放（AISim 引擎内）</title>
+<style>
+  :root { --bg:#fafafa; --card:#fff; --ink:#1d2330; --mute:#6b7280; --line:#e5e7eb; --accent:#4f7cff;
+          --base:#f08a24; --exp:#f59e0b; --kv:#4f7cff; --static:#93c5fd; --fixed:#9ca3af; --wb:#21a179; --miss:#d64545; --pre:#fdba74; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:14px/1.5 -apple-system,BlinkMacSystemFont,"PingFang SC","Noto Sans CJK SC","Segoe UI",sans-serif; background:var(--bg); color:var(--ink); }
+  body.embedded { background:transparent; }
+  .wrap { padding:14px 18px 18px; max-width:1240px; margin:0 auto; }
+  body.embedded .wrap { padding:4px 2px 8px; }
+  h1 { font-size:17px; margin:0 0 2px; }
+  body.embedded h1, body.embedded .sub { display:none; }
+  .sub { color:var(--mute); font-size:12px; }
+  .pick { display:flex; flex-wrap:wrap; gap:6px; margin:10px 0 6px; }
+  .tab { border:1px solid var(--line); background:#fff; padding:4px 10px; border-radius:6px; cursor:pointer; font-size:12.5px; }
+  .tab.on { border-color:var(--accent); color:var(--accent); font-weight:600; }
+  .scn { background:#fff; border:1px solid var(--line); border-radius:8px; padding:8px 12px; margin-bottom:10px; font-size:13px; }
+  .scn b { margin-right:6px; } .scn .find { margin-top:4px; color:#374151; }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; align-items:center; }
+  .chip { font-size:11.5px; background:#f1f3f7; border-radius:4px; padding:1px 7px; white-space:nowrap; }
+  .chip.changed { background:#fff1c2; color:#7a4b00; box-shadow:inset 0 0 0 1px #f0b429; font-weight:600; }
+  .chip.changed s { color:#a37b2c; font-weight:400; }
+  .chip.src { background:#ecfdf5; color:#065f46; } .chip.metric { background:#eef2ff; color:#3730a3; }
+  .chip.bad { background:#fee2e2; color:#991b1b; font-weight:600; white-space:normal; }
+  .chip-note { font-size:11px; color:var(--mute); }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:12px 14px; min-width:0; margin-bottom:12px; }
+  .card h2 { font-size:12.5px; margin:0 0 8px; color:var(--mute); font-weight:600; }
+  .grid { display:grid; grid-template-columns:minmax(0,1fr) 320px; gap:12px; }
+  @media (max-width:900px) { .grid { grid-template-columns:minmax(0,1fr); } }
+  .grid .card { margin-bottom:0; }
+  .rt { display:grid; grid-template-columns:120px minmax(0,1fr) 150px; gap:3px 8px; align-items:center; font-size:12px; }
+  .rt .name { color:var(--mute); text-align:right; white-space:nowrap; }
+  .rt .val { font-size:11px; color:var(--mute); white-space:nowrap; }
+  .lane-g { position:relative; height:16px; background:#f7f8fa; border-radius:3px; overflow:hidden; }
+  .lane-g.native { height:9px; }
+  .lane-g .seg { position:absolute; top:2px; bottom:2px; border-radius:2px; }
+  .lane-g.native .seg { top:1px; bottom:1px; opacity:.7; }
+  .s-queue { background:#d1d5db; } .s-prefill { background:#8b5cf6; } .s-decode { background:var(--kv); }
+  .axis { position:relative; height:16px; font-size:10.5px; color:var(--mute); }
+  .axis .tick { position:absolute; transform:translateX(-50%); white-space:nowrap; }
+  .passes { position:relative; height:46px; background:#f7f8fa; border-radius:4px; margin-top:6px; overflow:hidden; }
+  .pb { position:absolute; bottom:2px; border-radius:2px 2px 0 0; cursor:default; }
+  .pb.prefill { background:#c4b5fd; } .pb.decode { background:#93c5fd; } .pb.mixed { background:#a5b4fc; }
+  .pb.detail { cursor:pointer; outline:1.5px solid #1d2330; }
+  .pb.sel { outline:2.5px solid #e11d48; }
+  .pb .nat { position:absolute; left:0; right:0; bottom:0; background:#10b981; opacity:.85; }
+  .controls { display:flex; align-items:center; gap:6px; margin-bottom:10px; flex-wrap:wrap; }
+  .controls button, .controls select { border:1px solid var(--line); background:#fff; border-radius:6px; padding:3px 9px; cursor:pointer; font-size:13px; }
+  .controls input[type=range] { flex:1; min-width:120px; }
+  .clock { font-variant-numeric:tabular-nums; font-weight:600; min-width:150px; text-align:right; }
+  .status { display:flex; flex-wrap:wrap; gap:6px; align-items:center; font-size:12.5px; margin-bottom:10px; }
+  .pill { border-radius:999px; padding:1px 9px; font-size:11.5px; background:#f1f3f7; color:var(--mute); }
+  .pill.on { color:#fff; font-weight:600; background:var(--accent); } .pill.wait.on { background:var(--miss); } .pill.moe.on { background:var(--exp); }
+  .tier { border:1px solid var(--line); border-radius:10px; padding:10px 12px; }
+  .tier.t1 { background:#f8f9ff; border-color:#c7d2fe; } .tier.t2 { background:#f7f8fa; }
+  .tier h3 { margin:0 0 6px; font-size:13.5px; display:flex; flex-wrap:wrap; gap:8px; align-items:baseline; }
+  .tier h3 span { color:var(--mute); font-size:12px; font-weight:400; }
+  .capbar { display:flex; height:16px; border-radius:5px; overflow:hidden; background:#fff; box-shadow:inset 0 0 0 1px #d1d5db; margin-bottom:4px; }
+  .capbar i { display:block; height:100%; }
+  .caplegend { display:flex; flex-wrap:wrap; gap:4px 12px; font-size:11.5px; color:var(--mute); margin-bottom:8px; }
+  .caplegend i { display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:4px; vertical-align:-1px; }
+  .sect { font-size:11.5px; color:var(--mute); margin:8px 0 3px; }
+  .strip { display:grid; grid-template-columns:repeat(auto-fill, minmax(15px, 1fr)); gap:2px; }
+  .lc { position:relative; height:42px; border-radius:3px; background:#fff; box-shadow:inset 0 0 0 1px #e5e7eb; display:flex; align-items:flex-end; gap:1px; padding:1px; }
+  .lc.csa { box-shadow:inset 0 0 0 1px #bfdbfe; } .lc.cur { box-shadow:0 0 0 2px #e11d48; }
+  .lc.nobase { background:#f3f4f6; } .lc.loadbase { background:repeating-linear-gradient(45deg,#fed7aa 0 3px,#fff 3px 6px); }
+  .lc b { display:block; flex:1; border-radius:1px 1px 0 0; } .lc b.e { background:var(--exp); } .lc b.k { background:var(--kv); }
+  .detail { display:flex; flex-wrap:wrap; gap:4px; align-items:center; min-height:24px; font-size:12px; }
+  .ex { position:relative; overflow:hidden; border-radius:5px; padding:1px 6px; border:1.5px solid var(--exp); background:#fffbeb; font-size:11px; }
+  .ex.hit { background:var(--exp); color:#fff; font-weight:600; }
+  .ex.loading { border-style:dashed; border-color:var(--miss); background:#fff; color:#991b1b; }
+  .ex .fill { position:absolute; left:0; top:0; bottom:0; background:var(--miss); opacity:.25; } .ex span { position:relative; }
+  .kvbar { position:relative; flex:1; min-width:180px; height:22px; border-radius:6px; overflow:hidden; background:#fff; box-shadow:inset 0 0 0 1px #d1d5db; display:flex; }
+  .kvbar i { display:block; height:100%; } .kvbar .txt { position:absolute; inset:0; display:flex; align-items:center; padding:0 8px; font-size:11.5px; }
+  .link { display:grid; gap:5px; margin:8px 0; }
+  .lane { position:relative; min-height:26px; border-radius:6px; background:#f4f5f8; display:flex; align-items:center; padding:2px 10px; font-size:12px; color:var(--mute); overflow:hidden; }
+  .lane .bar { position:absolute; left:0; top:0; bottom:0; opacity:.28; } .lane .txt { position:relative; } .lane.busy { color:var(--ink); font-weight:600; }
+  .queue { display:flex; flex-wrap:wrap; gap:5px; font-size:11.5px; color:var(--mute); align-items:center; min-height:20px; }
+  .q { border-radius:4px; padding:0 6px; color:#fff; font-size:11px; }
+  .k-demand_base { background:var(--base); } .k-prefetch_base { background:var(--pre); color:#5b3a00; } .k-demand_kv { background:var(--kv); }
+  .k-prefill_kv { background:#6366f1; } .k-demand_expert { background:var(--miss); } .k-prefetch_expert { background:#fca5a5; color:#7f1d1d; } .k-writeback { background:var(--wb); }
+  .notes { margin:0; padding:0; list-style:none; } .notes li { padding:5px 0; border-bottom:1px solid var(--line); font-size:12.5px; } .notes li:last-child { border-bottom:none; }
+  .op { display:inline-block; font-size:10px; padding:0 5px; border-radius:3px; background:#eef2ff; color:#3949ab; margin-right:5px; font-family:ui-monospace,monospace; }
+  .op.capacity_error, .op.base_late, .op.base_miss { background:#fee2e2; color:#991b1b; }
+  .tl { display:grid; grid-template-columns:72px minmax(0,1fr); gap:4px 8px; align-items:center; font-size:12px; }
+  .tl .name { color:var(--mute); text-align:right; }
+  .gantt { position:relative; height:22px; background:#f7f8fa; border-radius:4px; overflow:hidden; }
+  .gantt .seg { position:absolute; top:3px; bottom:3px; }
+  .p-attention { background:var(--kv); } .p-moe { background:var(--exp); } .p-tail { background:#6b7280; }
+  .p-wait_base { background:#fb923c; } .p-wait_kv { background:#1e3a8a; } .p-wait_experts { background:var(--miss); }
+  .cursor { position:absolute; top:0; bottom:0; width:2px; background:#e11d48; z-index:3; }
+  .legend { display:flex; flex-wrap:wrap; gap:4px 12px; font-size:11.5px; color:var(--mute); margin-top:8px; }
+  .legend i { display:inline-block; width:14px; height:10px; border-radius:2px; vertical-align:-1px; margin-right:4px; }
+  .warn { font-size:11.5px; color:#92400e; background:#fffbeb; border:1px solid #fde68a; border-radius:6px; padding:6px 10px; margin-top:8px; }
+  table { border-collapse:collapse; width:100%; font-size:11.5px; } td, th { border-bottom:1px solid var(--line); padding:2px 6px; text-align:left; vertical-align:top; }
+  th { color:var(--mute); font-weight:600; } details summary { cursor:pointer; color:var(--mute); font-size:12.5px; } .scroll { max-height:300px; overflow:auto; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>两级 DRAM 闭环回放（AISim 引擎内 · kv_cache.two_tier_dram）</h1>
+  <div class="sub">vLLM 调度器每个 pass 先由 AISim 定价，再由两级模型逐层重计时；等待会推迟下一个 pass。虚拟时间（ms）。</div>
+  <div class="pick" id="tabs"></div>
+  <div class="scn" id="scn"></div>
+  <section class="card">
+    <h2>请求时间线：每个请求上行是两级 DRAM（闭环），下行细条是同一负载在 AISim 原生下的时间线。灰 = 排队，紫 = prefill，蓝 = decode</h2>
+    <div class="rt" id="rt"></div>
+    <div class="rt"><div></div><div class="axis" id="rtaxis"></div><div></div></div>
+    <div class="sect" id="passlabel"></div>
+    <div class="passes" id="passes"></div>
+  </section>
+  <div class="grid">
+    <section class="card">
+      <div class="controls">
+        <select id="passpick" aria-label="pass"></select>
+        <button id="prev" title="上一个事件">⏮</button>
+        <button id="play">▶ 播放</button>
+        <button id="next" title="下一个事件">⏭</button>
+        <button id="nextlayer">下一层 ⏩</button>
+        <input type="range" id="slider" min="0" max="1000" step="any" value="0" aria-label="时间">
+        <span class="clock" id="clock"></span>
+      </div>
+      <div class="status" id="status"></div>
+      <div class="tier t1">
+        <h3>一级 DRAM<span id="t1cap"></span></h3>
+        <div class="capbar" id="capbar"></div>
+        <div class="caplegend" id="caplegend"></div>
+        <div class="sect" id="striplabel"></div>
+        <div class="strip" id="strip"></div>
+        <div class="sect" id="curlabel">当前层</div>
+        <div class="detail" id="experts"></div>
+        <div class="detail" id="kvdetail" style="margin-top:4px"></div>
+      </div>
+      <div class="link"><div class="lane" id="lane"><div class="bar"></div><span class="txt"></span></div><div class="queue" id="queue"></div></div>
+      <div class="tier t2"><h3>二级 DRAM<span id="t2cap"></span></h3><div id="t2body" style="font-size:12px"></div></div>
+    </section>
+    <section class="card"><h2>当前时刻发生了什么</h2><ul class="notes" id="notes"></ul></section>
+  </div>
+  <section class="card" style="margin-top:12px">
+    <h2>所选 pass 的逐层时间线：上 = 计算，下 = 共享链路；竖线是当前时刻</h2>
+    <div class="tl"><div class="name">计算</div><div class="gantt" id="g-compute"></div><div class="name">共享链路</div><div class="gantt" id="g-link"></div></div>
+    <div class="legend">
+      <span><i class="p-attention"></i>attention</span><span><i class="p-moe"></i>MoE</span><span><i class="p-tail"></i>logits 等</span>
+      <span><i class="p-wait_experts"></i>等专家</span><span><i class="p-wait_kv"></i>等 KV</span><span><i class="p-wait_base"></i>等非专家权重</span>
+      <span><i class="k-demand_expert"></i>按需取专家</span><span><i class="k-prefetch_expert"></i>预取专家</span><span><i class="k-demand_kv"></i>按需取 top-k KV</span>
+      <span><i class="k-prefill_kv"></i>prefill 读前缀 KV</span><span><i class="k-writeback"></i>写回</span>
+    </div>
+    <div class="warn">口径：每个 pass 的计算时间来自 AISim（batch 与上下文感知），按 profile 的 attention／MoE／其余比例分到各层。top-k 条目与路由专家由合成的跨步重合度生成；prefill 路由到的专家数取 N 个 token 各选 k 个时的期望去重数。prefill 不走热 KV 缓存，直接从二级读取前缀 KV。一级占用、“数据到达前不计算”在引擎中断言；只有前几个 pass 记录逐层细节。</div>
+  </section>
+  <section class="card"><details><summary>所选 pass 的事件日志</summary><div class="scroll"><table id="raw"><thead><tr><th>t (ms)</th><th>层</th><th>事件</th><th>说明</th></tr></thead><tbody></tbody></table></div></details></section>
+</div>
+<script>
+const DATA = /*__DATA__*/null;
+const params = new URLSearchParams(location.search);
+if (window.top !== window.self || params.has('embed')) document.body.classList.add('embedded');
+let S = null, P = null, T0 = 0, T = 1, playing = false, last = 0, exactT = null, LS = [], maxE = 1, maxK = 1, JOBS = {};
+const $ = id => document.getElementById(id);
+const GB = 1e9;
+const ms = t => t == null ? '—' : Math.abs(t) >= 1000 ? (t / 1000).toFixed(2) + ' s' : Math.abs(t) >= 10 ? t.toFixed(1) + ' ms' : t.toFixed(3) + ' ms';
+const gb = b => b >= 0.1 * GB ? (b / GB).toFixed(1) + ' GB' : b >= 1e6 ? (b / 1e6).toFixed(1) + ' MB' : (b / 1e3).toFixed(1) + ' KB';
+const PHASE = { wait_base: '等非专家权重', wait_kv: '等 KV', attention: 'attention', wait_experts: '等专家', moe: 'MoE', tail: 'logits 等', idle: '空闲', failed: '容量不足' };
+const KCOLOR = { demand_base: 'var(--base)', prefetch_base: 'var(--pre)', demand_kv: 'var(--kv)', prefill_kv: '#6366f1', demand_expert: 'var(--miss)', prefetch_expert: '#fca5a5', writeback: 'var(--wb)' };
+const CAP = [['scratch + 全局权重', 'var(--fixed)'], ['非专家权重', 'var(--base)'], ['常驻 KV（窗口/HCA/indexer）', 'var(--static)'], ['专家缓存', 'var(--exp)'], ['热 top-k KV', 'var(--kv)'], ['脏 KV', 'var(--wb)']];
+const LABELS = { tier1_gb: '一级 GB', link_gbps: '链路 GB/s', link_overhead_ms: '每次传输开销 ms', expert_overlap: '专家跨步重合度', topk_overlap: 'top-k 跨步重合度',
+  hot_kv_entries: '热 KV 上限(条)', base_weights: '非专家权重', expert_prefetch: '专家预取', link_policy: '链路策略' };
+const passKind = p => { const k = new Set(p.requests.map(r => r.kind)); return k.size > 1 ? 'mixed' : [...k][0] || 'decode'; };
+
+function jobProgress(id, t) {
+  let f = 0;
+  for (const s of P.link) { if (s.job !== id || s.t0 > t) continue; if (t >= s.t1) { f = s.f1; continue; } const d0 = s.t0 + s.setup; return t <= d0 ? s.f0 : s.f0 + (s.f1 - s.f0) * (t - d0) / (s.t1 - d0); }
+  return f;
+}
+function snapIndex(t) { let lo = 0, hi = P.snapshots.length - 1; while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (P.snapshots[mid].t <= t + 1e-9) lo = mid; else hi = mid - 1; } return lo; }
+const at = t => (t - T0) / (T - T0) * 100 + '%';
+
+function render() {
+  if (!P) return;
+  const t = exactT ?? T0 + (T - T0) * $('slider').value / 1000, k = snapIndex(t), snap = P.snapshots[k], state = LS[k], pr = S.profile, c = S.config;
+  $('clock').textContent = `t = ${ms(t)}（pass 内 +${ms(t - T0)}）`;
+  const ph = snap.phase, kinds = pr.kinds;
+  const where = snap.layer == null ? (ph === 'tail' ? 'logits 等' : ph === 'failed' ? '已停止' : 'pass 边界') : `第 ${snap.layer}/${kinds.length - 1} 层（${kinds[snap.layer] === 'C' ? 'CSA 稀疏' : 'HCA'}）`;
+  $('status').innerHTML = `<b>pass ${P.index}</b><span>${where}</span>` + ['wait_kv', 'attention', 'wait_experts', 'moe', 'tail'].map(x => `<span class="pill ${x.startsWith('wait') ? 'wait' : x}${ph === x ? ' on' : ''}">${PHASE[x]}</span>`).join('') + (ph === 'failed' ? '<span class="chip bad">容量不足</span>' : '');
+  const used = snap.tier1.reduce((a, b) => a + b, 0), cap = c.tier1_bytes;
+  $('t1cap').textContent = `已用 ${(used / GB).toFixed(1)} / ${(cap / GB).toFixed(0)} GB`;
+  $('capbar').innerHTML = snap.tier1.map((v, i) => `<i style="width:${v / cap * 100}%;background:${CAP[i][1]}"></i>`).join('');
+  $('caplegend').innerHTML = snap.tier1.map((v, i) => `<span><i style="background:${CAP[i][1]}"></i>${CAP[i][0]} ${gb(v)}</span>`).join('') + `<span>空闲 ${gb(Math.max(cap - used, 0))}</span>`;
+  $('striplabel').textContent = `${kinds.length} 层：橙柱 = 该层已缓存的专家数（每层 ${pr.experts_per_layer} 个），蓝柱 = 该层已缓存的 top-k KV 条数（仅 CSA 层，蓝框）`;
+  $('strip').innerHTML = state.map((s, L) => `<div class="lc ${kinds[L] === 'C' ? 'csa' : ''} ${L === snap.layer ? 'cur' : ''} ${s[2] === 0 ? 'nobase' : s[2] === 1 ? 'loadbase' : ''}" title="L${L} · 专家 ${s[0]} · top-k KV ${s[1]}"><b class="e" style="height:${s[0] / maxE * 100}%"></b><b class="k" style="height:${s[1] / maxK * 100}%"></b></div>`).join('');
+  const d = snap.detail || {};
+  $('curlabel').textContent = snap.layer == null ? '当前层' : `第 ${snap.layer} 层：本 pass 所有 token 路由到 ${d.routed ?? 0} 个专家；下面是当前这一组（最多显示 48 个），以及 KV`;
+  $('experts').innerHTML = (d.experts && d.experts.length) ? d.experts.map(([id, hit, st, job]) => {
+    const loading = st === 0, f = loading && job != null ? jobProgress(job, t) : null;
+    return `<div class="ex ${loading ? 'loading' : hit ? 'hit' : ''}">${f != null ? `<div class="fill" style="width:${f * 100}%"></div>` : ''}<span>e${id}${loading ? ` ${Math.round((f || 0) * 100)}%` : ''}</span></div>`;
+  }).join('') : '<span style="color:#b6bcc8">尚未路由</span>';
+  if (d.kv) {
+    const f = d.kv.job != null ? jobProgress(d.kv.job, t) : 1, tot = Math.max(d.kv.topk, 1);
+    $('kvdetail').innerHTML = (d.kv.topk ? `<div class="kvbar"><i style="width:${d.kv.hits / tot * 100}%;background:var(--kv)"></i><i style="width:${d.kv.missing / tot * f * 100}%;background:#93c5fd"></i><div class="txt">decode top-k ${d.kv.topk} 条：命中 ${d.kv.hits}，缺失 ${d.kv.missing}</div></div>` : '')
+      + (d.kv.stream_bytes ? `<span class="chip">prefill 从二级读前缀 KV ${gb(d.kv.stream_bytes)}</span>` : '');
+  } else $('kvdetail').innerHTML = snap.layer != null && kinds[snap.layer] === 'H' ? '<span style="color:var(--mute)">HCA 层读取全部压缩 KV（常驻一级），没有 top-k</span>' : '';
+  const act = snap.active != null ? JOBS[snap.active] : null, lane = $('lane'), live = act && (act.end == null || t < act.end - 1e-9);
+  lane.classList.toggle('busy', !!live);
+  if (live) { const f = jobProgress(act.id, t); lane.querySelector('.bar').style.cssText = `width:${f * 100}%;background:${KCOLOR[act.kind]}`; lane.querySelector('.txt').textContent = `共享链路：${act.label} · ${gb(act.bytes)}（${Math.round(f * 100)}%）`; }
+  else { lane.querySelector('.bar').style.width = '0'; lane.querySelector('.txt').textContent = '共享链路：空闲'; }
+  $('queue').innerHTML = snap.queue.length ? '排队：' + snap.queue.map(id => JOBS[id] ? `<span class="q k-${JOBS[id].kind}">${JOBS[id].label}</span>` : '').join('') : '<span>队列为空</span>';
+  $('t2cap').textContent = `全部权重 ${(pr.full_weights_bytes / GB).toFixed(0)} GB + 各请求的完整 KV`;
+  $('t2body').innerHTML = `路由专家 ${pr.experts_per_layer} × ${kinds.length} 层 × ${gb(pr.expert_bytes)} · 新 KV 已写回 ${snap.synced} 次，一级中未写回 ${gb(snap.dirty)}`;
+  const notes = P.events.slice(snap.n0, snap.n1);
+  $('notes').innerHTML = notes.length ? `<li style="color:var(--mute)">t = ${ms(snap.t)}：</li>` + notes.map(n => `<li><span class="op ${n.kind}">${n.kind}</span>${n.text}</li>`).join('') : '<li style="color:var(--mute)">此刻没有新事件。点 ⏭ 逐个事件前进，或“下一层”。</li>';
+  document.querySelectorAll('#g-compute .cursor, #g-link .cursor').forEach(el => el.style.left = at(t));
+}
+
+function loadPass(idx) {
+  P = S.passes[idx]; if (!P || !P.detail) return;
+  JOBS = Object.fromEntries(P.jobs.map(j => [j.id, j]));
+  T0 = P.start_ms; T = Math.max(P.end_ms, P.snapshots[P.snapshots.length - 1].t, ...P.link.map(s => s.t1)) * 1 + 1e-9;
+  if (T <= T0) T = T0 + 1e-6;
+  const n = S.profile.kinds.length; LS = []; let cur = Array.from({ length: n }, () => [0, 0, 2]);
+  for (const s of P.snapshots) { const ks = Object.keys(s.layers || {}); if (ks.length) { cur = cur.slice(); for (const L of ks) cur[+L] = s.layers[L]; } LS.push(cur); }
+  maxE = Math.max(1, ...LS.map(a => Math.max(...a.map(x => x[0])))); maxK = Math.max(1, ...LS.map(a => Math.max(...a.map(x => x[1]))));
+  const seg = (s, cls, title) => `<div class="seg ${cls}" style="left:${at(s.t0)};width:${Math.max((s.t1 - s.t0) / (T - T0) * 100, 0.05)}%" title="${title}"></div>`;
+  $('g-compute').innerHTML = P.compute.map(s => seg(s, 'p-' + s.phase, `${s.layer == null ? '' : 'L' + s.layer + ' · '}${PHASE[s.phase]} · ${ms(s.t1 - s.t0)}`)).join('') + '<div class="cursor"></div>';
+  $('g-link').innerHTML = P.link.map(s => seg(s, 'k-' + s.kind, `${s.label} · ${ms(s.t1 - s.t0)}`)).join('') + '<div class="cursor"></div>';
+  $('raw').querySelector('tbody').innerHTML = P.events.map(e => `<tr><td>${ms(e.t)}</td><td>${e.layer ?? ''}</td><td>${e.kind}</td><td>${e.text}</td></tr>`).join('');
+  document.querySelectorAll('.pb').forEach(el => el.classList.toggle('sel', +el.dataset.i === idx));
+  $('passpick').value = idx; exactT = null; $('slider').value = 0; render();
+}
+
+function loadScenario(i) {
+  S = DATA[i];
+  document.querySelectorAll('.tab').forEach((b, j) => b.classList.toggle('on', i === j));
+  const m = S.metrics, c = S.config, pr = S.profile, changed = Object.fromEntries(S.changes.map(x => [x.param, x]));
+  const shown = { tier1_gb: c.tier1_bytes / GB, link_gbps: c.link_bytes_per_ms / 1e6, link_overhead_ms: c.link_overhead_ms, expert_overlap: c.expert_overlap, topk_overlap: c.topk_overlap, hot_kv_entries: c.hot_kv_entries, base_weights: c.base_weights, expert_prefetch: c.expert_prefetch, link_policy: c.link_policy };
+  const chips = Object.keys(shown).map(k => changed[k] ? `<span class="chip changed">${LABELS[k]} <s>${changed[k].base}</s> → ${changed[k].value}</span>` : `<span class="chip">${LABELS[k]} ${shown[k]}</span>`).join('');
+  const w = S.workload, src = [`AISim：${pr.source.model}`, `${pr.source.hardware} · ${pr.source.backend} · ${pr.source.database_mode}`, `${w.requests.length} 个请求`, `max_batched_tokens ${w.max_batched_tokens}`, `max_sequences ${w.max_sequences}`, `专家缓存 ${S.expert_cache_slots} 个位置`].map(x => `<span class="chip src">${x}</span>`).join('');
+  const rate = (h, l) => l ? `${h}/${l}（${Math.round(h / l * 100)}%）` : '—';
+  const metrics = [`平均 TTFT ${ms(m.mean_ttft_ms)}（原生 ${ms(m.native_ttft_ms.reduce((a, b) => a + b, 0) / m.native_ttft_ms.length)}）`, `平均 ITL ${ms(m.mean_itl_ms)}（原生 ${ms(m.native_itl_ms.filter(x => x != null).reduce((a, b) => a + b, 0) / Math.max(1, m.native_itl_ms.filter(x => x != null).length))}）`,
+    `全部完成 ${ms(m.makespan_ms)}（原生 ${ms(m.native_makespan_ms)}）`, `pass ${m.passes} 个，最大 batch ${m.max_batch}`, `专家命中 ${rate(m.expert_hits, m.expert_lookups)}`, `top-k KV 命中 ${rate(m.kv_hits, m.kv_lookups)}`].map(x => `<span class="chip metric">${x}</span>`).join('');
+  $('scn').innerHTML = `<b>${S.title}</b>${S.summary}${S.finding ? `<div class="find">观察：${S.finding}</div>` : ''}<div class="chips">${src}</div><div class="chips">${chips}<span class="chip-note">${S.changes.length ? '黄色 = 相对基线改动的参数' : '基线参数'}</span></div><div class="chips">${metrics}</div>`;
+  // request timeline
+  const end = Math.max(m.makespan_ms, m.native_makespan_ms) * 1.02, x = t => t / end * 100 + '%';
+  const segs = r => r.first_admit_ms == null ? '' : `<div class="seg s-queue" style="left:${x(r.arrival_time_ms)};width:${(r.first_admit_ms - r.arrival_time_ms) / end * 100}%"></div><div class="seg s-prefill" style="left:${x(r.first_admit_ms)};width:${Math.max((r.first_token_ms - r.first_admit_ms) / end * 100, 0.15)}%"></div><div class="seg s-decode" style="left:${x(r.first_token_ms)};width:${Math.max((r.last_token_ms - r.first_token_ms) / end * 100, 0.15)}%"></div>`;
+  $('rt').innerHTML = S.requests.map((r, i) => { const n = S.native_requests[i];
+    return `<div class="name">R${i + 1} 两级</div><div class="lane-g">${segs(r)}</div><div class="val">TTFT ${ms(r.ttft_ms)} · ITL ${ms(r.itl_ms)}</div><div class="name">原生</div><div class="lane-g native">${segs(n)}</div><div class="val">TTFT ${ms(n.ttft_ms)} · ITL ${ms(n.itl_ms)}</div>`; }).join('');
+  const raw = end / 8, mag = Math.pow(10, Math.floor(Math.log10(raw))), stepv = [1, 2, 5, 10].map(v => v * mag).find(v => v >= raw);
+  let ticks = ''; for (let v = 0; v <= end; v += stepv) ticks += `<span class="tick" style="left:${x(v)}">${ms(v)}</span>`;
+  $('rtaxis').innerHTML = ticks;
+  // pass strip
+  const maxRatio = Math.max(...S.passes.map(p => (p.end_ms - p.start_ms) / Math.max(p.native_ms, 1e-9)));
+  $('passlabel').textContent = `pass 列表（${S.passes.length} 个，按时间排列）：柱宽 = 两级下的时长，绿色底 = AISim 原生时长占比。黑框的 pass 有逐层细节，点击播放。`;
+  $('passes').innerHTML = S.passes.map((p, i) => { const h = 100, nat = Math.min(100, p.native_ms / Math.max(p.end_ms - p.start_ms, 1e-9) * 100);
+    return `<div class="pb ${passKind(p)} ${p.detail ? 'detail' : ''}" data-i="${i}" style="left:${x(p.start_ms)};width:max(2px, calc(${(p.end_ms - p.start_ms) / end * 100}% - 1px));height:${h}%" title="pass ${i + 1} · ${p.requests.length} 个请求（${passKind(p)}）· 两级 ${ms(p.end_ms - p.start_ms)} / 原生 ${ms(p.native_ms)}"><div class="nat" style="height:${nat}%"></div></div>`; }).join('');
+  document.querySelectorAll('.pb.detail').forEach(el => el.onclick = () => loadPass(+el.dataset.i));
+  const detailed = S.passes.map((p, i) => [p, i]).filter(([p]) => p.detail);
+  $('passpick').innerHTML = detailed.map(([p, i]) => `<option value="${i}">pass ${i + 1}：${p.requests.length} 个请求（${passKind(p) === 'prefill' ? 'prefill' : passKind(p) === 'mixed' ? 'prefill+decode' : 'decode'}），两级 ${ms(p.end_ms - p.start_ms)} / 原生 ${ms(p.native_ms)}</option>`).join('');
+  if (detailed.length) loadPass(detailed[0][1]);
+  postHeight();
+}
+function goto(t) { exactT = t; $('slider').value = (t - T0) / (T - T0) * 1000; render(); }
+function step(dir) { const t = exactT ?? T0 + (T - T0) * $('slider').value / 1000, k = snapIndex(t); const tg = dir > 0 ? P.snapshots[k + 1] : P.snapshots[P.snapshots[k].t < t - 1e-9 ? k : k - 1]; if (tg) goto(tg.t); }
+function nextLayer() { const t = exactT ?? T0 + (T - T0) * $('slider').value / 1000, k = snapIndex(t), l0 = P.snapshots[k].layer; const j = P.snapshots.findIndex((s, i) => i > k && s.layer !== l0); if (j >= 0) goto(P.snapshots[j].t); }
+function tick(now) { if (!playing) return; const dt = (now - last) / 1000; last = now; let v = +$('slider').value + dt * 1000 / 40; if (v >= 1000) { v = 1000; playing = false; $('play').textContent = '▶ 播放'; } exactT = null; $('slider').value = v; render(); if (playing) requestAnimationFrame(tick); }
+function postHeight() { if (window.parent !== window) window.parent.postMessage({ kvReplayHeight: document.documentElement.scrollHeight }, '*'); }
+new ResizeObserver(postHeight).observe(document.body);
+$('play').onclick = () => { playing = !playing; $('play').textContent = playing ? '⏸ 暂停' : '▶ 播放'; if (playing) { if (+$('slider').value >= 1000) { $('slider').value = 0; exactT = null; } last = performance.now(); requestAnimationFrame(tick); } };
+$('prev').onclick = () => step(-1); $('next').onclick = () => step(1); $('nextlayer').onclick = nextLayer;
+$('slider').oninput = () => { exactT = null; render(); }; $('passpick').onchange = e => loadPass(+e.target.value);
+document.addEventListener('keydown', e => { if (e.key === 'ArrowRight') step(1); else if (e.key === 'ArrowLeft') step(-1); });
+$('tabs').innerHTML = DATA.map((s, i) => `<button class="tab" data-i="${i}">${s.title}</button>`).join('');
+document.querySelectorAll('.tab').forEach(b => b.onclick = () => loadScenario(+b.dataset.i));
+loadScenario(0);
+</script>
+</body>
+</html>
