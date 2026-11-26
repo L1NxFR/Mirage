@@ -2344,5 +2344,8 @@
   "dashboard/site/content/Attachments/two-tier-dram-replay.html": [
     "Claude",
     "Codex"
+  ],
+  "dashboard/site/content/Attachments/two-tier-dram-sweep.html": [
+    "Claude"
   ]
 }
