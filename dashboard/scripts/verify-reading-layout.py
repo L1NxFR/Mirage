@@ -194,7 +194,7 @@ show_toc: true
     disabled = BeautifulSoup((output / 'system-implementation/numbering-disabled/index.html').read_text(), 'html.parser')
     assert not disabled.select('.section-number'), 'Per-page opt-out applies to both heading and TOC'
     overview = BeautifulSoup((output / 'index.html').read_text(), 'html.parser')
-    assert overview.select_one('.document-meta-author .author').get_text() == '林楠'
+    assert overview.select_one('.document-meta-author .author').get_text() == 'Nan Lin'
     for slug, names, images in [('mixed', ['林楠', 'Claude'], ['linnan.jpg', 'claude.png']), ('agents', ['Claude', 'Codex'], ['claude.png', 'codex.png'])]:
         page = BeautifulSoup((output / f'other/authors-{slug}/index.html').read_text(), 'html.parser')
         assert [node.get_text() for node in page.select('.document-meta-author .author')] == names
@@ -214,7 +214,7 @@ show_toc: true
         assert (output / avatar['src'].lstrip('/')).is_file()
         assert avatar['alt'] == ''
 
-    assert overview.select_one('.site-header .site-byline').get_text() == '林楠'
+    assert overview.select_one('.site-header .site-byline').get_text() == 'Nan Lin'
     assert overview.select_one('main.article-layout.blog-layout > .blog-page-heading > header.blog-cover > h1.title').get_text() == '项目概览'
     assert not overview.select('header.page-title, .blog-sidebar'), 'Overview uses the document cover without a journal tree'
     assert {'document-page', 'reading-page', 'blog'} <= set(overview.body['class'])

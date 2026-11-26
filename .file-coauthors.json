@@ -82,7 +82,8 @@
     "Claude"
   ],
   "dashboard/scripts/verify-reading-layout.py": [
-    "Codex"
+    "Codex",
+    "Claude"
   ],
   "dashboard/scripts/workspace-store.mjs": [
     "Codex"
