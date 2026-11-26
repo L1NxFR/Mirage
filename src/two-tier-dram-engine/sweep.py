@@ -1,13 +1,19 @@
 """Sweep `kv_cache.two_tier_dram` on AISim's engine and render one page with a control per parameter.
 
+One card holds the whole model: DeepSeek-V4-Pro (805.7 GB) or DeepSeek-V4-Flash (148.5 GB), the
+two DeepSeek-V4 style models AISim's registry has. Every run enforces the tier-2 capacity check, so
+there are no counterfactual points: tier 2 defaults to the smallest size that holds the model's
+weights ("min"), and a smaller one is a rejected point.
+
     python3 src/two-tier-dram-engine/sweep.py [--out DIR] [--jobs N] [--limit N] [--publish PATH]
 
 Points:
-- the core grid: every combination of the CORE axes (workload, tier-1 size, tier-2 bandwidth,
-  non-expert weight placement), the other parameters at their defaults;
-- one-at-a-time: at each ANCHOR (every workload x the two EXI tier-1 layouts), each other
-  parameter's levels with the rest at defaults.
-Each workload also runs once without `two_tier_dram` for AISim's native timeline.
+- the core grid: every combination of the CORE axes (model, workload, tier-1 size, tier-2 bandwidth,
+  non-expert weight placement, expert cache policy), the other parameters at their defaults;
+- one-at-a-time: at each ANCHOR (every model x workload x the two EXI tier-1 layouts x both policies),
+  each other parameter's levels with the rest at defaults, plus one point with the anchor's
+  effective copy bandwidth split as 2.2 TB/s x 0.4.
+Each model and workload also runs once without `two_tier_dram` for AISim's native timeline.
 
 Every point is a real `aisim predict --stack engine` run (scenarios.run_aisim). A point's result is
 cached in DIR/points/<id>.json, so a rerun only runs missing points. Cross-point checks run before
@@ -35,13 +41,22 @@ sys.path.insert(0, str(HERE))
 
 from scenarios import AISIM, BASE_TWO_TIER, run_aisim  # noqa: E402
 
+# The smallest tier 2 (decimal GB, 0.1 GB steps) that holds one card's weights: the engine's
+# card_weights_bytes is 805,685,038,456 for Pro and 148,486,152,008 for Flash. A check fails if
+# any "min" point is rejected for capacity.
+MIN_TIER2_GB = {"deepseek-ai/DeepSeek-V4-Pro": 805.7, "deepseek-ai/DeepSeek-V4-Flash": 148.5}
+
 TEMPLATE = HERE / "sweep.html"
 BEIJING = timezone(timedelta(hours=8))
 
-# Every parameter the page shows. `levels` are the swept values, `default` is the EXI figure
-# configuration (scenarios.BASE_TWO_TIER). `role`: core axes are crossed with each other;
+# Every parameter the page shows. `levels` are the swept values, `default` is the corrected EXI
+# baseline from the hardware survey (related-work/two-tier-dram-hardware-parameters.md): 1.1 TB/s
+# tier 2, copy efficiency 0.8, 2 us per transfer, with tier 2 at the smallest size that holds the
+# weights. The EXI figure values (128 GB, 2.2 TB/s, 1.0, 0) stay as levels. `role`: core axes are crossed with each other;
 # one-at-a-time axes vary alone around an anchor; fixed ones are shown but not swept.
 AXES = [
+    {"key": "model", "group": "workload", "role": "core", "levels": list(MIN_TIER2_GB), "default": "deepseek-ai/DeepSeek-V4-Pro",
+     "label": "模型", "help": "DeepSeek-V4-Pro：61 层、每层 384 个专家（33 MB）、单卡 805.7 GB，其中非专家 32.0 GB；DeepSeek-V4-Flash：43 层、每层 256 个专家（12.6 MB）、单卡 148.5 GB，其中非专家 10.0 GB。"},
     # Workload: four requests, up to 4 sequences in a batch.
     {"key": "arrival", "group": "workload", "role": "core", "levels": ["staggered", "together"], "default": "staggered",
      "label": "到达方式", "help": "staggered：每 50 ms 到一个，每个 pass 最多一个 prefill；together：同时到达，一个 pass 做完 4 个 prefill。"},
@@ -54,17 +69,17 @@ AXES = [
      "label": "一级容量", "unit": "GB", "help": "EXI 图示 36 GB；研究记录的探索方案 96 GB。"},
     {"key": "base_weights", "group": "memory", "role": "core", "levels": ["layer_prefetch", "resident"], "default": "layer_prefetch",
      "label": "非专家权重", "help": "32 GB 非专家权重常驻一级（resident），或逐层从二级轮换（layer_prefetch）。"},
-    {"key": "tier2_bandwidth_gbps", "group": "memory", "role": "core", "levels": [1100, 2200, 4400], "default": 2200,
-     "label": "二级标称带宽", "unit": "GB/s", "help": "LPDDR6 架构表 1.1–2.2 TB/s；4.4 TB/s 为外推。"},
-    {"key": "copy_efficiency", "group": "memory", "role": "oat", "levels": [0.5, 0.7, 1.0], "default": 1.0,
-     "label": "复制效率", "help": "有效复制带宽 = 标称带宽 × 复制效率；引擎只看乘积。"},
+    {"key": "tier2_bandwidth_gbps", "group": "memory", "role": "core", "levels": [1100, 2200, 4400], "default": 1100,
+     "label": "二级标称带宽", "unit": "GB/s", "help": "调研基线 1.1 TB/s，与 NVIDIA Vera 的 LPDDR5X 接口同级；2.2 TB/s 是 EXI 图示值，作上限；4.4 TB/s 为外推。"},
+    {"key": "copy_efficiency", "group": "memory", "role": "oat", "levels": [0.4, 0.5, 0.7, 0.8, 1.0], "default": 0.8,
+     "label": "复制效率", "help": "有效复制带宽 = 标称带宽 × 复制效率；引擎只看乘积。调研基线 0.8（GH200 实测 0.74–0.84、PCIe Gen5 约 0.8）；1.0 是 EXI 图示值。"},
     {"key": "scratch_gb", "group": "memory", "role": "oat", "levels": [2, 4, 8], "default": 4,
      "label": "scratch", "unit": "GB", "help": "一级中留给激活等的空间。"},
-    {"key": "tier2_gb", "group": "memory", "role": "oat", "levels": [128, 1024], "default": 128,
-     "label": "二级容量", "unit": "GB", "help": "128 GB 放不下 805.7 GB 权重，结果标为不可行；1024 GB 可行。"},
+    {"key": "tier2_gb", "group": "memory", "role": "oat", "levels": ["min", 128, 1024], "default": "min",
+     "label": "二级容量", "unit": "GB", "help": "min：放得下该模型单卡权重的最小值（Pro 805.7 GB，超出架构表 64–512 GB；Flash 148.5 GB）。EXI 图示 128 GB 两个模型都放不下，被拒绝；1024 GB 对照。"},
     # Link.
-    {"key": "link_overhead_ms", "group": "link", "role": "oat", "levels": [0.0, 0.001, 0.01, 0.1], "default": 0.0,
-     "label": "每次传输开销", "unit": "ms"},
+    {"key": "link_overhead_ms", "group": "link", "role": "oat", "levels": [0.0, 0.001, 0.002, 0.01, 0.1], "default": 0.002,
+     "label": "每次传输开销", "unit": "ms", "help": "调研基线 2 µs（0.002 ms，参照 GH200 与 PCIe 实测 1–3 µs）；0 是 EXI 图示值。"},
     {"key": "link_policy", "group": "link", "role": "oat", "levels": ["demand_first", "fifo"], "default": "demand_first",
      "label": "链路策略", "help": "demand_first：按需传输抢占预取；fifo：按入队顺序。"},
     # Experts.
@@ -88,19 +103,21 @@ AXES = [
      "label": "profile 上下文", "unit": "token", "help": "测 attention／MoE 时间比例时用的上下文长度。"},
 ]
 FIXED = [
-    {"label": "模型", "value": "deepseek-ai/DeepSeek-V4-Pro（w4a8 专家，805.7 GB）"},
-    {"label": "算力", "value": "hardware exi_3ddram，AISim op-level SOL（一级 18 TB/s）"},
+    {"label": "算力", "value": "hardware exi_3ddram，AISim op-level SOL（一级 18 TB/s，访存效率 1.0；调研建议的 0.8 未应用，见系统文件）"},
     {"label": "后端", "value": "vLLM 0.30.0，TP1，max_sequences 4"},
-    {"label": "tier2_capacity_check", "value": "counterfactual：二级放不下时照常运行，结果标为不可行"},
+    {"label": "并行", "value": "单卡装整个模型，未做专家并行"},
+    {"label": "tier2_capacity_check", "value": "enforce：二级放不下权重时拒绝运行，没有反事实点"},
     {"label": "KV 容量", "value": "固定 40000 块（二级中的 KV）"},
 ]
 WORKLOAD_KEYS = ("arrival", "prompt", "output")
+# A native run depends on the model and the workload only.
+NATIVE_KEYS = ("model", *WORKLOAD_KEYS)
 CORE = [a for a in AXES if a["role"] == "core"]
 OAT = [a for a in AXES if a["role"] == "oat"]
 DEFAULTS = {a["key"]: a["default"] for a in AXES}
 # One-at-a-time sweeps run around these core settings, for every workload.
-ANCHORS = [{"tier1_gb": t, "base_weights": w, "tier2_bandwidth_gbps": 2200, "expert_policy": policy}
-           for policy in ("lru", "layer_partition") for t, w in ((36, "layer_prefetch"), (96, "resident"))]
+ANCHORS = [{"model": m, "tier1_gb": t, "base_weights": w, "tier2_bandwidth_gbps": 1100, "expert_policy": policy}
+           for m in MIN_TIER2_GB for policy in ("lru", "layer_partition") for t, w in ((36, "layer_prefetch"), (96, "resident"))]
 PHASES = ("attention", "moe", "tail", "wait_base", "wait_kv", "wait_experts")
 LINK_KINDS = ("demand_base", "prefetch_base", "demand_expert", "prefetch_expert", "demand_kv", "prefill_kv", "writeback")
 
@@ -112,14 +129,18 @@ def workload_of(point: dict) -> dict:
 
 
 def two_tier_of(point: dict, trace: Path) -> dict:
-    cfg = {**copy.deepcopy(BASE_TWO_TIER), **{a["key"]: point[a["key"]] for a in AXES if a["key"] not in WORKLOAD_KEYS}}
+    cfg = {**copy.deepcopy(BASE_TWO_TIER), "tier2_capacity_check": "enforce",
+           **{a["key"]: point[a["key"]] for a in AXES if a["key"] not in NATIVE_KEYS}}
+    if cfg["tier2_gb"] == "min":
+        cfg["tier2_gb"] = MIN_TIER2_GB[point["model"]]
     if cfg["expert_cache_gb"] is None:
         del cfg["expert_cache_gb"]
     return {**cfg, "trace_path": str(trace), "trace_passes": 1_000_000}
 
 
 def point_id(point: dict) -> str:
-    return hashlib.sha1(json.dumps([point[a["key"]] for a in AXES]).encode()).hexdigest()[:12]
+    # The capacity check is in the key: counterfactual results cached before it never match.
+    return hashlib.sha1(json.dumps(["enforce", *[point[a["key"]] for a in AXES]]).encode()).hexdigest()[:12]
 
 
 def plan() -> list[dict]:
@@ -134,6 +155,9 @@ def plan() -> list[dict]:
                 for level in axis["levels"]:
                     p = {**base, axis["key"]: level}
                     points[point_id(p)] = p
+            # The same effective copy bandwidth as the anchor (1100 x 0.8), split differently.
+            twin = {**base, "tier2_bandwidth_gbps": 2200, "copy_efficiency": 0.4}
+            points[point_id(twin)] = twin
     return list(points.values())
 
 
@@ -211,12 +235,12 @@ def failure_message(folder: Path) -> str:
 ATTEMPTS = 3
 
 
-def run_with_retry(folder: Path, workload: dict, two_tier: dict | None) -> dict | str:
+def run_with_retry(folder: Path, workload: dict, two_tier: dict | None, model: str) -> dict | str:
     """AISim's result, or the engine's `two_tier_dram:` rejection. Any other failure (a startup
     timeout under load, say) is retried, then raised: it says nothing about the configuration."""
     for attempt in range(ATTEMPTS):
         try:
-            return run_aisim(folder, workload, two_tier)
+            return run_aisim(folder, workload, two_tier, model=model)
         except SystemExit:
             reason = failure_message(folder)
             if reason.startswith("two_tier_dram:"):
@@ -240,7 +264,7 @@ def run_point(out: Path, point: dict) -> dict:
         return json.loads(cached.read_text())
     folder = out / "runs" / pid
     trace = folder / "two-tier.jsonl"
-    result = run_with_retry(folder, workload_of(point), two_tier_of(point, trace))
+    result = run_with_retry(folder, workload_of(point), two_tier_of(point, trace), point["model"])
     if isinstance(result, str):
         record = {"id": pid, "aisim": AISIM_COMMIT, "point": point, "error": result}
     else:
@@ -252,12 +276,13 @@ def run_point(out: Path, point: dict) -> dict:
 
 
 def run_native(out: Path, workload_point: dict) -> dict:
-    key = "-".join(str(workload_point[k]) for k in WORKLOAD_KEYS)
-    cached = out / "points" / f"native-{key}.json"
+    key = wkey(workload_point)
+    name = "native-" + key.replace("/", "--")
+    cached = out / "points" / f"{name}.json"
     if cached.exists():
         return json.loads(cached.read_text())
-    folder = out / "runs" / f"native-{key}"
-    result = run_with_retry(folder, workload_of(workload_point), None)
+    folder = out / "runs" / name
+    result = run_with_retry(folder, workload_of(workload_point), None, workload_point["model"])
     if isinstance(result, str):
         raise RuntimeError(f"native-{key}: {result}")
     record = {"workload": key, "aisim": AISIM_COMMIT, "requests": compact_requests(result)}
@@ -272,7 +297,7 @@ def makespan(rec: dict) -> float:
 
 
 def wkey(point: dict) -> str:
-    return "-".join(str(point[k]) for k in WORKLOAD_KEYS)
+    return "-".join(str(point[k]) for k in NATIVE_KEYS)
 
 
 def checks(records: list[dict], natives: dict[str, dict]) -> list[tuple[str, bool, str]]:
@@ -287,13 +312,13 @@ def checks(records: list[dict], natives: dict[str, dict]) -> list[tuple[str, boo
     pairs, bad = 0, []
     for r in ok.values():
         p = r["point"]
-        if p["copy_efficiency"] == 0.5 and p["tier2_bandwidth_gbps"] == 2200:
-            twin = find({**p, "copy_efficiency": 1.0, "tier2_bandwidth_gbps": 1100})
+        if p["copy_efficiency"] == 0.4 and p["tier2_bandwidth_gbps"] == 2200:
+            twin = find({**p, "copy_efficiency": 0.8, "tier2_bandwidth_gbps": 1100})
             if twin:
                 pairs += 1
                 if abs(makespan(r) - makespan(twin)) > 0.005 * makespan(twin):
                     bad.append(r["id"])
-    results.append(("2.2 TB/s × 0.5 与 1.1 TB/s × 1.0 结果一致（引擎只看乘积）", pairs > 0 and not bad, f"{pairs} 对，{len(bad)} 对不一致"))
+    results.append(("2.2 TB/s × 0.4 与 1.1 TB/s × 0.8 结果一致（引擎只看乘积）", pairs > 0 and not bad, f"{pairs} 对，{len(bad)} 对不一致"))
 
     pairs, bad = 0, []
     for r in ok.values():
@@ -310,13 +335,24 @@ def checks(records: list[dict], natives: dict[str, dict]) -> list[tuple[str, boo
     for r in ok.values():
         p = r["point"]
         if p["tier2_gb"] == 1024:
-            base = find({**p, "tier2_gb": 128})
+            base = find({**p, "tier2_gb": "min"})
             if base:
                 pairs += 1
-                if not (r["totals"]["tier2_feasible"] is True and base["totals"]["tier2_feasible"] is False
-                        and abs(makespan(r) - makespan(base)) <= 0.005 * makespan(base)):
+                if abs(makespan(r) - makespan(base)) > 0.005 * makespan(base):
                     bad.append(r["id"])
-    results.append(("二级 1024 GB 可行、128 GB 不可行，时间相同（容量只影响可行性）", pairs > 0 and not bad, f"{pairs} 对，{len(bad)} 对不符"))
+    results.append(("二级 1024 GB 与最小可行容量时间相同（放得下之后容量不影响时间）", pairs > 0 and not bad, f"{pairs} 对，{len(bad)} 对不符"))
+
+    small = [r for r in records if r["point"]["tier2_gb"] == 128]
+    results.append(("二级 128 GB 全部被拒绝（Pro 805.7 GB、Flash 148.5 GB）", bool(small) and all("tier 2 cannot hold" in r.get("error", "") for r in small),
+                    f"{sum('tier 2 cannot hold' in r.get('error', '') for r in small)}/{len(small)} 被拒绝"))
+
+    at_min = [r for r in records if r["point"]["tier2_gb"] == "min"]
+    results.append(("二级取最小可行容量的点没有因容量被拒绝", bool(at_min) and not any("tier 2 cannot hold" in r.get("error", "") for r in at_min),
+                    f"{sum('tier 2 cannot hold' in r.get('error', '') for r in at_min)}/{len(at_min)} 被拒绝"))
+
+    done = list(ok.values())
+    results.append(("所有完成的点二级可行（没有反事实点）", bool(done) and all(r["totals"]["tier2_feasible"] is True for r in done),
+                    f"{sum(r['totals']['tier2_feasible'] is True for r in done)}/{len(done)}"))
 
     pairs, bad = 0, []
     for r in ok.values():
@@ -340,16 +376,20 @@ def checks(records: list[dict], natives: dict[str, dict]) -> list[tuple[str, boo
                     bad.append(r["id"])
     results.append(("LRU 专家命中率低于 1% 的点，layer_partition 命中更多", pairs > 0 and not bad, f"{pairs} 对，{len(bad)} 对没有更多"))
 
-    resident_small = [r for r in records if r["point"]["base_weights"] == "resident" and r["point"]["tier1_gb"] <= 36]
-    results.append(("一级 ≤ 36 GB 时非专家权重常驻被拒绝（32 GB + scratch 放不下）",
+    resident_small = [r for r in records if r["point"]["model"] == "deepseek-ai/DeepSeek-V4-Pro"
+                      and r["point"]["base_weights"] == "resident" and r["point"]["tier1_gb"] <= 36]
+    results.append(("Pro 一级 ≤ 36 GB 时非专家权重常驻被拒绝（32 GB + scratch 放不下）",
                     bool(resident_small) and all("error" in r for r in resident_small),
                     f"{sum('error' in r for r in resident_small)}/{len(resident_small)} 被拒绝"))
     return results
 
 
 def write_page(records: list[dict], natives: dict[str, dict], check_results: list, out: Path) -> None:
-    # Layer kinds are the model's, the same in every run: keep one copy.
-    kinds = next((r["kinds"] for r in records if "kinds" in r), None)
+    # Layer kinds belong to the model, the same in every run of it: keep one copy per model.
+    kinds = {}
+    for r in records:
+        if "kinds" in r:
+            kinds.setdefault(r["point"]["model"], r["kinds"])
     # The AISim commit each run used, recorded when it ran.
     commits = sorted({r.get("aisim", "unknown") for r in [*records, *natives.values()]})
     records = [{k: v for k, v in r.items() if k not in ("kinds", "aisim")} for r in records]

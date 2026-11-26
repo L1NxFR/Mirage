@@ -84,7 +84,7 @@ def workload_key(workload: dict) -> str:
     return json.dumps(workload, sort_keys=True)
 
 
-def config_for(workload: dict, trace_file: Path, two_tier: dict | None) -> dict:
+def config_for(workload: dict, trace_file: Path, two_tier: dict | None, model: str = MODEL) -> dict:
     kv_cache = {"capacity": {"type": "fixed", "blocks": 40000}}
     if two_tier is not None:
         kv_cache["two_tier_dram"] = two_tier
@@ -94,7 +94,7 @@ def config_for(workload: dict, trace_file: Path, two_tier: dict | None) -> dict:
         "traffic": {"source": {"type": "trace", "format": "mooncake", "block_size": 65536, "paths": [str(trace_file)]},
                     "load": {"type": "trace_timestamps"}},
         "engine": {
-            "mode": "aggregated", "model": MODEL, "hardware": "exi_3ddram", "backend": "vllm",
+            "mode": "aggregated", "model": model, "hardware": "exi_3ddram", "backend": "vllm",
             "backend_version": "0.30.0", "context_length": 131072,
             # EXI-SOL: AISim's analytical roofline on the EXI system file (tier-1 18 TB/s, FP8/FP4 peaks).
             "ais_perf_model": {"estimation_mode": "op_level", "database_mode": "SOL", "systems_paths": [str(SYSTEMS), "default"]},
@@ -109,13 +109,14 @@ def config_for(workload: dict, trace_file: Path, two_tier: dict | None) -> dict:
     }
 
 
-def run_aisim(folder: Path, workload: dict, two_tier: dict | None, expect_failure: str | None = None) -> dict:
+def run_aisim(folder: Path, workload: dict, two_tier: dict | None, expect_failure: str | None = None,
+              model: str = MODEL) -> dict:
     folder.mkdir(parents=True, exist_ok=True)
     trace_file = folder / "requests.mooncake.jsonl"
     trace_file.write_text("".join(
         json.dumps({"request_id": f"R{i}", "timestamp": t, "input_length": n, "output_length": out, "hash_ids": [100 * i + 1]}) + "\n"
         for i, (t, n, out) in enumerate(workload["requests"], start=1)))
-    config = config_for(workload, trace_file, two_tier)
+    config = config_for(workload, trace_file, two_tier, model)
     (folder / "config.json").write_text(json.dumps(config, indent=1))  # JSON is valid YAML
     proc = subprocess.run([str(CLI), "predict", "--stack", "engine", "--config", str(folder / "config.json"),
                            "--capture-per-request", "--output-dir", str(folder / "aisim"), "--overwrite"],

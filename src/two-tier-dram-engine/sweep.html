@@ -86,7 +86,7 @@
     <aside>
       <div class="card">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-          <h2 style="margin:0">参数</h2><button class="btn" id="reset">恢复 EXI 默认</button>
+          <h2 style="margin:0">参数</h2><button class="btn" id="reset">恢复默认</button>
         </div>
         <div class="note">每个按钮是一个扫描值；带 · 的是默认值。虚线按钮在当前组合下没有算过，点它会跳到最近的已算点。</div>
         <div id="controls"></div>
@@ -119,9 +119,10 @@ let D, AX, INDEX, cur, msg = "", localPick = "decode", showTable = false;
 const fmt = (v, d = 0) => v == null ? "—" : Number(v).toLocaleString("en-US", { maximumFractionDigits: d, minimumFractionDigits: d });
 const ms = v => v == null ? "—" : v >= 1000 ? fmt(v / 1000, 2) + " s" : fmt(v, v < 10 ? 2 : 0) + " ms";
 const pct = (a, b) => (a / b - 1) * 100;
-const show = (axis, v) => v == null ? "自动" : axis.key === "tier2_bandwidth_gbps" ? fmt(v / 1000, 1) + " TB/s" : String(v);
+const show = (axis, v) => v == null ? "自动" : axis.key === "tier2_bandwidth_gbps" ? fmt(v / 1000, 1) + " TB/s"
+  : axis.key === "model" ? v.split("/").pop() : v === "min" ? "最小可行" : String(v);
 const keyOf = p => AX.map(a => JSON.stringify(p[a.key])).join("|");
-const wkey = p => [p.arrival, p.prompt, p.output].join("-");
+const wkey = p => [p.model, p.arrival, p.prompt, p.output].join("-");
 const defaults = () => Object.fromEntries(AX.map(a => [a.key, a.default]));
 const isDefault = (a, v) => JSON.stringify(v) === JSON.stringify(a.default);
 const makespan = r => Math.max(...r.requests.map(q => q[3]));
@@ -288,13 +289,13 @@ function sensitivity(parent) {
   const isAnchor = D.anchors.some(a => Object.entries(a).every(([k, v]) => anchor[k] === v));
   const base = INDEX.get(keyOf(anchor));
   if (!isAnchor || !base || base.error) {
-    el("div", { class: "note", text: "逐个变化只在 4 个锚点上计算（每种负载 × 一级 36 GB 逐层轮换 / 96 GB 常驻 × 两种缓存策略，二级 2.2 TB/s）。" }, card);
+    el("div", { class: "note", text: "逐个变化只在 4 个锚点上计算（每种负载 × 一级 36 GB 逐层轮换 / 96 GB 常驻 × 两种缓存策略，二级 1.1 TB/s × 0.8）。" }, card);
     const row = el("div", { class: "status" }, card);
     D.anchors.forEach(a => el("button", { class: "btn", text: `跳到 ${a.tier1_gb} GB ${a.base_weights === "resident" ? "常驻" : "轮换"}，${SERIES.expert_policy.name(a.expert_policy)}`,
       onclick: () => { cur = { ...cur, ...oatDefaults(), ...a }; msg = ""; render(); } }, row));
     return;
   }
-  el("div", { class: "note", text: `锚点：当前负载，一级 ${anchor.tier1_gb} GB（${anchor.base_weights === "resident" ? "非专家权重常驻" : "逐层轮换"}），${SERIES.expert_policy.name(anchor.expert_policy)}，二级 2.2 TB/s，完成 ${ms(makespan(base))}。每个点相对锚点的变化；点击切换。` }, card);
+  el("div", { class: "note", text: `锚点：当前负载，一级 ${anchor.tier1_gb} GB（${anchor.base_weights === "resident" ? "非专家权重常驻" : "逐层轮换"}），${SERIES.expert_policy.name(anchor.expert_policy)}，二级 1.1 TB/s × 0.8，完成 ${ms(makespan(base))}。每个点相对锚点的变化；点击切换。` }, card);
   const rows = AX.filter(a => a.role === "oat").map(a => ({ a, pts: a.levels.map(v => {
     const r = INDEX.get(keyOf({ ...anchor, [a.key]: v }));
     return { v, r, d: r && !r.error ? pct(makespan(r), makespan(base)) : null };
@@ -375,7 +376,7 @@ function layerChart(parent, rec) {
     el("line", { x1: left, x2: W - right, y1: y(t), y2: y(t), stroke: "var(--grid)" }, svg);
     el("text", { x: left - 6, y: y(t) + 3, "text-anchor": "end", text: ms(t) }, svg);
   }
-  const kinds = D._kinds;
+  const kinds = D.kinds ? D.kinds[cur.model] : null;
   rows.forEach((r, i) => {
     let acc = 0;
     const x0 = left + i * bw + 1, w = Math.max(1, bw - 2);
@@ -416,12 +417,12 @@ function kpis(parent, rec, nat) {
 function renderStatus(rec) {
   const st = document.getElementById("status"); st.innerHTML = "";
   const changed = AX.filter(a => !isDefault(a, cur[a.key]));
-  el("span", { class: "chip", text: `负载：4 个 ${fmt(cur.prompt)} token 请求，${cur.arrival === "staggered" ? "每 50 ms 到一个" : "同时到达"}，各输出 ${cur.output} token` }, st);
-  if (!changed.length) el("span", { class: "chip", text: "EXI 图示配置（全部默认）" }, st);
+  el("span", { class: "chip", text: `${cur.model.split("/").pop()}；负载：4 个 ${fmt(cur.prompt)} token 请求，${cur.arrival === "staggered" ? "每 50 ms 到一个" : "同时到达"}，各输出 ${cur.output} token` }, st);
+  if (!changed.length) el("span", { class: "chip", text: "默认配置（EXI 修正基线，二级取最小可行容量）" }, st);
   for (const a of changed) if (a.group !== "workload") el("span", { class: "chip changed", html: `${a.label} <s>${show(a, a.default)}</s> → ${show(a, cur[a.key])}` }, st);
   const eff = cur.tier2_bandwidth_gbps * cur.copy_efficiency;
   el("span", { class: "chip", text: `有效复制带宽 ${fmt(eff / 1000, 2)} TB/s` }, st);
-  if (rec && !rec.error) el("span", { class: "chip " + (rec.totals.tier2_feasible ? "good" : "bad"), text: rec.totals.tier2_feasible ? "二级放得下：可行" : `二级 ${cur.tier2_gb} GB 放不下 805.7 GB 权重：反事实，不可行` }, st);
+  if (rec && !rec.error) el("span", { class: "chip " + (rec.totals.tier2_feasible ? "good" : "bad"), text: rec.totals.tier2_feasible ? "二级放得下单卡权重：可行" : `二级 ${show(AX.find(a => a.key === "tier2_gb"), cur.tier2_gb)} 放不下权重：不可行` }, st);
   document.getElementById("msg").innerHTML = msg ? `<div class="msg">${msg}</div>` : "";
 }
 
@@ -458,7 +459,6 @@ async function main() {
   const bytes = Uint8Array.from(atob(PACKED), c => c.charCodeAt(0));
   const text = await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"))).text();
   D = JSON.parse(text); AX = D.axes;
-  D._kinds = D.kinds || null;
   INDEX = new Map(D.points.map(r => [keyOf(r.point), r]));
   cur = defaults();
   if (!INDEX.has(keyOf(cur))) cur = { ...D.points[0].point };  // a --limit smoke run may not include the defaults

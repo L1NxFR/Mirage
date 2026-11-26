@@ -97,20 +97,33 @@ python3 src/two-tier-dram-engine/sweep.py --limit 6 --jobs 6 --out /tmp/sweep-sm
 ```
 
 `sweep.py` 的 `AXES` 列出页面上的全部参数：
-- 核心参数取全组合：到达方式、输入长度、输出长度、一级容量、非专家权重放置、二级标称带宽、专家缓存策略（864 个点）。
-- 其余参数在锚点上逐个变化。锚点是每种负载 × 一级 36 GB 逐层轮换／96 GB 常驻 × 两种缓存策略，二级 2.2 TB/s（另 1200 个点）。
-- 每种负载另跑一次原生版本。
+- 核心参数取全组合：模型、到达方式、输入长度、输出长度、一级容量、非专家权重放置、二级标称带宽、专家缓存策略（1728 个点）。
+- 其余参数在锚点上逐个变化。锚点是每个模型 × 每种负载 × 一级 36 GB 逐层轮换／96 GB 常驻 × 两种缓存策略，二级 1.1 TB/s × 0.8；每个锚点另有一个 2.2 TB/s × 0.4 的点（另 2880 个点）。
+- 每个模型的每种负载另跑一次原生版本。
 
-每个点是一次真实的 `aisim predict --stack engine` 运行。结果缓存在 `output/sweep/points/<id>.json`，重跑只补缺失的点；改了 AISim 或 profile 后删掉 `output/sweep/points` 再跑。每条记录带运行时的 AISim 提交，页面显示这些提交。i163v 上全部重跑约 30 分钟。并发太高时 AISim 启动会超时，脚本把这类失败重试 3 次，仍失败就停止；只有引擎自己的 `two_tier_dram:` 拒绝才记为被拒绝的点。
+模型是 AISim 注册表里两个 DeepSeek-V4 结构的模型（`two_tier_dram` 只支持这一类）：
+
+| 模型 | 层数 | 每层专家 | 单个专家 | 非专家权重 | 单卡合计 | 最小可行二级 |
+| --- | --- | --- | --- | --- | --- | --- |
+| `deepseek-ai/DeepSeek-V4-Pro` | 61 | 384，top 6 | 33.0 MB | 32.0 GB | 805.7 GB | 805.7 GB |
+| `deepseek-ai/DeepSeek-V4-Flash` | 43 | 256，top 6 | 12.6 MB | 10.0 GB | 148.5 GB | 148.5 GB |
+
+`DeepSeek-V4.1-Flash` 的模型类没有压缩比和 top-k 索引字段，`two_tier_dram` 拒绝它。
+
+所有点都开启二级容量强制检查（`tier2_capacity_check: enforce`），没有反事实点。二级容量默认取 `min`，即放得下该模型单卡权重的最小值（`sweep.py` 的 `MIN_TIER2_GB`；Pro 的 805.7 GB 超出架构表的 64–512 GB）；128 GB（EXI 图示值）的点应被拒绝。其余默认值取[硬件调研](../../dashboard/site/content/related-work/two-tier-dram-hardware-parameters.md)的 EXI 修正基线：二级 1.1 TB/s、复制效率 0.8、每次传输 2 µs。EXI 图示值（2.2 TB/s、1.0、0）作为扫描取值保留。
+
+每个点是一次真实的 `aisim predict --stack engine` 运行。结果缓存在 `output/sweep/points/<id>.json`，重跑只补缺失的点；点的 id 包含容量检查方式，开启强制检查之前的缓存不会被复用；改了 AISim 或 profile 后删掉 `output/sweep/points` 再跑。每条记录带运行时的 AISim 提交，页面显示这些提交。i163v 上全部重跑约 30 分钟。并发太高时 AISim 启动会超时，脚本把这类失败重试 3 次，仍失败就停止；只有引擎自己的 `two_tier_dram:` 拒绝才记为被拒绝的点。
 
 写页面前会检查：
 - 两级完成时间不早于原生；
-- 2.2 TB/s × 0.5 与 1.1 TB/s × 1.0 结果相同；
+- 2.2 TB/s × 0.4 与 1.1 TB/s × 0.8 结果相同；
 - 带宽升高不变慢；
-- 二级容量只影响可行性标记；
+- 二级 1024 GB 与最小可行容量时间相同；
+- 二级 128 GB 全部被拒绝，最小可行容量的点没有因容量被拒绝；
+- 所有完成的点二级可行；
 - 每次传输加开销不变快；
 - LRU 专家命中率低于 1% 的点，`layer_partition` 命中更多；
-- 一级 ≤ 36 GB 时非专家权重常驻被拒绝。
+- Pro 一级 ≤ 36 GB 时非专家权重常驻被拒绝。
 
 任何一项不通过就退出 1，不写页面。
 
