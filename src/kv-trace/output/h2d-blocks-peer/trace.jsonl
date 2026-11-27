@@ -1,0 +1,4 @@
+{"request_id": "R1", "timestamp": 0, "input_length": 9, "output_length": 1, "hash_ids": [1, 2, 3]}
+{"request_id": "R2", "timestamp": 100, "input_length": 9, "output_length": 1, "hash_ids": [11, 12, 13]}
+{"request_id": "R3", "timestamp": 200, "input_length": 12, "output_length": 1, "hash_ids": [1, 2, 30]}
+{"request_id": "R4", "timestamp": 210, "input_length": 4, "output_length": 1, "hash_ids": [31]}

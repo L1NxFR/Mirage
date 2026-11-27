@@ -1,0 +1,21 @@
+NVIDIA AIPerf | LLM Metrics
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━━┳━━━━━━┳━━━━━━━┓
+┃ Metric                                             ┃                                                   avg ┃  min ┃   max ┃   p99 ┃   p90 ┃  p75 ┃   std ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━━╇━━━━━━╇━━━━━━━┩
+┃ Time to First Token (ms)                           ┃                                                 12.00 ┃ 2.00 ┃ 42.00 ┃ 42.00 ┃ 42.00 ┃ 2.00 ┃ 17.32 ┃
+┃ Time to Second Token (ms)                          ┃                                                  0.00 ┃ 0.00 ┃  0.00 ┃  0.00 ┃  0.00 ┃ 0.00 ┃  0.00 ┃
+┃ Request Latency (ms)                               ┃                                                 12.00 ┃ 2.00 ┃ 42.00 ┃ 42.00 ┃ 42.00 ┃ 2.00 ┃ 17.32 ┃
+┃ Inter Token Latency (ms)                           ┃                                                  0.00 ┃ 0.00 ┃  0.00 ┃  0.00 ┃  0.00 ┃ 0.00 ┃  0.00 ┃
+┃ Output Token Throughput Per User (tokens/sec/user) ┃                                                  0.00 ┃ 0.00 ┃  0.00 ┃  0.00 ┃  0.00 ┃ 0.00 ┃  0.00 ┃
+┃ Output Token Throughput (tokens/sec)               ┃                                                 13.25 ┃  N/A ┃   N/A ┃   N/A ┃   N/A ┃  N/A ┃   N/A ┃
+┃ Request Throughput (requests/sec)                  ┃                                                 13.25 ┃  N/A ┃   N/A ┃   N/A ┃   N/A ┃  N/A ┃   N/A ┃
+┃ Request Count (requests)                           ┃                                                  4.00 ┃  N/A ┃   N/A ┃   N/A ┃   N/A ┃  N/A ┃   N/A ┃
+┃ Active Power per GPU (W) [power_w]                 ┃ unavailable (energy provider or topology unsupported) ┃  N/A ┃   N/A ┃   N/A ┃   N/A ┃  N/A ┃   N/A ┃
+┃ Power Data Coverage (%) [power_coverage]           ┃ unavailable (energy provider or topology unsupported) ┃  N/A ┃   N/A ┃   N/A ┃   N/A ┃  N/A ┃   N/A ┃
+└━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┴━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┴━━━━━━┴━━━━━━━┴━━━━━━━┴━━━━━━━┴━━━━━━┴━━━━━━━┘
+Wall Time (ms): 0.23
+Prefix Cache Reused Ratio: 0.21
+First Admission Prefix Cache Reused Ratio: 0.21
+Timing (aggregated): estimator=fixed; source=configured; data_version=unavailable (configured timing does not use performance data)
+Saved full report to: /Users/linnan/Documents/INTEL/Mirage/src/kv-trace/output/g2-pressure/aisim/prediction.json
+trace: /Users/linnan/Documents/INTEL/Mirage/src/kv-trace/output/g2-pressure/trace.json (kv_events=15, host_offload_events=21, requests=4)

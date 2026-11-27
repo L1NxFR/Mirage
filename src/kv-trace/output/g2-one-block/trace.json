@@ -1,0 +1,367 @@
+{
+ "execution_spec": {
+  "spec": {
+   "version": 1,
+   "topology": {
+    "kind": "aggregated",
+    "workers": {
+     "initial_workers": 1,
+     "startup_delay_ms": 0.0
+    }
+   },
+   "engine": {
+    "dp_size": 1,
+    "tensor_parallel_size": 1,
+    "prefill_context_parallel_size": 1,
+    "num_gpu_blocks_is_explicit": true,
+    "rank": {
+     "max_num_batched_tokens": 16,
+     "max_num_seqs": 1,
+     "prefill_schedule_interval": 1,
+     "prefill_decode_interval": 0,
+     "block_size": 4,
+     "enable_prefix_caching": true,
+     "max_model_len": 2048,
+     "num_gpu_blocks": 3,
+     "timing_model": {
+      "type": "fixed",
+      "prefill_ms": 2.0,
+      "decode_ms": 1.0
+     },
+     "kv_cache_bytes_per_token": 250000,
+     "native_host_offload": {
+      "num_host_blocks": 1,
+      "d2h_bandwidth_gbps": 1.0,
+      "h2d_bandwidth_gbps": 1.0
+     },
+     "backend": "vllm"
+    }
+   },
+   "adapters": {
+    "placement": {
+     "provider": "round_robin",
+     "config": null
+    },
+    "scaling": {
+     "provider": "none",
+     "config": null
+    }
+   },
+   "max_sim_time_ms": null,
+   "max_in_flight": null,
+   "record_per_request": true,
+   "sla": {},
+   "requests": []
+  },
+  "traffic": {
+   "source_type": "trace",
+   "load_type": "trace_timestamps",
+   "trace_paths": [
+    "/Users/linnan/Documents/INTEL/Mirage/src/kv-trace/output/g2-one-block/trace.jsonl"
+   ],
+   "trace_path": "/Users/linnan/Documents/INTEL/Mirage/src/kv-trace/output/g2-one-block/trace.jsonl",
+   "trace_format": "mooncake",
+   "trace_block_size": 4,
+   "arrival_speedup_ratio": 1.0
+  }
+ },
+ "artifacts": {
+  "host_offload_events": [
+   {
+    "event": {
+     "block_hashes": [
+      13277122834585657784,
+      960476856703368838
+     ],
+     "event": "capacity_retry",
+     "structurally_unfittable": true
+    },
+    "observed_at_ms": 0.0,
+    "request_id": "241713f8-daf6-4ed6-b3fc-31d03743c2b5"
+   },
+   {
+    "event": {
+     "block_hashes": [
+      10466838398433822537,
+      5602623809000486909
+     ],
+     "event": "capacity_retry",
+     "structurally_unfittable": true
+    },
+    "observed_at_ms": 100.0,
+    "request_id": "9c794427-5297-4a88-a2ca-370c32bde870"
+   },
+   {
+    "event": {
+     "block_hashes": [
+      13277122834585657784,
+      960476856703368838,
+      5153450406985963715
+     ],
+     "event": "capacity_retry",
+     "structurally_unfittable": true
+    },
+    "observed_at_ms": 200.0,
+    "request_id": "d7d59004-14ac-4242-a942-5a744d4ba4ec"
+   },
+   {
+    "event": {
+     "block_hashes": [
+      16259602842512645169,
+      10765845331948163925
+     ],
+     "event": "capacity_retry",
+     "structurally_unfittable": true
+    },
+    "observed_at_ms": 300.0,
+    "request_id": "69f01f05-5610-44ed-b416-775f49939c3c"
+   }
+  ],
+  "kv_events": [
+   {
+    "event": {
+     "data": {
+      "stored": {
+       "blocks": [
+        {
+         "block_hash": 13277122834585657784,
+         "tokens_hash": 13277122834585657784
+        },
+        {
+         "block_hash": 960476856703368838,
+         "tokens_hash": 17197628134376687251
+        }
+       ],
+       "parent_hash": null
+      }
+     },
+     "dp_rank": 0,
+     "event_id": 0
+    },
+    "observed_at_ms": 2.0
+   },
+   {
+    "event": {
+     "data": {
+      "removed": {
+       "block_hashes": [
+        960476856703368838,
+        13277122834585657784
+       ]
+      }
+     },
+     "dp_rank": 0,
+     "event_id": 1
+    },
+    "observed_at_ms": 102.0
+   },
+   {
+    "event": {
+     "data": {
+      "stored": {
+       "blocks": [
+        {
+         "block_hash": 10466838398433822537,
+         "tokens_hash": 10466838398433822537
+        },
+        {
+         "block_hash": 5602623809000486909,
+         "tokens_hash": 8670223715867996924
+        }
+       ],
+       "parent_hash": null
+      }
+     },
+     "dp_rank": 0,
+     "event_id": 2
+    },
+    "observed_at_ms": 102.0
+   },
+   {
+    "event": {
+     "data": {
+      "removed": {
+       "block_hashes": [
+        5602623809000486909,
+        10466838398433822537
+       ]
+      }
+     },
+     "dp_rank": 0,
+     "event_id": 3
+    },
+    "observed_at_ms": 202.0
+   },
+   {
+    "event": {
+     "data": {
+      "stored": {
+       "blocks": [
+        {
+         "block_hash": 13277122834585657784,
+         "tokens_hash": 13277122834585657784
+        },
+        {
+         "block_hash": 960476856703368838,
+         "tokens_hash": 17197628134376687251
+        },
+        {
+         "block_hash": 5153450406985963715,
+         "tokens_hash": 2369005331082339589
+        }
+       ],
+       "parent_hash": null
+      }
+     },
+     "dp_rank": 0,
+     "event_id": 4
+    },
+    "observed_at_ms": 202.0
+   },
+   {
+    "event": {
+     "data": {
+      "removed": {
+       "block_hashes": [
+        5153450406985963715,
+        960476856703368838,
+        13277122834585657784
+       ]
+      }
+     },
+     "dp_rank": 0,
+     "event_id": 5
+    },
+    "observed_at_ms": 302.0
+   },
+   {
+    "event": {
+     "data": {
+      "stored": {
+       "blocks": [
+        {
+         "block_hash": 16259602842512645169,
+         "tokens_hash": 16259602842512645169
+        },
+        {
+         "block_hash": 10765845331948163925,
+         "tokens_hash": 17888539650753635517
+        }
+       ],
+       "parent_hash": null
+      }
+     },
+     "dp_rank": 0,
+     "event_id": 6
+    },
+    "observed_at_ms": 302.0
+   }
+  ],
+  "outputs": [
+   {
+    "cached_tokens": 0,
+    "completed": true,
+    "observed_at_ms": 2.0,
+    "rejected": false,
+    "request_id": "241713f8-daf6-4ed6-b3fc-31d03743c2b5",
+    "token_id": 952584220
+   },
+   {
+    "cached_tokens": 0,
+    "completed": true,
+    "observed_at_ms": 102.0,
+    "rejected": false,
+    "request_id": "9c794427-5297-4a88-a2ca-370c32bde870",
+    "token_id": 694593853
+   },
+   {
+    "cached_tokens": 0,
+    "completed": true,
+    "observed_at_ms": 202.0,
+    "rejected": false,
+    "request_id": "d7d59004-14ac-4242-a942-5a744d4ba4ec",
+    "token_id": 2967053780
+   },
+   {
+    "cached_tokens": 0,
+    "completed": true,
+    "observed_at_ms": 302.0,
+    "rejected": false,
+    "request_id": "69f01f05-5610-44ed-b416-775f49939c3c",
+    "token_id": 2932165014
+   }
+  ],
+  "requests": [
+   {
+    "input_length": 9,
+    "observed_at_ms": 0.0,
+    "output_length": 1,
+    "replay_hashes": {
+     "local_block_hashes": [
+      13277122834585657784,
+      17197628134376687251
+     ],
+     "sequence_hashes": [
+      13277122834585657784,
+      960476856703368838
+     ]
+    },
+    "request_id": "241713f8-daf6-4ed6-b3fc-31d03743c2b5",
+    "scheduled_ready_at_ms": 0.0
+   },
+   {
+    "input_length": 9,
+    "observed_at_ms": 100.0,
+    "output_length": 1,
+    "replay_hashes": {
+     "local_block_hashes": [
+      10466838398433822537,
+      8670223715867996924
+     ],
+     "sequence_hashes": [
+      10466838398433822537,
+      5602623809000486909
+     ]
+    },
+    "request_id": "9c794427-5297-4a88-a2ca-370c32bde870",
+    "scheduled_ready_at_ms": 100.0
+   },
+   {
+    "input_length": 12,
+    "observed_at_ms": 200.0,
+    "output_length": 1,
+    "replay_hashes": {
+     "local_block_hashes": [
+      13277122834585657784,
+      17197628134376687251,
+      2369005331082339589
+     ],
+     "sequence_hashes": [
+      13277122834585657784,
+      960476856703368838,
+      5153450406985963715
+     ]
+    },
+    "request_id": "d7d59004-14ac-4242-a942-5a744d4ba4ec",
+    "scheduled_ready_at_ms": 200.0
+   },
+   {
+    "input_length": 9,
+    "observed_at_ms": 300.0,
+    "output_length": 1,
+    "replay_hashes": {
+     "local_block_hashes": [
+      16259602842512645169,
+      17888539650753635517
+     ],
+     "sequence_hashes": [
+      16259602842512645169,
+      10765845331948163925
+     ]
+    },
+    "request_id": "69f01f05-5610-44ed-b416-775f49939c3c",
+    "scheduled_ready_at_ms": 300.0
+   }
+  ]
+ }
+}

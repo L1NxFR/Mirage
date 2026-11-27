@@ -1,0 +1,23 @@
+INVALID prediction (no_completed_requests): No requests completed; serving latency and throughput are unavailable. Check KV capacity against request lengths, context limits, and traffic stop limits.
+NVIDIA AIPerf | LLM Metrics
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━┳━━━━━┳━━━━━┳━━━━━┳━━━━━┳━━━━━┓
+┃ Metric                                             ┃                                                   avg ┃ min ┃ max ┃ p99 ┃ p90 ┃ p75 ┃ std ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━╇━━━━━╇━━━━━╇━━━━━╇━━━━━╇━━━━━┩
+┃ Time to First Token (ms)                           ┃                                                   N/A ┃ N/A ┃ N/A ┃ N/A ┃ N/A ┃ N/A ┃ N/A ┃
+┃ Time to Second Token (ms)                          ┃                                                   N/A ┃ N/A ┃ N/A ┃ N/A ┃ N/A ┃ N/A ┃ N/A ┃
+┃ Request Latency (ms)                               ┃                                                   N/A ┃ N/A ┃ N/A ┃ N/A ┃ N/A ┃ N/A ┃ N/A ┃
+┃ Inter Token Latency (ms)                           ┃                                                   N/A ┃ N/A ┃ N/A ┃ N/A ┃ N/A ┃ N/A ┃ N/A ┃
+┃ Output Token Throughput Per User (tokens/sec/user) ┃                                                   N/A ┃ N/A ┃ N/A ┃ N/A ┃ N/A ┃ N/A ┃ N/A ┃
+┃ Output Token Throughput (tokens/sec)               ┃                                                   N/A ┃ N/A ┃ N/A ┃ N/A ┃ N/A ┃ N/A ┃ N/A ┃
+┃ Request Throughput (requests/sec)                  ┃                                                   N/A ┃ N/A ┃ N/A ┃ N/A ┃ N/A ┃ N/A ┃ N/A ┃
+┃ Request Count (requests)                           ┃                                                  0.00 ┃ N/A ┃ N/A ┃ N/A ┃ N/A ┃ N/A ┃ N/A ┃
+┃ Active Power per GPU (W) [power_w]                 ┃ unavailable (energy provider or topology unsupported) ┃ N/A ┃ N/A ┃ N/A ┃ N/A ┃ N/A ┃ N/A ┃
+┃ Power Data Coverage (%) [power_coverage]           ┃ unavailable (energy provider or topology unsupported) ┃ N/A ┃ N/A ┃ N/A ┃ N/A ┃ N/A ┃ N/A ┃
+└━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┴━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┴━━━━━┴━━━━━┴━━━━━┴━━━━━┴━━━━━┴━━━━━┘
+Wall Time (ms): 0.16
+Prefix Cache Reused Ratio: 0.00
+First Admission Prefix Cache Reused Ratio: 0.00
+Timing (aggregated): estimator=fixed; source=configured; data_version=unavailable (configured timing does not use performance data)
+Saved full report to: /Users/linnan/Documents/INTEL/Mirage/src/kv-trace/output/prompt-exceeds-g1/aisim/prediction.json
+ERROR: No requests completed; serving latency and throughput are unavailable. Check KV capacity against request lengths, context limits, and traffic stop limits. Saved full report to: /Users/linnan/Documents/INTEL/Mirage/src/kv-trace/output/prompt-exceeds-g1/aisim/prediction.json
+aisim: execution process exited with status 1

@@ -1,0 +1,101 @@
+{
+ "execution_spec": {
+  "spec": {
+   "version": 1,
+   "topology": {
+    "kind": "aggregated",
+    "workers": {
+     "initial_workers": 1,
+     "startup_delay_ms": 0.0
+    }
+   },
+   "engine": {
+    "dp_size": 1,
+    "tensor_parallel_size": 1,
+    "prefill_context_parallel_size": 1,
+    "num_gpu_blocks_is_explicit": true,
+    "rank": {
+     "max_num_batched_tokens": 16,
+     "max_num_seqs": 1,
+     "prefill_schedule_interval": 1,
+     "prefill_decode_interval": 0,
+     "block_size": 4,
+     "enable_prefix_caching": true,
+     "max_model_len": 2048,
+     "num_gpu_blocks": 2,
+     "timing_model": {
+      "type": "fixed",
+      "prefill_ms": 2.0,
+      "decode_ms": 1.0
+     },
+     "kv_cache_bytes_per_token": 250000,
+     "native_host_offload": {
+      "num_host_blocks": 8,
+      "d2h_bandwidth_gbps": 1.0,
+      "h2d_bandwidth_gbps": 1.0
+     },
+     "backend": "vllm"
+    }
+   },
+   "adapters": {
+    "placement": {
+     "provider": "round_robin",
+     "config": null
+    },
+    "scaling": {
+     "provider": "none",
+     "config": null
+    }
+   },
+   "max_sim_time_ms": null,
+   "max_in_flight": null,
+   "record_per_request": true,
+   "sla": {},
+   "requests": []
+  },
+  "traffic": {
+   "source_type": "trace",
+   "load_type": "trace_timestamps",
+   "trace_paths": [
+    "/Users/linnan/Documents/INTEL/Mirage/src/kv-trace/output/prompt-exceeds-g1/trace.jsonl"
+   ],
+   "trace_path": "/Users/linnan/Documents/INTEL/Mirage/src/kv-trace/output/prompt-exceeds-g1/trace.jsonl",
+   "trace_format": "mooncake",
+   "trace_block_size": 4,
+   "arrival_speedup_ratio": 1.0
+  }
+ },
+ "artifacts": {
+  "host_offload_events": [],
+  "kv_events": [],
+  "outputs": [
+   {
+    "cached_tokens": null,
+    "completed": true,
+    "observed_at_ms": 0.0,
+    "rejected": true,
+    "request_id": "09523789-4464-4336-b13c-749e490fee2c",
+    "token_id": null
+   }
+  ],
+  "requests": [
+   {
+    "input_length": 9,
+    "observed_at_ms": 0.0,
+    "output_length": 1,
+    "replay_hashes": {
+     "local_block_hashes": [
+      13277122834585657784,
+      17197628134376687251
+     ],
+     "sequence_hashes": [
+      13277122834585657784,
+      960476856703368838
+     ]
+    },
+    "request_id": "09523789-4464-4336-b13c-749e490fee2c",
+    "scheduled_ready_at_ms": 0.0
+   }
+  ]
+ }
+}

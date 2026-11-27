@@ -1,0 +1,56 @@
+{
+ "traffic": {
+  "source": {
+   "type": "trace",
+   "format": "mooncake",
+   "block_size": 4,
+   "paths": [
+    "/Users/linnan/Documents/INTEL/Mirage/src/kv-trace/output/prompt-exceeds-g1/trace.jsonl"
+   ]
+  },
+  "load": {
+   "type": "trace_timestamps"
+  }
+ },
+ "engine": {
+  "mode": "aggregated",
+  "model": "/Users/linnan/Documents/INTEL/Mirage/src/aisim/tests/e2e/configs/unified_cli/fixtures/tiny-model",
+  "hardware": "h200_sxm",
+  "backend": "vllm",
+  "context_length": 2048,
+  "workers": {
+   "aggregated": {
+    "parallelism": {
+     "replicas": 1,
+     "tensor": 1,
+     "attention_data": 1
+    },
+    "scheduler": {
+     "max_batched_tokens": 16,
+     "max_sequences": 1
+    },
+    "kv_cache": {
+     "block_size": 4,
+     "prefix_caching": true,
+     "bytes_per_token": 250000,
+     "capacity": {
+      "type": "fixed",
+      "blocks": 2
+     },
+     "host_offload": {
+      "scope": "dp_rank_local",
+      "num_host_blocks": 8,
+      "d2h_bandwidth_gbps": 1,
+      "h2d_bandwidth_gbps": 1,
+      "latency_to_first_byte_ms": 0
+     }
+    },
+    "timing": {
+     "type": "fixed",
+     "prefill_ms": 2,
+     "decode_ms": 1
+    }
+   }
+  }
+ }
+}
