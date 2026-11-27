@@ -27,7 +27,7 @@ sys.path.insert(0, str(HERE))
 
 from render import write_page  # noqa: E402
 
-# EXI-3DDRAM figure configuration (two_tier.py defaults): 36 GB tier 1, 128 GB LPDDR6 at 2.2 TB/s,
+# EXI-3DDRAM defaults: 36 GB tier 1, 128 GB LPDDR6 at 2.2 TB/s,
 # ideal copies, no per-transfer overhead. Its 36 GB cannot hold the 32 GB of non-expert weights next to
 # scratch, so they rotate layer by layer; 128 GB cannot hold the 805.7 GB model, so every run is an
 # explicit counterfactual. Sources per field: src/two-tier-dram/two_tier_dram/config.py (exi_figure).

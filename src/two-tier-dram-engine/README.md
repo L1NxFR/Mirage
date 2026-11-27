@@ -204,3 +204,27 @@ Flash 单卡（148.5 GB）和 Pro 8 卡（每卡 128.7 GB）在 B200 上直接�
 - 两级的 p50 TTFT 不早于原生。
 
 结果写入 `output/trace/<hardware>-<trace>-<start>-<duration>[-x<speedup>]/summary.json`，其中记录硬件预设、倍速、窗口的行号范围、trace 的 SHA-256 和 AISim 提交。
+
+## 幻灯片曲线复现
+
+```sh
+python3 src/two-tier-dram-engine/curves.py                       # 全部 32 个点，约 1 分钟
+python3 src/two-tier-dram-engine/curves.py --figure bw-256k       # 只跑一组
+python3 src/two-tier-dram-engine/curves.py --expert-overlap 0.9 --out src/two-tier-dram-engine/output/curves-overlap0.9
+```
+
+`curves.py` 对 [`targets/exi-slides.csv`](targets/exi-slides.csv) 的每个点（从 EXI 幻灯片读出的 TPOT 曲线）运行一次引擎：
+- **负载**：DeepSeek-V4-Pro 单卡，8 个请求同时到达，输入为该点的上下文，各输出 16 token。
+- **TPOT**：8 个请求都在 decode 的 pass 的时长中位数，去掉前 2 个；理想 TPOT 是 AISim 对同一批 pass 的原生定价。
+- **硬件**：一级 10 TB/s（`../two-tier-dram/systems/exi_hbm10.yaml`），容量取该点的值；二级按设计容量表取权重加全部 KV，开启强制检查；链路理想（效率 1、开销 0）。
+- **专家**：`layer_partition`，合成路由，`--expert-overlap` 改跨步重合度。
+
+脚本打印每个点模拟与幻灯片的理想、实得 TPOT，以及每步搬运量和专家命中率；结果写入 `output/curves/summary.json`。有点失败或二级不可行时退出 1。
+
+`curves_page.py` 把 `curves.py` 的结果画成一个可交互页面：TPOT 与 L1↔L2 带宽、TPOT 与一级容量两张图，每张图有“两级（含搬运等待）”和“仅一级（无搬运）”两条线，可切换上下文和路由重合度：
+
+```sh
+python3 src/two-tier-dram-engine/curves_page.py --out dashboard/site/content/Attachments/two-tier-dram-tpot-curves.html
+```
+
+默认读 `output/curves` 和 `output/curves-overlap0.9`。
