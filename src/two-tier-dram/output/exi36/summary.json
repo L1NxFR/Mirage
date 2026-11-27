@@ -1,0 +1,46 @@
+{
+ "requests": 1,
+ "retimed_requests": 1,
+ "per_request": [
+  {
+   "token_ms": [
+    18.536585,
+    15.737684,
+    15.467396,
+    15.227189,
+    15.587495,
+    15.467389,
+    15.587485,
+    15.422316,
+    15.332257,
+    15.662539,
+    15.662537,
+    15.497407,
+    15.857725,
+    15.48235,
+    15.302216,
+    15.377294
+   ],
+   "native_token_ms": 2.125426,
+   "steady": {
+    "reached": true,
+    "from_step": 11,
+    "window": 6,
+    "spread": 0.03577,
+    "token_ms": 15.529922,
+    "expert_hit_rate": 0.521403
+   },
+   "expert_hit_rate": 0.491974,
+   "kv_hit_rate": 0.708093,
+   "wait_experts_ms": 44.665763,
+   "wait_kv_ms": 0.033391,
+   "wait_base_ms": 172.501903,
+   "peak_tier1_bytes": 35982446587,
+   "link_utilization": 0.999458
+  }
+ ],
+ "feasible": false,
+ "compute_basis": [
+  "一致：AISim 按 exi_3ddram 规格（一级读带宽 18 TB/s）定价计算，与两级内存假设相同"
+ ]
+}

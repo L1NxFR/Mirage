@@ -1,0 +1,35 @@
+{
+ "requests": 1,
+ "retimed_requests": 1,
+ "per_request": [
+  {
+   "token_ms": [
+    385.477123,
+    202.595547,
+    184.014651,
+    167.470027,
+    192.271835,
+    184.014427,
+    191.219299,
+    180.906739
+   ],
+   "native_token_ms": 6.539091,
+   "steady": {
+    "reached": false,
+    "reason": "不足 6 个已过填充阶段的 step",
+    "window": 6
+   },
+   "expert_hit_rate": 0.461407,
+   "kv_hit_rate": 0.659151,
+   "wait_experts_ms": 1632.586784,
+   "wait_kv_ms": 3.070136,
+   "wait_base_ms": 0.0,
+   "peak_tier1_bytes": 95995914964,
+   "link_utilization": 0.96905
+  }
+ ],
+ "feasible": true,
+ "compute_basis": [
+  "一致：AISim 按 b200_sxm 规格（一级读带宽 7.7 TB/s）定价计算，与两级内存假设相同"
+ ]
+}

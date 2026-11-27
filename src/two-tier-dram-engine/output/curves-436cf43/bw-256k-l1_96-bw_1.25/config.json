@@ -1,0 +1,76 @@
+{
+ "execution": {
+  "resources": {
+   "initialization_timeout_seconds": 300
+  }
+ },
+ "traffic": {
+  "source": {
+   "type": "trace",
+   "format": "mooncake",
+   "block_size": 512,
+   "paths": [
+    "/home/lindeyi/Mirage/src/two-tier-dram-engine/output/curves/bw-256k-l1_96-bw_1.25/requests.mooncake.jsonl"
+   ]
+  },
+  "load": {
+   "type": "trace_timestamps"
+  }
+ },
+ "engine": {
+  "mode": "aggregated",
+  "model": "deepseek-ai/DeepSeek-V4-Pro",
+  "hardware": "exi_hbm10",
+  "backend": "vllm",
+  "backend_version": "0.30.0",
+  "context_length": 262224,
+  "ais_perf_model": {
+   "estimation_mode": "op_level",
+   "database_mode": "SOL",
+   "systems_paths": [
+    "/home/lindeyi/Mirage/src/two-tier-dram/systems",
+    "default"
+   ]
+  },
+  "workers": {
+   "aggregated": {
+    "parallelism": {
+     "replicas": 1,
+     "tensor": 1,
+     "attention_data": 1
+    },
+    "scheduler": {
+     "max_batched_tokens": 262144,
+     "max_sequences": 8
+    },
+    "kv_cache": {
+     "block_size": 64,
+     "bytes_per_token": 4444,
+     "prefix_caching": false,
+     "capacity": {
+      "type": "fixed",
+      "bytes": 9414961544
+     },
+     "two_tier_dram": {
+      "tier1_gb": 96.0,
+      "tier2_gb": 815.1,
+      "tier2_bandwidth_gbps": 1250.0,
+      "copy_efficiency": 1.0,
+      "link_overhead_ms": 0.0,
+      "base_weights": "resident",
+      "tier2_capacity_check": "enforce",
+      "expert_overlap": 0.5,
+      "topk_overlap": 0.75,
+      "hot_kv_entries": 65536,
+      "expert_prefetch": "none",
+      "link_policy": "demand_first",
+      "seed": 0,
+      "trace_passes": 0,
+      "expert_policy": "layer_partition",
+      "trace_path": "/home/lindeyi/Mirage/src/two-tier-dram-engine/output/curves/bw-256k-l1_96-bw_1.25/two-tier.jsonl"
+     }
+    }
+   }
+  }
+ }
+}

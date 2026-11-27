@@ -1,0 +1,51 @@
+{
+ "execution": {
+  "resources": {
+   "initialization_timeout_seconds": 300
+  }
+ },
+ "traffic": {
+  "source": {
+   "type": "trace",
+   "format": "mooncake",
+   "block_size": 512,
+   "paths": [
+    "/home/lindeyi/Mirage/src/two-tier-dram-engine/output/trace/gb200-conversation-0-120-x0.25/window.mooncake.jsonl"
+   ]
+  },
+  "load": {
+   "type": "trace_timestamps",
+   "speedup": 0.25
+  }
+ },
+ "engine": {
+  "mode": "aggregated",
+  "model": "deepseek-ai/DeepSeek-V4-Pro",
+  "backend": "vllm",
+  "context_length": 131072,
+  "hardware": "gb200",
+  "backend_version": "0.24.0",
+  "ais_perf_model": {
+   "database_mode": "SILICON"
+  },
+  "workers": {
+   "aggregated": {
+    "parallelism": {
+     "replicas": 1,
+     "tensor": 1,
+     "attention_data": 4,
+     "moe_expert": 4
+    },
+    "kv_cache": {
+     "prefix_caching": true,
+     "block_size": 64,
+     "bytes_per_token": 4444,
+     "capacity": {
+      "type": "fixed",
+      "bytes": 14588531336
+     }
+    }
+   }
+  }
+ }
+}
