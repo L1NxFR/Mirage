@@ -2347,5 +2347,17 @@
   ],
   "dashboard/site/content/Attachments/two-tier-dram-sweep.html": [
     "Claude"
+  ],
+  "src/two-tier-dram-engine/trace.py": [
+    "Claude"
+  ],
+  "src/two-tier-dram-engine/README.md": [
+    "Claude"
+  ],
+  "src/two-tier-dram-engine/.gitignore": [
+    "Claude"
+  ],
+  "src/two-tier-dram-engine/traces/mooncake-fast25/README.md": [
+    "Claude"
   ]
 }
