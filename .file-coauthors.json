@@ -2359,5 +2359,67 @@
   ],
   "src/two-tier-dram-engine/traces/mooncake-fast25/README.md": [
     "Claude"
+  ],
+  "src/two-tier-dram-engine/targets/exi-slides.csv": [
+    "Claude"
+  ],
+  "src/two-tier-dram-engine/curves.py": [
+    "Claude",
+    "Codex"
+  ],
+  "src/two-tier-dram/systems/exi_hbm10.yaml": [
+    "Claude",
+    "Codex"
+  ],
+  "src/two-tier-dram-engine/curves_page.py": [
+    "Claude"
+  ],
+  "dashboard/site/content/Attachments/two-tier-dram-tpot-curves.html": [
+    "Claude"
+  ],
+  "src/aisim/crates/core/src/replay/agg_tests.rs": [
+    "Codex"
+  ],
+  "src/aisim/python/aisim/collector/fpm_forward/runner.py": [
+    "Codex"
+  ],
+  "src/aisim/python/aisim/collector/sglang/collect_mhc_module.py": [
+    "Codex"
+  ],
+  "src/aisim/python/aisim/src/aisim/config/epd.py": [
+    "Codex"
+  ],
+  "src/aisim/python/aisim/src/aisim/generator/builders/k8s_builder.py": [
+    "Codex"
+  ],
+  "src/aisim/python/aisim/src/aisim/generator/rendering/engine.py": [
+    "Codex"
+  ],
+  "src/aisim/python/aisim/src/aisim/sdk/task_v2.py": [
+    "Codex"
+  ],
+  "src/aisim/python/aisim/src/aisim_core/sdk/errors.py": [
+    "Codex"
+  ],
+  "src/aisim/python/aisim/tests/unit/sdk/database/test_reuse_ordering.py": [
+    "Codex"
+  ],
+  "src/aisim/python/aisim/tests/unit/sdk/task_v2/test_task_config.py": [
+    "Codex"
+  ],
+  "src/aisim/python/aisim/src/aisim/config/two_tier.py": [
+    "Codex"
+  ],
+  "src/two-tier-dram/two_tier_dram/config.py": [
+    "Codex"
+  ],
+  "src/two-tier-dram/scenarios.py": [
+    "Codex"
+  ],
+  "src/two-tier-dram-engine/scenarios.py": [
+    "Codex"
+  ],
+  "src/two-tier-dram/systems/exi_3ddram.yaml": [
+    "Codex"
   ]
 }
