@@ -5,9 +5,8 @@ Hardware quantities are written with explicit units ("36 GB", "2.2 TB/s",
 Decimal and binary prefixes are kept apart (GB = 1e9 bytes, GiB = 2**30
 bytes) and bits are kept apart from bytes (Gb/s = 1e9 bits/s = 1.25e8 B/s).
 
-Every hardware field records where its value came from, so a result can say
-which numbers are from the EXI-3DDRAM figure, which are asks, which are from
-the design note, and which are assumptions.
+Hardware fields retain source labels alongside parsed values. Scenario
+overrides update the value and its label together.
 """
 
 from __future__ import annotations

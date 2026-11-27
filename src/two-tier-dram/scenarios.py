@@ -39,7 +39,7 @@ COMPUTE = {
 BASIS_LABEL = {"exi_sol": "EXI-SOL（AISim 解析 roofline，未校准）", "b200": "B200 计算基线 + 假设两级内存（混合实验）"}
 
 # Policies per tier-1 configuration. 36 GB cannot hold the 32 GB of non-expert weights next to scratch,
-# so the figure configuration has to rotate them layer by layer; 96 GB keeps them resident.
+# so the 36 GB configuration rotates them layer by layer; 96 GB keeps them resident.
 CAP36 = {"hardware": "exi_figure", "base_weights": "layer_rotation", "tier2_capacity_check": "counterfactual"}
 CAP96 = {"hardware": "exi_96gb_explore", "base_weights": "resident", "tier2_capacity_check": "counterfactual"}
 LEGACY = {"hardware": "legacy_64gbps", "base_weights": "resident"}
