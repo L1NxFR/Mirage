@@ -154,3 +154,53 @@ python3 src/two-tier-dram-engine/ep.py
 - 1.1 TB/s × 0.8 比 2.2 TB/s 慢。
 
 结果写入 `output/ep/summary.json`。
+
+## 真实请求 trace 与真实硬件预设
+
+```sh
+python3 src/two-tier-dram-engine/trace.py                                   # GB200，conversation trace 的前 300 秒
+python3 src/two-tier-dram-engine/trace.py --trace toolagent --duration-s 120 --speedup 0.25
+python3 src/two-tier-dram-engine/trace.py --hardware exi --duration-s 120   # EXI 设计输入
+python3 src/two-tier-dram-engine/trace.py --duration-s 15 --out /tmp/trace-smoke   # 冒烟测试，约 3 分钟
+```
+
+`trace.py` 用公开的 Mooncake FAST'25 请求 trace 驱动两级模型。trace 的来源、校验值和取得方法见 [`traces/mooncake-fast25/README.md`](traces/mooncake-fast25/README.md)；数据文件不入库。
+
+### 负载
+
+- 脚本从 trace 里截取 `[start-s, start-s + duration-s)` 的请求，只把第一个时间戳移到 0。输入输出长度和前缀块都不改。
+- `--speedup X` 让请求以 X 倍速到达（AISim `trace_timestamps` 的 `speedup`）。默认 1，即 trace 原始到达率。小于 1 用来把负载降到部署能承受的水平，这样的结果必须标注为缩放过到达时间。
+- 调度器的 `max_batched_tokens` 和 `max_sequences` 用 AISim 的 vLLM 默认值；前缀缓存开启。
+- KV 容量取二级扣除权重后的剩余空间，按引擎 profile 的每 token KV 字节数折算（Flash 3,104 B，Pro 4,444 B）。调度器按这个容量接纳请求。
+
+### 硬件预设
+
+`--hardware gb200`（默认）是一个 NVIDIA GB200 计算托盘：4 颗 B200 加 2 颗 Grace。计算由 AISim 自带的 `gb200` 系统文件和实测（SILICON）性能数据库定价，后端 vLLM 0.24.0。
+
+| 两级参数 | 取值 | 出处 |
+| --- | --- | --- |
+| 一级容量 | 198.67 GB | `gb200.yaml` 的 `mem_capacity`（nvidia-smi 报告 189,471 MiB） |
+| scratch | 4.17 GB | `gb200.yaml` 的 `other_mem` 加 4 卡的 `nccl_mem` |
+| 二级容量 | 240 GB／卡 | 每颗 Grace 480 GB LPDDR5X，带两颗 B200 |
+| 复制带宽 | 225 GB/s × 0.75 | NVLink-C2C 双向 900 GB/s，两颗 B200 共享，每颗单向 225 GB/s（推算）；效率参照 Grace 调优指南的约 170 GB/s |
+| 每次传输开销 | 2 µs | PCIe 实测 1–3 µs；没有查到 C2C 的数字 |
+
+各项的来源链接见[硬件调研](../../dashboard/site/content/related-work/two-tier-dram-hardware-parameters.md)。
+
+GB200 上的配置是 `pro-ep4`：DeepSeek-V4-Pro 做 4 路专家并行，每卡 225.4 GB，超过 HBM，放得进每卡的 LPDDR5X 份额。非专家权重常驻一级。运行有 `native`、`lru`、`partition` 三种。`native` 假设权重全在 HBM 里，这个部署实际放不下，只作计算时间的参照。
+
+Flash 单卡（148.5 GB）和 Pro 8 卡（每卡 128.7 GB）在 B200 上直接放得进 HBM，不需要二级，所以没有列为 GB200 配置。H100 一类不支持这两个模型（AISim 支持矩阵为 `HW_INCOMPATIBLE`），所以没有 GH200 预设。
+
+`--hardware exi` 是 EXI-3DDRAM 设计输入：`exi_3ddram` 系统文件上的解析 roofline（SOL），链路取调研修正基线（1.1 TB/s × 0.8，2 µs），二级每卡 192 GB。配置为 `flash-1card` 和 `pro-ep8`，各有原生、一级 36 GB 逐层轮换与 96 GB 常驻配 `lru`／`layer_partition` 共 5 种运行。
+
+仍是合成的部分：专家路由和 top-k 选择（引擎内带种子的抽取，trace 里没有这些信息）。
+
+### 检查与输出
+
+写结果前会检查：
+- 每次运行都成功，窗口内的请求全部完成；
+- 所有两级运行二级可行；
+- 引擎报告的每卡权重与扣除 KV 容量时用的值相同；
+- 两级的 p50 TTFT 不早于原生。
+
+结果写入 `output/trace/<hardware>-<trace>-<start>-<duration>[-x<speedup>]/summary.json`，其中记录硬件预设、倍速、窗口的行号范围、trace 的 SHA-256 和 AISim 提交。
