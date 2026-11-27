@@ -1,0 +1,55 @@
+{
+ "traffic": {
+  "source": {
+   "type": "trace",
+   "format": "mooncake",
+   "block_size": 262144,
+   "paths": [
+    "/home/lindeyi/Mirage/src/two-tier-dram/output/oh96-10us/requests.mooncake.jsonl"
+   ]
+  },
+  "load": {
+   "type": "trace_timestamps"
+  }
+ },
+ "engine": {
+  "mode": "aggregated",
+  "model": "deepseek-ai/DeepSeek-V4-Pro",
+  "hardware": "exi_3ddram",
+  "backend": "vllm",
+  "context_length": 262144,
+  "ais_perf_model": {
+   "estimation_mode": "op_level",
+   "database_mode": "SOL",
+   "systems_paths": [
+    "/home/lindeyi/Mirage/src/two-tier-dram/systems",
+    "default"
+   ]
+  },
+  "workers": {
+   "aggregated": {
+    "parallelism": {
+     "replicas": 1,
+     "tensor": 1,
+     "attention_data": 1
+    },
+    "kv_cache": {
+     "capacity": {
+      "type": "fixed",
+      "blocks": 40000
+     }
+    }
+   }
+  },
+  "backend_version": "0.30.0"
+ },
+ "two_tier_dram": {
+  "hardware": "exi_96gb_explore",
+  "base_weights": "resident",
+  "tier2_capacity_check": "counterfactual",
+  "transfer_overhead": "10 us",
+  "max_decode_steps": 32,
+  "trace_dir": "/home/lindeyi/Mirage/src/two-tier-dram/output/oh96-10us",
+  "trace_detail": "summary"
+ }
+}

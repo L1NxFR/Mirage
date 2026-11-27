@@ -1,0 +1,5 @@
+two_tier_dram: 200000 context tokens, 32 steps: steady 7.622 ms from step 27; AISim native 2.125 ms; expert hits 0/11712, top-k KV hits 720435/983040
+two_tier_dram: 一致：AISim 按 exi_3ddram 规格（一级读带宽 18 TB/s）定价计算，与两级内存假设相同
+two_tier_dram: INFEASIBLE (counterfactual run): 二级 DRAM 放不下完整权重与 KV：需要 806.6 GB，二级只有 128.0 GB；单卡不可行（未实现多卡分片）
+aisim predict failed: ValueError: two_tier_dram: no request with a full trace (need trace_detail=full and 2+ tokens)
+aisim: execution process exited with status 1

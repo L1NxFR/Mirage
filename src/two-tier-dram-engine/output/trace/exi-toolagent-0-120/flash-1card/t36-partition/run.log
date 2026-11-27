@@ -1,0 +1,20 @@
+NVIDIA AIPerf | LLM Metrics
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━┓
+┃ Metric                                             ┃                                        avg ┃    min ┃        max ┃        p99 ┃        p90 ┃       p75 ┃       std ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━┩
+┃ Time to First Token (ms)                           ┃                                   6,527.24 ┃ 254.42 ┃  14,474.53 ┃  13,300.34 ┃  11,022.97 ┃  9,562.74 ┃  3,490.70 ┃
+┃ Time to Second Token (ms)                          ┃                                     224.79 ┃ 113.90 ┃     235.61 ┃     234.54 ┃     231.13 ┃    230.00 ┃     19.32 ┃
+┃ Request Latency (ms)                               ┃                                  42,467.19 ┃ 781.74 ┃ 173,427.81 ┃ 132,582.28 ┃ 102,447.27 ┃ 80,433.12 ┃ 40,543.62 ┃
+┃ Inter Token Latency (ms)                           ┃                                     204.56 ┃  48.18 ┃     244.45 ┃     239.17 ┃     233.22 ┃    230.71 ┃     35.17 ┃
+┃ Output Token Throughput Per User (tokens/sec/user) ┃                                       5.10 ┃   4.09 ┃      20.76 ┃       9.51 ┃       6.78 ┃      5.40 ┃      1.36 ┃
+┃ Output Token Throughput (tokens/sec)               ┃                                     637.95 ┃    N/A ┃        N/A ┃        N/A ┃        N/A ┃       N/A ┃       N/A ┃
+┃ Request Throughput (requests/sec)                  ┃                                       3.15 ┃    N/A ┃        N/A ┃        N/A ┃        N/A ┃       N/A ┃       N/A ┃
+┃ Request Count (requests)                           ┃                                     643.00 ┃    N/A ┃        N/A ┃        N/A ┃        N/A ┃       N/A ┃       N/A ┃
+┃ Active Power per GPU (W) [power_w]                 ┃ unavailable (insufficient energy coverage) ┃    N/A ┃        N/A ┃        N/A ┃        N/A ┃       N/A ┃       N/A ┃
+┃ Power Data Coverage (%) [power_coverage]           ┃                                       0.00 ┃    N/A ┃        N/A ┃        N/A ┃        N/A ┃       N/A ┃       N/A ┃
+└━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┴━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┴━━━━━━━━┴━━━━━━━━━━━━┴━━━━━━━━━━━━┴━━━━━━━━━━━━┴━━━━━━━━━━━┴━━━━━━━━━━━┘
+Wall Time (ms): 367,029.42
+Prefix Cache Reused Ratio: 0.35
+First Admission Prefix Cache Reused Ratio: 0.35
+Timing (aggregated): estimator=op_level; source=aic; data_version=0.30.0; database_mode=SOL
+Saved full report to: /home/lindeyi/Mirage/src/two-tier-dram-engine/output/trace/toolagent-0-120/flash-1card/t36-partition/aisim/prediction.json

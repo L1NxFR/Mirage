@@ -1,0 +1,70 @@
+{
+ "execution": {
+  "resources": {
+   "initialization_timeout_seconds": 300
+  }
+ },
+ "traffic": {
+  "source": {
+   "type": "trace",
+   "format": "mooncake",
+   "block_size": 512,
+   "paths": [
+    "/home/lindeyi/Mirage/src/two-tier-dram-engine/output/trace/gb200-conversation-0-120/window.mooncake.jsonl"
+   ]
+  },
+  "load": {
+   "type": "trace_timestamps",
+   "speedup": 1.0
+  }
+ },
+ "engine": {
+  "mode": "aggregated",
+  "model": "deepseek-ai/DeepSeek-V4-Pro",
+  "backend": "vllm",
+  "context_length": 131072,
+  "hardware": "gb200",
+  "backend_version": "0.24.0",
+  "ais_perf_model": {
+   "database_mode": "SILICON"
+  },
+  "workers": {
+   "aggregated": {
+    "parallelism": {
+     "replicas": 1,
+     "tensor": 1,
+     "attention_data": 4,
+     "moe_expert": 4
+    },
+    "kv_cache": {
+     "prefix_caching": true,
+     "block_size": 64,
+     "bytes_per_token": 4444,
+     "capacity": {
+      "type": "fixed",
+      "bytes": 14588531336
+     },
+     "two_tier_dram": {
+      "tier1_gb": 198.674743296,
+      "tier2_gb": 240.0,
+      "tier2_bandwidth_gbps": 225.0,
+      "copy_efficiency": 0.75,
+      "link_overhead_ms": 0.002,
+      "base_weights": "resident",
+      "tier2_capacity_check": "enforce",
+      "expert_overlap": 0.5,
+      "topk_overlap": 0.75,
+      "hot_kv_entries": 65536,
+      "expert_prefetch": "none",
+      "link_policy": "demand_first",
+      "seed": 0,
+      "trace_passes": 0,
+      "scratch_gb": 4.169138176,
+      "expert_policy": "layer_partition",
+      "trace_path": "/home/lindeyi/Mirage/src/two-tier-dram-engine/output/trace/gb200-conversation-0-120/pro-ep4/partition/two-tier.jsonl"
+     }
+    }
+   }
+  }
+ }
+}

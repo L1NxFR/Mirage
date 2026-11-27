@@ -1,0 +1,7 @@
+{
+ "requests": 1,
+ "retimed_requests": 1,
+ "errors": [
+  "一级 DRAM（36 GB）放不下一层的路由专家：scratch 与全局权重 7.7 GB、常驻 KV 0.12 GB、非专家权重（全部常驻）28.3 GB 之后，专家缓存只剩 0.00 GB，一层需要 0.20 GB"
+ ]
+}

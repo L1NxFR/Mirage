@@ -1,0 +1,129 @@
+{
+ "hardware": "gb200",
+ "speedup": 1.0,
+ "window": {
+  "trace": "conversation",
+  "sha256": "b8cbb061a85206d729d91cdc2981f43c9e0d99209dce588d3af5f7934408b9df",
+  "start_s": 0.0,
+  "duration_s": 120.0,
+  "path": "/home/lindeyi/Mirage/src/two-tier-dram-engine/output/trace/gb200-conversation-0-120/window.mooncake.jsonl",
+  "rows": [
+   0,
+   338
+  ],
+  "requests": 339,
+  "input_tokens": 4859841,
+  "output_tokens": 125373
+ },
+ "aisim": "436cf43",
+ "results": [
+  {
+   "setup": "pro-ep4",
+   "variant": "native",
+   "requests": 339,
+   "completed": 339,
+   "makespan_ms": 180183.54958,
+   "ttft_ms": {
+    "p50": 5507.397916999998,
+    "p90": 15376.310657000002,
+    "p99": 24468.555072000003
+   },
+   "e2e_ms": {
+    "p50": 76998.03069799993,
+    "p90": 132557.21655299998,
+    "p99": 152168.0037169999
+   },
+   "mean_itl_ms": 298.9395074747591,
+   "reused_input_tokens": 309248,
+   "input_tokens": 4859841
+  },
+  {
+   "setup": "pro-ep4",
+   "variant": "lru",
+   "requests": 339,
+   "completed": 339,
+   "makespan_ms": 791958.9117704072,
+   "ttft_ms": {
+    "p50": 67075.63178625228,
+    "p90": 155026.97844394253,
+    "p99": 183836.7934967308
+   },
+   "e2e_ms": {
+    "p50": 590017.3651508606,
+    "p90": 706615.7506919072,
+    "p99": 756554.1303475937
+   },
+   "mean_itl_ms": 1353.288606831514,
+   "reused_input_tokens": 309248,
+   "input_tokens": 4859841,
+   "tier2_feasible": true,
+   "card_weights_bytes": 225411468664.0,
+   "passes": 2128,
+   "native_ms": 165028.20596299894,
+   "two_tier_ms": 785451.6371541187,
+   "wait_ms": {
+    "wait_base_ms": 0.0,
+    "wait_kv_ms": 2544.3593611343335,
+    "wait_experts_ms": 618305.1672666138
+   },
+   "expert_hits": 972384,
+   "expert_lookups": 4130588,
+   "kv_hits": 25865745,
+   "kv_lookups": 816407580,
+   "link_gb": {
+    "demand_base": 0.0,
+    "demand_expert": 104315.932901376,
+    "demand_kv": 404.75741952,
+    "prefetch_base": 0.0,
+    "prefetch_expert": 0.0,
+    "prefill_kv": 4.923597824,
+    "writeback": 32.89377088000001
+   },
+   "peak_tier1_gb": 198.674732152
+  },
+  {
+   "setup": "pro-ep4",
+   "variant": "partition",
+   "requests": 339,
+   "completed": 339,
+   "makespan_ms": 290248.4291555831,
+   "ttft_ms": {
+    "p50": 9924.035365707794,
+    "p90": 35842.64469050974,
+    "p99": 40392.674752678635
+   },
+   "e2e_ms": {
+    "p50": 156790.27306984633,
+    "p90": 215531.2721498652,
+    "p99": 254539.81289411578
+   },
+   "mean_itl_ms": 467.23386850196067,
+   "reused_input_tokens": 309248,
+   "input_tokens": 4859841,
+   "tier2_feasible": true,
+   "card_weights_bytes": 225411468664.0,
+   "passes": 2132,
+   "native_ms": 165838.79486800014,
+   "two_tier_ms": 287352.6838868248,
+   "wait_ms": {
+    "wait_base_ms": 0.0,
+    "wait_kv_ms": 2542.07420549226,
+    "wait_experts_ms": 119384.40240387646
+   },
+   "expert_hits": 3554113,
+   "expert_lookups": 4163336,
+   "kv_hits": 26328778,
+   "kv_lookups": 816407580,
+   "link_gb": {
+    "demand_base": 0.0,
+    "demand_expert": 20122.723418112,
+    "demand_kv": 404.520346624,
+    "prefetch_base": 0.0,
+    "prefetch_expert": 0.0,
+    "prefill_kv": 4.418313216,
+    "writeback": 32.893770880000005
+   },
+   "peak_tier1_gb": 198.670291448
+  }
+ ]
+}

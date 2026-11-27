@@ -1,0 +1,129 @@
+{
+ "hardware": "gb200",
+ "speedup": 1.0,
+ "window": {
+  "trace": "toolagent",
+  "sha256": "48a2db1a13d3bc05e6330140c64f604ba366df20d3c9e128b5c35a01c1fa5f71",
+  "start_s": 0.0,
+  "duration_s": 120.0,
+  "path": "/home/lindeyi/Mirage/src/two-tier-dram-engine/output/trace/gb200-toolagent-0-120/window.mooncake.jsonl",
+  "rows": [
+   0,
+   642
+  ],
+  "requests": 643,
+  "input_tokens": 6355499,
+  "output_tokens": 130299
+ },
+ "aisim": "436cf43",
+ "results": [
+  {
+   "setup": "pro-ep4",
+   "variant": "native",
+   "requests": 643,
+   "completed": 643,
+   "makespan_ms": 176478.60918400038,
+   "ttft_ms": {
+    "p50": 5840.668551000024,
+    "p90": 15544.544632999998,
+    "p99": 27823.53699999999
+   },
+   "e2e_ms": {
+    "p50": 31362.960892000032,
+    "p90": 116765.59317800016,
+    "p99": 144969.68999300004
+   },
+   "mean_itl_ms": 496.46100493066496,
+   "reused_input_tokens": 1948736,
+   "input_tokens": 6355499
+  },
+  {
+   "setup": "pro-ep4",
+   "variant": "lru",
+   "requests": 643,
+   "completed": 643,
+   "makespan_ms": 788558.0183271469,
+   "ttft_ms": {
+    "p50": 62456.88432916114,
+    "p90": 143921.0898614028,
+    "p99": 185780.93432254338
+   },
+   "e2e_ms": {
+    "p50": 184837.12463771147,
+    "p90": 676678.5501628062,
+    "p99": 734426.7253088237
+   },
+   "mean_itl_ms": 1614.9349983185994,
+   "reused_input_tokens": 1948736,
+   "input_tokens": 6355499,
+   "tier2_feasible": true,
+   "card_weights_bytes": 225411468664.0,
+   "passes": 2135,
+   "native_ms": 165993.65424500027,
+   "two_tier_ms": 783782.8520798598,
+   "wait_ms": {
+    "wait_base_ms": 0.0,
+    "wait_kv_ms": 2781.3643772329224,
+    "wait_experts_ms": 615427.1912542542
+   },
+   "expert_hits": 965761,
+   "expert_lookups": 4109263,
+   "kv_hits": 6989385,
+   "kv_lookups": 872924700,
+   "link_gb": {
+    "demand_base": 0.0,
+    "demand_expert": 103830.323724288,
+    "demand_kv": 443.35888128,
+    "prefetch_base": 0.0,
+    "prefetch_expert": 0.0,
+    "prefill_kv": 13.14773248,
+    "writeback": 44.86636147199998
+   },
+   "peak_tier1_gb": 198.674732408
+  },
+  {
+   "setup": "pro-ep4",
+   "variant": "partition",
+   "requests": 643,
+   "completed": 643,
+   "makespan_ms": 292723.19838782965,
+   "ttft_ms": {
+    "p50": 10806.806493365802,
+    "p90": 32364.6903962933,
+    "p99": 40044.48912449891
+   },
+   "e2e_ms": {
+    "p50": 52082.017218638575,
+    "p90": 199845.25109416706,
+    "p99": 239572.17375331811
+   },
+   "mean_itl_ms": 694.5803791650968,
+   "reused_input_tokens": 1948736,
+   "input_tokens": 6355499,
+   "tier2_feasible": true,
+   "card_weights_bytes": 225411468664.0,
+   "passes": 2138,
+   "native_ms": 168085.50561800034,
+   "two_tier_ms": 290141.06826677086,
+   "wait_ms": {
+    "wait_base_ms": 0.0,
+    "wait_kv_ms": 2781.4643012018423,
+    "wait_experts_ms": 119679.60902566902
+   },
+   "expert_hits": 3550033,
+   "expert_lookups": 4160766,
+   "kv_hits": 6941682,
+   "kv_lookups": 872924700,
+   "link_gb": {
+    "demand_base": 0.0,
+    "demand_expert": 20172.598935552,
+    "demand_kv": 443.383305216,
+    "prefetch_base": 0.0,
+    "prefetch_expert": 0.0,
+    "prefill_kv": 13.09933312,
+    "writeback": 44.86636147199997
+   },
+   "peak_tier1_gb": 198.674260728
+  }
+ ]
+}

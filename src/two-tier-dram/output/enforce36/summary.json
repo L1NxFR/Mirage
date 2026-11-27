@@ -1,0 +1,7 @@
+{
+ "requests": 1,
+ "retimed_requests": 1,
+ "errors": [
+  "二级 DRAM 放不下完整权重与 KV：需要 806.6 GB，二级只有 128.0 GB；单卡不可行（未实现多卡分片）"
+ ]
+}

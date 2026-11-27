@@ -1,0 +1,23 @@
+two_tier_dram: 200000 context tokens, 16 steps: no steady state (最后 6 个 step 的波动 12.0% 超过 5%); mean 4.853 ms; AISim native 2.125 ms; expert hits 2951/5856, top-k KV hits 348042/491520
+two_tier_dram: 一致：AISim 按 exi_3ddram 规格（一级读带宽 18 TB/s）定价计算，与两级内存假设相同
+two_tier_dram: INFEASIBLE (counterfactual run): 二级 DRAM 放不下完整权重与 KV：需要 806.6 GB，二级只有 128.0 GB；单卡不可行（未实现多卡分片）
+NVIDIA AIPerf | LLM Metrics
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━┓
+┃ Metric                                             ┃                                        avg ┃       min ┃       max ┃       p99 ┃       p90 ┃       p75 ┃  std ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━┩
+┃ Time to First Token (ms)                           ┃                                  10,517.28 ┃ 10,517.28 ┃ 10,517.28 ┃ 10,517.28 ┃ 10,517.28 ┃ 10,517.28 ┃ 0.00 ┃
+┃ Time to Second Token (ms)                          ┃                                       2.13 ┃      2.13 ┃      2.13 ┃      2.13 ┃      2.13 ┃      2.13 ┃ 0.00 ┃
+┃ Request Latency (ms)                               ┃                                  10,551.28 ┃ 10,551.28 ┃ 10,551.28 ┃ 10,551.28 ┃ 10,551.28 ┃ 10,551.28 ┃ 0.00 ┃
+┃ Inter Token Latency (ms)                           ┃                                       2.13 ┃      2.13 ┃      2.13 ┃      2.13 ┃      2.13 ┃      2.13 ┃ 0.00 ┃
+┃ Output Token Throughput Per User (tokens/sec/user) ┃                                     470.49 ┃    470.49 ┃    470.49 ┃    470.49 ┃    470.49 ┃    470.49 ┃ 0.00 ┃
+┃ Output Token Throughput (tokens/sec)               ┃                                       1.61 ┃       N/A ┃       N/A ┃       N/A ┃       N/A ┃       N/A ┃  N/A ┃
+┃ Request Throughput (requests/sec)                  ┃                                       0.09 ┃       N/A ┃       N/A ┃       N/A ┃       N/A ┃       N/A ┃  N/A ┃
+┃ Request Count (requests)                           ┃                                       1.00 ┃       N/A ┃       N/A ┃       N/A ┃       N/A ┃       N/A ┃  N/A ┃
+┃ Active Power per GPU (W) [power_w]                 ┃ unavailable (insufficient energy coverage) ┃       N/A ┃       N/A ┃       N/A ┃       N/A ┃       N/A ┃  N/A ┃
+┃ Power Data Coverage (%) [power_coverage]           ┃                                       0.00 ┃       N/A ┃       N/A ┃       N/A ┃       N/A ┃       N/A ┃  N/A ┃
+└━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┴━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┴━━━━━━━━━━━┴━━━━━━━━━━━┴━━━━━━━━━━━┴━━━━━━━━━━━┴━━━━━━━━━━━┴━━━━━━┘
+Wall Time (ms): 1.27
+Prefix Cache Reused Ratio: 0.00
+First Admission Prefix Cache Reused Ratio: 0.00
+Timing (aggregated): estimator=op_level; source=aic; data_version=0.30.0; database_mode=SOL
+Saved full report to: /home/lindeyi/Mirage/src/two-tier-dram/output/exi96/aisim/prediction.json

@@ -1,0 +1,54 @@
+{
+ "execution": {
+  "resources": {
+   "initialization_timeout_seconds": 300
+  }
+ },
+ "traffic": {
+  "source": {
+   "type": "trace",
+   "format": "mooncake",
+   "block_size": 512,
+   "paths": [
+    "/home/lindeyi/Mirage/src/two-tier-dram-engine/output/trace/toolagent-0-120/window.mooncake.jsonl"
+   ]
+  },
+  "load": {
+   "type": "trace_timestamps"
+  }
+ },
+ "engine": {
+  "mode": "aggregated",
+  "model": "deepseek-ai/DeepSeek-V4-Flash",
+  "hardware": "exi_3ddram",
+  "backend": "vllm",
+  "backend_version": "0.30.0",
+  "context_length": 131072,
+  "ais_perf_model": {
+   "estimation_mode": "op_level",
+   "database_mode": "SOL",
+   "systems_paths": [
+    "/home/lindeyi/Mirage/src/two-tier-dram/systems",
+    "default"
+   ]
+  },
+  "workers": {
+   "aggregated": {
+    "parallelism": {
+     "replicas": 1,
+     "tensor": 1,
+     "attention_data": 1
+    },
+    "kv_cache": {
+     "prefix_caching": true,
+     "block_size": 64,
+     "bytes_per_token": 3104,
+     "capacity": {
+      "type": "fixed",
+      "bytes": 43513847992
+     }
+    }
+   }
+  }
+ }
+}
